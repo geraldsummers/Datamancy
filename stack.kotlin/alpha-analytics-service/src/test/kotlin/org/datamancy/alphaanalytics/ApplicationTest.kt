@@ -59,7 +59,8 @@ class ApplicationTest {
         val response = client.get("/api/v1/alpha/cross-sectional/default-config")
         assertEquals(HttpStatusCode.OK, response.status)
         val body = response.bodyAsText()
-        assertTrue(body.contains("\"barMinutes\": 60"), body)
+        assertTrue(body.contains("\"barMinutes\": 30"), body)
+        assertTrue(body.contains("\"lookbackHours\": 48"), body)
         assertTrue(body.contains("hyperliquid_mainnet"), body)
     }
 

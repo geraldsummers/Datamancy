@@ -6,10 +6,14 @@ import io.ktor.client.engine.cio.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
 import org.datamancy.pipeline.sources.HyperliquidCandle
 import org.datamancy.pipeline.sources.HyperliquidMarketData
 import java.time.Instant
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.roundToLong
 
@@ -29,6 +33,10 @@ internal const val DEFAULT_HYPERLIQUID_BACKFILL_MAX_BARS = 5_000
 internal const val MIN_HYPERLIQUID_BACKFILL_MAX_BARS = 2
 internal const val DEFAULT_HYPERLIQUID_BACKFILL_OVERLAP_BARS = 2
 internal const val DEFAULT_HYPERLIQUID_RECENT_REPAIR_LOOKBACK_HOURS = 2L
+internal const val DEFAULT_HYPERLIQUID_BACKFILL_REQUEST_SPACING_MS = 150L
+internal const val DEFAULT_HYPERLIQUID_BACKFILL_RETRY_BASE_DELAY_MS = 1_000L
+internal const val MAX_HYPERLIQUID_BACKFILL_RETRY_DELAY_MS = 12_000L
+internal const val DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS = 4
 
 internal fun resolveHyperliquidInfoUrl(explicitUrl: String?, mainnet: Boolean): String {
     val url = explicitUrl?.trim()
@@ -347,6 +355,8 @@ internal class HyperliquidCandleBackfillClient(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val client = HttpClient(CIO)
+    private val requestThrottle = Mutex()
+    private var nextRequestAllowedAtMs: Long = 0L
 
     suspend fun fetchRecentCandles(
         symbol: String,
@@ -397,33 +407,66 @@ internal class HyperliquidCandleBackfillClient(
             })
         }
 
-        val response = client.post(infoUrl) {
-            contentType(ContentType.Application.Json)
-            setBody(payload.toString())
-        }
-
-        val responseText = response.bodyAsText()
-        if (response.status.value !in 200..299) {
-            throw IllegalStateException(
-                "Hyperliquid candle backfill failed for ${window.symbol}/${window.interval}: " +
-                    "HTTP ${response.status.value} ${response.status.description} ${responseText.take(200)}"
-            )
-        }
-
-        return try {
-            json.parseToJsonElement(responseText).jsonArray
-                .mapNotNull { parseCandleSnapshot(it) }
-                .sortedBy { it.time }
-        } catch (e: Exception) {
-            continuityLogger.error(e) {
-                "Failed to parse candleSnapshot response for ${window.symbol}/${window.interval}"
+        repeat(DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS) { attempt ->
+            awaitBackfillRequestSlot()
+            val response = client.post(infoUrl) {
+                contentType(ContentType.Application.Json)
+                setBody(payload.toString())
             }
-            throw IllegalStateException(
-                "Hyperliquid candle backfill returned an unexpected payload for " +
-                    "${window.symbol}/${window.interval}: ${responseText.take(200)}",
-                e
-            )
+            val responseText = response.bodyAsText()
+            if (response.status.value in 200..299) {
+                return try {
+                    json.parseToJsonElement(responseText).jsonArray
+                        .mapNotNull { parseCandleSnapshot(it) }
+                        .sortedBy { it.time }
+                } catch (e: Exception) {
+                    continuityLogger.error(e) {
+                        "Failed to parse candleSnapshot response for ${window.symbol}/${window.interval}"
+                    }
+                    throw IllegalStateException(
+                        "Hyperliquid candle backfill returned an unexpected payload for " +
+                            "${window.symbol}/${window.interval}: ${responseText.take(200)}",
+                        e
+                    )
+                }
+            }
+
+            val retryable = response.status.value == 429 || response.status.value in 500..599
+            if (!retryable || attempt == DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS - 1) {
+                throw IllegalStateException(
+                    "Hyperliquid candle backfill failed for ${window.symbol}/${window.interval}: " +
+                        "HTTP ${response.status.value} ${response.status.description} ${responseText.take(200)}"
+                )
+            }
+
+            val retryDelayMs = backfillRetryDelayMs(window, attempt)
+            continuityLogger.warn {
+                "Retrying candle backfill for ${window.symbol}/${window.interval} after " +
+                    "HTTP ${response.status.value} in ${retryDelayMs}ms (attempt ${attempt + 1}/$DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS)"
+            }
+            delay(retryDelayMs)
         }
+
+        throw IllegalStateException("Hyperliquid candle backfill exhausted retries for ${window.symbol}/${window.interval}")
+    }
+
+    private suspend fun awaitBackfillRequestSlot() {
+        val delayMs = requestThrottle.withLock {
+            val nowMs = nowProvider().toEpochMilli()
+            val scheduledAtMs = maxOf(nowMs, nextRequestAllowedAtMs)
+            nextRequestAllowedAtMs = scheduledAtMs + DEFAULT_HYPERLIQUID_BACKFILL_REQUEST_SPACING_MS
+            scheduledAtMs - nowMs
+        }
+        if (delayMs > 0L) {
+            delay(delayMs)
+        }
+    }
+
+    private fun backfillRetryDelayMs(window: CandleBackfillWindow, attempt: Int): Long {
+        val baseDelay = (DEFAULT_HYPERLIQUID_BACKFILL_RETRY_BASE_DELAY_MS * (1L shl attempt))
+            .coerceAtMost(MAX_HYPERLIQUID_BACKFILL_RETRY_DELAY_MS)
+        val jitter = abs((window.symbol.hashCode() * 31) + (attempt * 17)).toLong() % 250L
+        return baseDelay + jitter
     }
 
     private fun parseCandleSnapshot(element: JsonElement): HyperliquidCandle? {

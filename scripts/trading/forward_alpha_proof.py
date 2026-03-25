@@ -894,4 +894,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(
+        "forward_alpha_proof.py is deprecated. Non-cross-sectional strategy proof paths are disabled; "
+        "use /api/v1/alpha/cross-sectional/run or /api/v1/alpha/cross-sectional/search/run instead."
+    )

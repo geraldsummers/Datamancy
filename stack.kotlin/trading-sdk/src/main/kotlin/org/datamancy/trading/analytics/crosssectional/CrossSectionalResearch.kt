@@ -45,9 +45,58 @@ fun envBoolean(name: String, default: Boolean): Boolean {
     return raw in setOf("1", "true", "yes", "on")
 }
 
+private const val CANONICAL_RESEARCH_FEATURE_BAR_SECONDS = 60L
+
 private fun crossSectionalPolicy() = ActiveTradingPolicy.current().research.crossSectional
 
 private fun crossSectionalSearchPolicy() = crossSectionalPolicy().search
+
+internal data class ResearchWindowBounds(
+    val startInclusive: Instant,
+    val endExclusive: Instant,
+    val bucketSeconds: Int
+)
+
+internal fun alignedResearchWindowBounds(
+    lookbackHours: Int,
+    barMinutes: Int,
+    lagMinutes: Long = crossSectionalPolicy().coverage.maxFinalizedLagMinutes,
+    now: Instant = Instant.now()
+): ResearchWindowBounds {
+    val normalizedBarMinutes = max(barMinutes, 1)
+    val bucketSeconds = normalizedBarMinutes * 60
+    val effectiveNow = now.minus(max(lagMinutes, 0L), ChronoUnit.MINUTES)
+    val endEpochSecond = (effectiveNow.epochSecond / bucketSeconds.toLong()) * bucketSeconds.toLong()
+    val endExclusive = Instant.ofEpochSecond(endEpochSecond)
+    return ResearchWindowBounds(
+        startInclusive = endExclusive.minus(max(lookbackHours, 1).toLong(), ChronoUnit.HOURS),
+        endExclusive = endExclusive,
+        bucketSeconds = bucketSeconds
+    )
+}
+
+internal fun barCloseLagSeconds(
+    bucketStartTime: Instant?,
+    referenceTime: Instant = Instant.now(),
+    bucketSeconds: Long = CANONICAL_RESEARCH_FEATURE_BAR_SECONDS
+): Long =
+    bucketStartTime
+        ?.plusSeconds(max(bucketSeconds, 1L))
+        ?.let { bucketClose ->
+            Duration.between(bucketClose, referenceTime).seconds.coerceAtLeast(0L)
+        }
+        ?: Long.MAX_VALUE
+
+internal fun barCloseLagMinutes(
+    bucketStartTime: Instant?,
+    referenceTime: Instant = Instant.now(),
+    bucketSeconds: Long = CANONICAL_RESEARCH_FEATURE_BAR_SECONDS
+): Long? =
+    bucketStartTime
+        ?.plusSeconds(max(bucketSeconds, 1L))
+        ?.let { bucketClose ->
+            Duration.between(bucketClose, referenceTime).toMinutes().coerceAtLeast(0L)
+        }
 
 fun clamp(value: Double, lower: Double, upper: Double): Double =
     max(lower, min(upper, value))
@@ -896,11 +945,13 @@ fun buildExchangePlans(catalog: List<ExchangeCatalogSnapshot>, config: ResearchC
 }
 
 fun selectResearchCandleSource(barMinutes: Int): CandleSource =
-    when {
-        barMinutes >= 60 && barMinutes % 60 == 0 -> CandleSource(intervalLabel = "1h", minutes = 60)
-        barMinutes >= 15 && barMinutes % 15 == 0 -> CandleSource(intervalLabel = "15m", minutes = 15)
-        barMinutes >= 5 && barMinutes % 5 == 0 -> CandleSource(intervalLabel = "5m", minutes = 5)
-        else -> CandleSource(intervalLabel = "1m", minutes = 1)
+    max(barMinutes, 1).let { minutes ->
+        val intervalLabel = if (minutes % 60 == 0) {
+            "${minutes / 60}h"
+        } else {
+            "${minutes}m"
+        }
+        CandleSource(intervalLabel = intervalLabel, minutes = minutes)
     }
 
 fun scaleRequiredSourceBars(minBars: Int, sourceMinutes: Int, targetBarMinutes: Int): Int {
@@ -908,6 +959,11 @@ fun scaleRequiredSourceBars(minBars: Int, sourceMinutes: Int, targetBarMinutes: 
     val normalizedTargetMinutes = max(targetBarMinutes, normalizedSourceMinutes)
     val coverageMinutes = minBars.toDouble() * normalizedTargetMinutes.toDouble()
     return max(1, ceil(coverageMinutes / normalizedSourceMinutes.toDouble()).toInt())
+}
+
+internal fun requiredResearchWindowBars(lookbackHours: Int, barMinutes: Int, minBars: Int): Int {
+    val lookbackBars = ceil((lookbackHours.toDouble() * 60.0) / max(barMinutes, 1).toDouble()).toInt()
+    return max(minBars, lookbackBars)
 }
 
 private data class TimedCacheEntry<T>(
@@ -990,7 +1046,8 @@ private fun queryDiscoveredSymbolLiquidityFromFeatures(
     val aliasSql = sqlList(aliases)
     val symbolSql = sqlList(symbols)
     val preferredAlias = aliases.firstOrNull().orEmpty()
-    val bucketSeconds = max(source.minutes, 1) * 60
+    val window = alignedResearchWindowBounds(lookbackHours = lookbackHours, barMinutes = source.minutes)
+    val bucketSeconds = window.bucketSeconds
     val sql = """
         WITH minute_rows AS (
             SELECT DISTINCT ON (symbol, time)
@@ -999,7 +1056,8 @@ private fun queryDiscoveredSymbolLiquidityFromFeatures(
                 COALESCE(volume, 0) AS volume
             FROM research_features_1m
             WHERE exchange IN ($aliasSql)
-              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+              AND time >= ?
+              AND time < ?
               AND symbol IN ($symbolSql)
               AND candle_observed
             ORDER BY
@@ -1036,6 +1094,8 @@ private fun queryDiscoveredSymbolLiquidityFromFeatures(
         buildList {
             pgConnection().use { conn ->
                 conn.prepareStatement(sql).use { stmt ->
+                    stmt.setTimestamp(1, Timestamp.from(window.startInclusive))
+                    stmt.setTimestamp(2, Timestamp.from(window.endExclusive))
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
                             add(
@@ -1080,7 +1140,8 @@ private fun discoverSymbolsByAggregateFromFeatures(
 
     val aliasSql = sqlList(aliases)
     val preferredAlias = aliases.firstOrNull().orEmpty()
-    val bucketSeconds = max(source.minutes, 1) * 60
+    val window = alignedResearchWindowBounds(lookbackHours = lookbackHours, barMinutes = source.minutes)
+    val bucketSeconds = window.bucketSeconds
     val sql = """
         WITH minute_rows AS (
             SELECT DISTINCT ON (symbol, time)
@@ -1089,7 +1150,8 @@ private fun discoverSymbolsByAggregateFromFeatures(
                 COALESCE(volume, 0) AS volume
             FROM research_features_1m
             WHERE exchange IN ($aliasSql)
-              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+              AND time >= ?
+              AND time < ?
               AND candle_observed
             ORDER BY
                 symbol,
@@ -1126,6 +1188,8 @@ private fun discoverSymbolsByAggregateFromFeatures(
         buildList {
             pgConnection().use { conn ->
                 conn.prepareStatement(sql).use { stmt ->
+                    stmt.setTimestamp(1, Timestamp.from(window.startInclusive))
+                    stmt.setTimestamp(2, Timestamp.from(window.endExclusive))
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
                             add(rs.getString("symbol"))
@@ -1228,6 +1292,11 @@ fun discoverSymbols(
     minBars: Int,
     barMinutes: Int
 ): List<String> {
+    val requiredBars = requiredResearchWindowBars(
+        lookbackHours = lookbackHours,
+        barMinutes = barMinutes,
+        minBars = minBars
+    )
     val markets = fetchExchangeMarkets(txBase, exchange).map { it.symbol }
     val discovered = if (markets.isNotEmpty()) {
         val ranked = discoverSymbolsFromMarketCatalog(
@@ -1235,7 +1304,7 @@ fun discoverSymbols(
             candidateSymbols = markets,
             lookbackHours = lookbackHours,
             maxSymbols = maxSymbols,
-            minBars = minBars,
+            minBars = requiredBars,
             barMinutes = barMinutes
         )
         println(
@@ -1248,7 +1317,7 @@ fun discoverSymbols(
             aliases = aliases,
             lookbackHours = lookbackHours,
             maxSymbols = maxSymbols,
-            minBars = minBars,
+            minBars = requiredBars,
             barMinutes = barMinutes
         )
         println(
@@ -1494,7 +1563,8 @@ private fun queryBarsFromFeatures(
     val aliasSql = sqlList(aliases)
     val symbolSql = sqlList(symbols)
     val preferredAlias = aliases.first()
-    val bucketSeconds = max(barMinutes, 1) * 60
+    val window = alignedResearchWindowBounds(lookbackHours = lookbackHours, barMinutes = barMinutes)
+    val bucketSeconds = window.bucketSeconds
     val sql = """
         WITH minute_rows AS (
             SELECT DISTINCT ON (symbol, time)
@@ -1510,7 +1580,8 @@ private fun queryBarsFromFeatures(
                 exchange
             FROM research_features_1m
             WHERE exchange IN ($aliasSql)
-              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+              AND time >= ?
+              AND time < ?
               AND symbol IN ($symbolSql)
               AND candle_observed
             ORDER BY
@@ -1585,6 +1656,8 @@ private fun queryBarsFromFeatures(
         buildList {
             pgConnection().use { conn ->
                 conn.prepareStatement(sql).use { stmt ->
+                    stmt.setTimestamp(1, Timestamp.from(window.startInclusive))
+                    stmt.setTimestamp(2, Timestamp.from(window.endExclusive))
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
                             add(
@@ -3181,6 +3254,7 @@ private fun simulateStrategyWalkForwardResult(
     kind: StrategyKind,
     rows: List<FeatureRow>,
     config: ResearchConfig,
+    seedExamples: List<CalibrationExample> = emptyList(),
     stage: String = "forward"
 ): StrategySimulationResult {
     if (rows.isEmpty()) {
@@ -3199,8 +3273,11 @@ private fun simulateStrategyWalkForwardResult(
     }
 
     val calibrationExamples = buildCalibrationExamples(strategyName, kind, rows, config)
-    val calibrationState = CalibrationState()
+    val calibrationState = buildCalibrationState(seedExamples)
     val activeExamples = ArrayDeque<CalibrationExample>()
+    seedExamples
+        .sortedBy { it.availableAt }
+        .forEach(activeExamples::addLast)
     var exampleIndex = 0
 
     return simulateStrategyWithPortfolio(
@@ -4368,6 +4445,8 @@ data class ResearchDataContext(
 internal data class ResearchWindowSplit(
     val forwardCutoff: Instant?,
     val calibrationRows: List<FeatureRow>,
+    val backtestCalibrationRows: List<FeatureRow>,
+    val backtestRows: List<FeatureRow>,
     val forwardRows: List<FeatureRow>
 )
 
@@ -4555,8 +4634,11 @@ data class ResearchCoverageVerdict(
 class ResearchCoverageException(message: String) : IllegalStateException(message)
 
 private fun expectedCoverageBars(lookbackHours: Int, barMinutes: Int, minBars: Int): Int {
-    val lookbackBars = ceil((lookbackHours.toDouble() * 60.0) / max(barMinutes, 1).toDouble()).toInt()
-    return max(minBars, lookbackBars)
+    return requiredResearchWindowBars(
+        lookbackHours = lookbackHours,
+        barMinutes = barMinutes,
+        minBars = minBars
+    )
 }
 
 private fun computeResearchCoverageSnapshots(
@@ -4575,7 +4657,8 @@ private fun computeResearchCoverageSnapshots(
     val aliasSql = sqlList(aliases)
     val symbolSql = sqlList(normalizedSymbols)
     val preferredAlias = aliases.firstOrNull().orEmpty()
-    val bucketSeconds = max(barMinutes, 1) * 60
+    val window = alignedResearchWindowBounds(lookbackHours = lookbackHours, barMinutes = barMinutes)
+    val bucketSeconds = window.bucketSeconds
     val expectedBars = expectedCoverageBars(lookbackHours = lookbackHours, barMinutes = barMinutes, minBars = minBars)
     val sql = """
         WITH minute_rows AS (
@@ -4587,7 +4670,8 @@ private fun computeResearchCoverageSnapshots(
                 exchange
             FROM research_features_1m
             WHERE exchange IN ($aliasSql)
-              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+              AND time >= ?
+              AND time < ?
               AND symbol IN ($symbolSql)
               AND candle_observed
             ORDER BY
@@ -4611,22 +4695,38 @@ private fun computeResearchCoverageSnapshots(
                 BOOL_AND(is_finalized) AS finalized
             FROM bucketed
             GROUP BY symbol, bucket_time
+        ),
+        feature_freshness AS (
+            SELECT
+                symbol,
+                MAX(time) AS latest_feature_time,
+                MAX(time) FILTER (WHERE is_finalized) AS finalized_through
+            FROM research_features_1m
+            WHERE exchange IN ($aliasSql)
+              AND symbol IN ($symbolSql)
+              AND candle_observed
+            GROUP BY symbol
         )
         SELECT
-            symbol,
+            b.symbol,
             COUNT(*)::INTEGER AS observed_bars,
-            COUNT(*) FILTER (WHERE finalized)::INTEGER AS finalized_bars,
-            COUNT(*) FILTER (WHERE execution_observed)::INTEGER AS execution_observed_bars,
-            MAX(bucket_time) AS latest_feature_time,
-            MAX(bucket_time) FILTER (WHERE finalized) AS finalized_through
-        FROM bucket_rollup
-        GROUP BY symbol
-        ORDER BY symbol ASC
+            COUNT(*) FILTER (WHERE b.finalized)::INTEGER AS finalized_bars,
+            COUNT(*) FILTER (WHERE b.execution_observed)::INTEGER AS execution_observed_bars,
+            f.latest_feature_time,
+            f.finalized_through
+        FROM bucket_rollup b
+        JOIN feature_freshness f
+          ON f.symbol = b.symbol
+        GROUP BY b.symbol, f.latest_feature_time, f.finalized_through
+        ORDER BY b.symbol ASC
     """.trimIndent()
 
+    val referenceTime = Instant.now()
     return buildList {
         pgConnection().use { conn ->
             conn.prepareStatement(sql).use { stmt ->
+                stmt.setTimestamp(1, Timestamp.from(window.startInclusive))
+                stmt.setTimestamp(2, Timestamp.from(window.endExclusive))
                 stmt.executeQuery().use { rs ->
                     while (rs.next()) {
                         val observedBars = rs.getInt("observed_bars")
@@ -4634,11 +4734,14 @@ private fun computeResearchCoverageSnapshots(
                         val executionObservedBars = rs.getInt("execution_observed_bars")
                         val latestFeatureTime = rs.getTimestamp("latest_feature_time")?.toInstant()
                         val finalizedThrough = rs.getTimestamp("finalized_through")?.toInstant()
-                        val latestFeatureLagSeconds = latestFeatureTime
-                            ?.let { Duration.between(it, Instant.now()).seconds.coerceAtLeast(0L) }
-                            ?: Long.MAX_VALUE
-                        val finalizedLagMinutes = finalizedThrough
-                            ?.let { Duration.between(it, Instant.now()).toMinutes().coerceAtLeast(0L) }
+                        val latestFeatureLagSeconds = barCloseLagSeconds(
+                            bucketStartTime = latestFeatureTime,
+                            referenceTime = referenceTime
+                        )
+                        val finalizedLagMinutes = barCloseLagMinutes(
+                            bucketStartTime = finalizedThrough,
+                            referenceTime = referenceTime
+                        )
 
                         add(
                             ResearchCoverageSnapshot(
@@ -4693,7 +4796,11 @@ private fun buildResearchCoverageVerdict(
             "coverage gate failed exchange=$exchange requestedSymbols=$requestedSymbols reason=no_feature_rows"
         eligibleSymbols.size < coveragePolicy.minUniverseSymbols -> {
             val sample = snapshots.take(3).joinToString(";") { snapshot ->
-                "${snapshot.symbol}:cov=${snapshot.coverageRatio.round(3)} fin=${snapshot.finalizedRatio.round(3)} exec=${snapshot.executionObservedRatio.round(3)}"
+                "${snapshot.symbol}:cov=${snapshot.coverageRatio.round(3)} " +
+                    "fin=${snapshot.finalizedRatio.round(3)} " +
+                    "exec=${snapshot.executionObservedRatio.round(3)} " +
+                    "featLag=${snapshot.latestFeatureLagSeconds}s " +
+                    "finLag=${snapshot.finalizedLagMinutes ?: Long.MAX_VALUE}m"
             }
             "coverage gate failed exchange=$exchange eligible=${eligibleSymbols.size}/$requestedSymbols " +
                 "requiredMinSymbols=${coveragePolicy.minUniverseSymbols} requiredBars=$requiredBars " +
@@ -4845,11 +4952,32 @@ internal fun splitResearchWindow(
         ?: return ResearchWindowSplit(
             forwardCutoff = null,
             calibrationRows = researchFeatureRows,
+            backtestCalibrationRows = emptyList(),
+            backtestRows = researchFeatureRows,
             forwardRows = emptyList()
         )
+    val calibrationRows = researchFeatureRows.filter { it.time.isBefore(forwardCutoff) }
+    if (calibrationRows.isEmpty()) {
+        return ResearchWindowSplit(
+            forwardCutoff = forwardCutoff,
+            calibrationRows = emptyList(),
+            backtestCalibrationRows = emptyList(),
+            backtestRows = emptyList(),
+            forwardRows = researchFeatureRows.filter { !it.time.isBefore(forwardCutoff) }
+        )
+    }
+    val calibrationStart = calibrationRows.minOf { it.time }
+    val calibrationHours = max(Duration.between(calibrationStart, forwardCutoff).toHours(), 1L)
+    val backtestCalibrationHours = min(
+        max(calibrationHours / 2L, 1L),
+        max(config.calibrationLookbackHours.toLong(), 1L)
+    )
+    val backtestCalibrationCutoff = calibrationStart.plus(backtestCalibrationHours, ChronoUnit.HOURS)
     return ResearchWindowSplit(
         forwardCutoff = forwardCutoff,
-        calibrationRows = researchFeatureRows.filter { it.time.isBefore(forwardCutoff) },
+        calibrationRows = calibrationRows,
+        backtestCalibrationRows = calibrationRows.filter { it.time.isBefore(backtestCalibrationCutoff) },
+        backtestRows = calibrationRows.filter { !it.time.isBefore(backtestCalibrationCutoff) },
         forwardRows = researchFeatureRows.filter { !it.time.isBefore(forwardCutoff) }
     )
 }
@@ -4863,7 +4991,16 @@ internal fun evaluateCrossSectionalResearchRows(
     val diagnostics = computeResearchDiagnostics(researchFeatureRows, config)
     val heuristicSignals = latestSignalSnapshots(researchFeatureRows, config)
     val windowSplit = splitResearchWindow(researchFeatureRows, config)
-    val backtestRows = windowSplit.calibrationRows
+    val backtestSeedRows = if (windowSplit.backtestRows.isNotEmpty()) {
+        windowSplit.backtestCalibrationRows
+    } else {
+        emptyList()
+    }
+    val backtestRows = if (windowSplit.backtestRows.isNotEmpty()) {
+        windowSplit.backtestRows
+    } else {
+        windowSplit.calibrationRows
+    }
 
     val trendStrategyName = "cross_section_beta_trend_v1"
     val reversionStrategyName = "cross_section_beta_reversion_v1"
@@ -4871,12 +5008,24 @@ internal fun evaluateCrossSectionalResearchRows(
         StrategyKind.TREND.name.lowercase() to trendStrategyName,
         StrategyKind.REVERSION.name.lowercase() to reversionStrategyName
     )
+    val backtestCalibrationSeedExamples = buildCalibrationExamples(
+        strategyName = trendStrategyName,
+        kind = StrategyKind.TREND,
+        rows = backtestSeedRows,
+        config = config
+    ) + buildCalibrationExamples(
+        strategyName = reversionStrategyName,
+        kind = StrategyKind.REVERSION,
+        rows = backtestSeedRows,
+        config = config
+    )
 
     val trendBacktest = simulateStrategyWalkForwardResult(
         strategyName = trendStrategyName,
         kind = StrategyKind.TREND,
         rows = backtestRows,
         config = config,
+        seedExamples = backtestCalibrationSeedExamples,
         stage = "backtest"
     )
     val reversionBacktest = simulateStrategyWalkForwardResult(
@@ -4884,6 +5033,7 @@ internal fun evaluateCrossSectionalResearchRows(
         kind = StrategyKind.REVERSION,
         rows = backtestRows,
         config = config,
+        seedExamples = backtestCalibrationSeedExamples,
         stage = "backtest"
     )
 
@@ -6218,14 +6368,26 @@ fun searchCrossSectionalResearch(
     val startedAt = Instant.now()
     val mutations = buildSearchMutations(normalizedSearch)
     val evaluations = linkedMapOf<String, SearchEvaluation>()
+    val attemptedFingerprints = linkedSetOf<String>()
 
     fun evaluateCandidate(candidate: ResearchConfig): SearchEvaluation? {
         val safeConfig = searchSafeConfig(candidate)
         if (!isValidResearchConfig(safeConfig)) return null
-        if (evaluations.size >= normalizedSearch.maxEvaluations) return null
         val fingerprint = researchConfigFingerprint(safeConfig)
+        if (!attemptedFingerprints.add(fingerprint)) {
+            return evaluations[fingerprint]
+        }
+        if (evaluations.size >= normalizedSearch.maxEvaluations) return null
         evaluations[fingerprint]?.let { return it }
-        val result = evaluator(safeConfig)
+        val result = try {
+            evaluator(safeConfig)
+        } catch (e: ResearchCoverageException) {
+            println(
+                "Cross-sectional search skipped config fingerprint=$fingerprint " +
+                    "reason=${e.message ?: "coverage gate failed"}"
+            )
+            return null
+        }
         val evaluation = buildSearchEvaluation(normalizedSearch, result, Instant.now())
         evaluations[fingerprint] = evaluation
         return evaluation

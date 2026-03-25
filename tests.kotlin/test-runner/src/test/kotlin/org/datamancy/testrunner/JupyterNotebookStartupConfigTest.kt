@@ -103,30 +103,13 @@ class JupyterNotebookStartupConfigTest {
     }
 
     @Test
-    fun `strict alpha proof notebooks reuse canonical proof scripts`() {
+    fun `startup config removes strict single-name alpha proof notebooks from the seeded surface`() {
         val text = startupConfigText()
 
-        assertTrue(
-            text.contains("\"16_strict_alpha_backtest_proof.ipynb\""),
-            "startup-config should seed a strict backtest proof notebook for the canonical alpha proof path"
-        )
-        assertTrue(
-            text.contains("\"17_strict_forward_alpha_proof.ipynb\""),
-            "startup-config should seed a strict forward proof notebook for the canonical forward alpha path"
-        )
-        assertTrue(
-            text.contains("\"proof_script = script_dir / 'alpha_proof.py'\\n\"") &&
-                text.contains("\"proof_script = script_dir / 'forward_alpha_proof.py'\\n\""),
-            "strict proof notebooks should locate and run the repository proof scripts instead of a notebook-local surrogate"
-        )
-        assertTrue(
-            text.contains("\"    '--fixed-param-label', fixed_param_label,\\n\""),
-            "strict forward proof notebook should require the fixed strategy label so forward and back proof stay on the same strategy definition"
-        )
-        assertTrue(
-            text.contains("Could not parse trailing JSON payload from proof output"),
-            "strict proof notebooks should parse the canonical script output rather than reimplementing separate result objects"
-        )
+        assertTrue(!text.contains("\"16_strict_alpha_backtest_proof.ipynb\""))
+        assertTrue(!text.contains("\"17_strict_forward_alpha_proof.ipynb\""))
+        assertTrue(!text.contains("\"proof_script = script_dir / 'alpha_proof.py'\\n\""))
+        assertTrue(!text.contains("\"proof_script = script_dir / 'forward_alpha_proof.py'\\n\""))
     }
 
     @Test

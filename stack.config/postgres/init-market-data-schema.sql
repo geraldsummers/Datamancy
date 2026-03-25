@@ -814,6 +814,11 @@ CREATE INDEX IF NOT EXISTS idx_research_features_1m_exchange_finalized_time_symb
     INCLUDE (candle_observed, orderbook_observed, source_updated_at)
     WITH (timescaledb.transaction_per_chunk);
 
+CREATE INDEX IF NOT EXISTS idx_research_features_1m_exchange_finalization_due
+    ON research_features_1m (exchange, finalization_due_at, symbol)
+    INCLUDE (is_finalized, is_provisional, finalized_at)
+    WITH (timescaledb.transaction_per_chunk);
+
 CREATE INDEX IF NOT EXISTS idx_raw_sync_state_exchange_channel_symbol
     ON raw_sync_state (exchange, channel, symbol);
 

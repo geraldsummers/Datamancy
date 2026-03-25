@@ -2,9 +2,11 @@ package org.datamancy.pipeline.runners
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.sql.Connection
 import java.sql.Timestamp
@@ -25,6 +27,7 @@ internal const val DEFAULT_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS = 6L
 internal const val MIN_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS = 1L
 internal const val DEFAULT_RESEARCH_FEATURES_HISTORICAL_CATCHUP_WINDOWS_PER_CYCLE = 8
 internal const val DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES = 5L
+internal const val DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_HOURS = 48L
 
 internal fun resolveResearchFeaturesBootstrapHours(explicitHours: Long?): Long {
     val hours = explicitHours ?: DEFAULT_RESEARCH_FEATURES_BOOTSTRAP_HOURS
@@ -106,6 +109,9 @@ internal fun startupRefreshWindowMinutes(refreshOverlapMinutes: Long): Long {
     return refreshOverlapMinutes.coerceAtMost(DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES).coerceAtLeast(1L)
 }
 
+internal fun recentGapRepairHours(bootstrapHours: Long): Long =
+    bootstrapHours.coerceAtMost(DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_HOURS).coerceAtLeast(6L)
+
 internal class ResearchFeatureAggregator(
     private val dataSource: DataSource,
     private val exchangeId: String,
@@ -171,33 +177,51 @@ internal class ResearchFeatureAggregator(
                 "chunk=${backfillChunkHours}h finalizeLag=${finalizationLagMinutes}m)"
         }
 
-        while (coroutineContext.isActive) {
-            try {
-                val refreshWindowMinutes = if (bootstrapCompleted) {
-                    refreshOverlapMinutes
-                } else {
-                    startupRefreshWindowMinutes(refreshOverlapMinutes)
-                }
-                refreshRecentWindow(
-                    windowMinutes = refreshWindowMinutes,
-                    phase = if (bootstrapCompleted) "refresh" else "startup_refresh"
-                )
-                if (!bootstrapCompleted) {
-                    bootstrapCompleted = bootstrap()
-                    if (!bootstrapCompleted) {
-                        delay(refreshIntervalMs)
-                        continue
+        coroutineScope {
+            launch {
+                while (coroutineContext.isActive) {
+                    try {
+                        val refreshWindowMinutes = if (bootstrapCompleted) {
+                            refreshOverlapMinutes
+                        } else {
+                            startupRefreshWindowMinutes(refreshOverlapMinutes)
+                        }
+                        refreshRecentWindow(
+                            windowMinutes = refreshWindowMinutes,
+                            phase = if (bootstrapCompleted) "refresh" else "startup_refresh"
+                        )
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        researchFeatureLogger.error(e) {
+                            "research_features_1m refresh loop failed for $exchangeId: ${e.message}"
+                        }
                     }
-                }
-                catchUpHistoricalWindows()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                researchFeatureLogger.error(e) {
-                    "research_features_1m aggregation failed for $exchangeId: ${e.message}"
+                    delay(refreshIntervalMs)
                 }
             }
-            delay(refreshIntervalMs)
+
+            launch {
+                while (coroutineContext.isActive) {
+                    try {
+                        if (!bootstrapCompleted) {
+                            bootstrapCompleted = bootstrap()
+                            if (!bootstrapCompleted) {
+                                delay(refreshIntervalMs)
+                                continue
+                            }
+                        }
+                        catchUpHistoricalWindows()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        researchFeatureLogger.error(e) {
+                            "research_features_1m historical loop failed for $exchangeId: ${e.message}"
+                        }
+                    }
+                    delay(refreshIntervalMs)
+                }
+            }
         }
     }
 
@@ -280,11 +304,17 @@ internal class ResearchFeatureAggregator(
             }
             val end = Instant.now().truncatedTo(ChronoUnit.MINUTES).plus(1, ChronoUnit.MINUTES)
             val start = end.minus(windowMinutes, ChronoUnit.MINUTES)
+            val updatedAt = Instant.now()
             val rows = upsertWindow(conn, start, end)
-            featureStateStore.refresh(conn, start, end)
+            val finalizedRows = finalizeDueRows(conn, finalizedAt = updatedAt)
+            if (finalizedRows > 0) {
+                featureStateStore.refresh(conn, null, null)
+            } else {
+                featureStateStore.refresh(conn, start, end)
+            }
             conn.commit()
             researchFeatureLogger.info {
-                "research_features_1m $phase exchange=$exchangeId window=$start..$end rows=$rows"
+                "research_features_1m $phase exchange=$exchangeId window=$start..$end rows=$rows finalized=$finalizedRows"
             }
         }
     }
@@ -350,6 +380,52 @@ internal class ResearchFeatureAggregator(
         }
     }
 
+    private suspend fun repairRecentGapWindows() = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            conn.autoCommit = false
+            if (!ensureSchema(conn)) {
+                return@withContext
+            }
+            val endExclusive = Instant.now().truncatedTo(ChronoUnit.HOURS)
+            val startInclusive = endExclusive.minus(recentGapRepairHours(bootstrapHours), ChronoUnit.HOURS)
+            val windows = loadRecentGapWindows(
+                conn = conn,
+                startInclusive = startInclusive,
+                endExclusive = endExclusive
+            )
+            if (windows.isEmpty()) {
+                return@withContext
+            }
+
+            val updatedAt = Instant.now()
+            var totalRows = 0
+            windows.forEachIndexed { index, window ->
+                try {
+                    val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
+                    featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
+                    totalRows += rows
+                    researchFeatureLogger.info {
+                        "research_features_1m gap_repair exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
+                            "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
+                    }
+                } catch (e: Exception) {
+                    conn.rollback()
+                    throw e
+                }
+            }
+
+            val finalizedRows = finalizeDueRows(conn, finalizedAt = updatedAt)
+            if (finalizedRows > 0) {
+                featureStateStore.refresh(conn, null, null)
+            }
+            conn.commit()
+            researchFeatureLogger.info {
+                "research_features_1m gap_repair complete exchange=$exchangeId windows=${windows.size} " +
+                    "totalRows=$totalRows finalized=$finalizedRows"
+            }
+        }
+    }
+
     private fun ensureSchema(conn: Connection): Boolean {
         if (schemaValidated) {
             return true
@@ -380,6 +456,71 @@ internal class ResearchFeatureAggregator(
                     return null
                 }
                 return rs.getTimestamp(1)?.toInstant()
+            }
+        }
+    }
+
+    private fun loadRecentGapWindows(
+        conn: Connection,
+        startInclusive: Instant,
+        endExclusive: Instant,
+        maxWindows: Int = DEFAULT_RESEARCH_FEATURES_HISTORICAL_CATCHUP_WINDOWS_PER_CYCLE
+    ): List<AggregationWindow> {
+        if (!startInclusive.isBefore(endExclusive) || maxWindows <= 0) {
+            return emptyList()
+        }
+
+        val sql = """
+            WITH raw_hours AS (
+                SELECT
+                    date_trunc('hour', time) AS window_start,
+                    COUNT(*)::INTEGER AS raw_rows
+                FROM market_data
+                WHERE exchange = ?
+                  AND data_type = 'candle_1m'
+                  AND time >= ?
+                  AND time < ?
+                GROUP BY 1
+            ),
+            feature_hours AS (
+                SELECT
+                    date_trunc('hour', time) AS window_start,
+                    COUNT(*)::INTEGER AS feature_rows
+                FROM research_features_1m
+                WHERE exchange = ?
+                  AND time >= ?
+                  AND time < ?
+                GROUP BY 1
+            )
+            SELECT raw_hours.window_start
+            FROM raw_hours
+            LEFT JOIN feature_hours
+              ON feature_hours.window_start = raw_hours.window_start
+            WHERE COALESCE(feature_hours.feature_rows, 0) < raw_hours.raw_rows
+            ORDER BY raw_hours.window_start DESC
+            LIMIT ?
+        """.trimIndent()
+
+        return buildList {
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, exchangeId)
+                stmt.setTimestamp(2, Timestamp.from(startInclusive))
+                stmt.setTimestamp(3, Timestamp.from(endExclusive))
+                stmt.setString(4, exchangeId)
+                stmt.setTimestamp(5, Timestamp.from(startInclusive))
+                stmt.setTimestamp(6, Timestamp.from(endExclusive))
+                stmt.setInt(7, maxWindows)
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        val windowStart = rs.getTimestamp("window_start").toInstant()
+                        add(
+                            AggregationWindow(
+                                startInclusive = windowStart,
+                                endExclusive = windowStart.plus(1, ChronoUnit.HOURS)
+                            )
+                        )
+                    }
+                }
             }
         }
     }
@@ -637,6 +778,36 @@ internal class ResearchFeatureAggregator(
             stmt.setTimestamp(18, Timestamp.from(finalizationCutoff))
             stmt.setTimestamp(19, Timestamp.from(finalizationCutoff))
             stmt.setTimestamp(20, Timestamp.from(updatedAt))
+            return stmt.executeUpdate()
+        }
+    }
+
+    private fun finalizeDueRows(conn: Connection, finalizedAt: Instant): Int {
+        val finalizationCutoff = finalizedAt.minus(finalizationLagMinutes, ChronoUnit.MINUTES)
+        val sql = """
+            UPDATE research_features_1m
+            SET
+                is_provisional = FALSE,
+                is_finalized = TRUE,
+                finalization_due_at = COALESCE(
+                    finalization_due_at,
+                    time + INTERVAL '${finalizationLagMinutes} minutes'
+                ),
+                finalized_at = COALESCE(finalized_at, CAST(? AS TIMESTAMPTZ))
+            WHERE exchange = ?
+              AND finalization_due_at IS NOT NULL
+              AND finalization_due_at <= CAST(? AS TIMESTAMPTZ)
+              AND (
+                    NOT is_finalized
+                    OR is_provisional
+                    OR finalized_at IS NULL
+                  )
+        """.trimIndent()
+
+        conn.prepareStatement(sql).use { stmt ->
+            stmt.setTimestamp(1, Timestamp.from(finalizedAt))
+            stmt.setString(2, exchangeId)
+            stmt.setTimestamp(3, Timestamp.from(finalizationCutoff))
             return stmt.executeUpdate()
         }
     }

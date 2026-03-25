@@ -7,8 +7,11 @@ import org.datamancy.trading.policy.RequirementLevel
 import org.datamancy.trading.policy.TradingPolicy
 import org.postgresql.ds.PGSimpleDataSource
 import java.sql.ResultSet
+import java.time.Duration
 import java.time.Instant
 import javax.sql.DataSource
+
+private const val CANONICAL_RESEARCH_FEATURE_BAR_SECONDS = 60L
 
 data class DataHealthThresholds(
     val exchange: String,
@@ -249,6 +252,7 @@ class DataHealthService(
     }
 
     private fun loadRows(exchange: String): List<DataHealthSymbolRow> {
+        val asOf = Instant.now()
         val sql = """
             SELECT
                 exchange,
@@ -292,7 +296,7 @@ class DataHealthService(
                 statement.executeQuery().use { rs ->
                     buildList {
                         while (rs.next()) {
-                            add(rs.toDataHealthSymbolRow())
+                            add(rs.toDataHealthSymbolRow(asOf))
                         }
                     }
                 }
@@ -441,26 +445,51 @@ class DataHealthService(
     }
 }
 
-private fun ResultSet.toDataHealthSymbolRow(): DataHealthSymbolRow {
+private fun effectiveBarCloseLagSeconds(
+    bucketStartTime: Instant?,
+    referenceTime: Instant,
+    bucketSeconds: Long = CANONICAL_RESEARCH_FEATURE_BAR_SECONDS
+): Long? =
+    bucketStartTime
+        ?.plusSeconds(bucketSeconds.coerceAtLeast(1L))
+        ?.let { bucketClose ->
+            Duration.between(bucketClose, referenceTime).seconds.coerceAtLeast(0L)
+        }
+
+private fun effectiveBarCloseLagMinutes(
+    bucketStartTime: Instant?,
+    referenceTime: Instant,
+    bucketSeconds: Long = CANONICAL_RESEARCH_FEATURE_BAR_SECONDS
+): Double? =
+    bucketStartTime
+        ?.plusSeconds(bucketSeconds.coerceAtLeast(1L))
+        ?.let { bucketClose ->
+            Duration.between(bucketClose, referenceTime).toMillis().coerceAtLeast(0L) / 60_000.0
+        }
+
+private fun ResultSet.toDataHealthSymbolRow(referenceTime: Instant): DataHealthSymbolRow {
+    val candleLatestRawTime = getTimestamp("candle_1m_latest_raw_time")?.toInstant()
+    val latestFeatureTime = getTimestamp("latest_feature_time")?.toInstant()
+    val finalizedThrough = getTimestamp("finalized_through")?.toInstant()
     return DataHealthSymbolRow(
         exchange = getString("exchange"),
         symbol = getString("symbol"),
         activeRecent = getBoolean("active_recent"),
         latestAnyRawTime = getTimestamp("latest_any_raw_time")?.toInstant(),
-        candleLatestRawTime = getTimestamp("candle_1m_latest_raw_time")?.toInstant(),
+        candleLatestRawTime = candleLatestRawTime,
         tradeLatestRawTime = getTimestamp("trade_latest_raw_time")?.toInstant(),
         orderbookLatestRawTime = getTimestamp("orderbook_l2_latest_raw_time")?.toInstant(),
         fundingLatestRawTime = getTimestamp("funding_latest_raw_time")?.toInstant(),
         openInterestLatestRawTime = getTimestamp("open_interest_latest_raw_time")?.toInstant(),
-        candleRawLagSeconds = getLongOrNull("candle_1m_raw_lag_seconds"),
+        candleRawLagSeconds = effectiveBarCloseLagSeconds(candleLatestRawTime, referenceTime),
         tradeRawLagSeconds = getLongOrNull("trade_raw_lag_seconds"),
         orderbookRawLagSeconds = getLongOrNull("orderbook_l2_raw_lag_seconds"),
         fundingRawLagSeconds = getLongOrNull("funding_raw_lag_seconds"),
         openInterestRawLagSeconds = getLongOrNull("open_interest_raw_lag_seconds"),
-        latestFeatureTime = getTimestamp("latest_feature_time")?.toInstant(),
-        finalizedThrough = getTimestamp("finalized_through")?.toInstant(),
-        featureLagSeconds = getLongOrNull("feature_lag_seconds"),
-        finalizedLagMinutes = getDoubleOrNull("finalized_lag_minutes"),
+        latestFeatureTime = latestFeatureTime,
+        finalizedThrough = finalizedThrough,
+        featureLagSeconds = effectiveBarCloseLagSeconds(latestFeatureTime, referenceTime),
+        finalizedLagMinutes = effectiveBarCloseLagMinutes(finalizedThrough, referenceTime),
         featureRows = getLong("feature_rows"),
         materializerLagSeconds = getLongOrNull("materializer_lag_seconds"),
         coverageRatio = getDouble("coverage_ratio"),

@@ -909,7 +909,7 @@ class MarketDataIngestionRunner {
         val distinctStreams = streams.distinct()
         var fetchedCandles = 0
         var repairedStreams = 0
-        val semaphore = Semaphore(permits = 8)
+        val semaphore = Semaphore(permits = 3)
 
         logger.info {
             "$label starting: streams=${distinctStreams.size} lookbackHours=$lookbackHours " +
@@ -991,30 +991,97 @@ class MarketDataIngestionRunner {
         while (currentCoroutineContext().isActive) {
             delay(repairIntervalMs)
 
-            val staleStreams = continuityWatchdog.staleCandleStreams()
+            val watchdogStreams = continuityWatchdog.staleCandleStreams().map { it.symbol to it.interval }
+            val persistedStreams = loadPersistedCandleRepairStreams(activeUniverse?.symbols.orEmpty())
+            val staleStreams = (watchdogStreams + persistedStreams).distinct()
             if (staleStreams.isEmpty()) {
                 continue
             }
 
             logger.warn {
                 "Targeted candle repair triggered streams=${staleStreams.size} " +
-                    "sample=${staleStreams.take(5).joinToString { "${it.symbol}/${it.interval}" }}"
+                    "sample=${staleStreams.take(5).joinToString { "${it.first}/${it.second}" }}"
             }
             repairTargetedCandleStreams(staleStreams, continuityWatchdog)
         }
     }
 
     private suspend fun repairTargetedCandleStreams(
-        streams: List<StaleCandleStream>,
+        streams: List<Pair<String, String>>,
         continuityWatchdog: HyperliquidContinuityWatchdog
     ) {
         repairCandleStreams(
-            streams = streams.map { it.symbol to it.interval },
+            streams = streams,
             continuityWatchdog = continuityWatchdog,
             label = "Targeted candle repair",
-            lookbackHours = DEFAULT_HYPERLIQUID_RECENT_REPAIR_LOOKBACK_HOURS.coerceAtMost(hyperliquidBackfillLookbackHours),
+            lookbackHours = 1L.coerceAtMost(hyperliquidBackfillLookbackHours),
             markInitialRepairComplete = false
         )
+    }
+
+    private suspend fun loadPersistedCandleRepairStreams(
+        sessionSymbols: List<String>,
+        limit: Int = 48
+    ): List<Pair<String, String>> = withContext(Dispatchers.IO) {
+        val normalized = sessionSymbols.map(String::trim).filter(String::isNotEmpty).distinct()
+        if (normalized.isEmpty()) {
+            return@withContext emptyList()
+        }
+
+        val now = java.time.Instant.now()
+        val recentActivityCutoff = now.minusMillis(hyperliquidChannelActivityTimeoutMs)
+        val staleCandleCutoff = now.minusMillis(
+            maxOf(
+                hyperliquidChannelActivityTimeoutMs,
+                (candleIntervalToMillis("1m").toDouble() * hyperliquidCandleStaleMultiplier).toLong()
+            )
+        )
+        val sql = """
+            WITH channel_state AS (
+                SELECT
+                    symbol,
+                    MAX(latest_raw_time) FILTER (
+                        WHERE channel IN ('trade', 'orderbook_l2', 'funding', 'open_interest')
+                    ) AS latest_support_time,
+                    MAX(latest_raw_time) FILTER (WHERE channel = 'candle_1m') AS latest_candle_time
+                FROM raw_sync_state
+                WHERE exchange = ?
+                  AND symbol = ANY (?)
+                GROUP BY symbol
+            )
+            SELECT symbol
+            FROM channel_state
+            WHERE latest_support_time IS NOT NULL
+              AND latest_support_time >= ?
+              AND (
+                    latest_candle_time IS NULL OR
+                    latest_candle_time < latest_support_time OR
+                    latest_candle_time < ?
+                )
+            ORDER BY
+                latest_candle_time ASC NULLS FIRST,
+                latest_support_time DESC,
+                symbol ASC
+            LIMIT ?
+        """.trimIndent()
+
+        dataSource.connection.use { connection ->
+            connection.prepareStatement(sql).use { statement ->
+                statement.setString(1, hyperliquidPolicy.exchangeId)
+                val sqlArray: SqlArray = connection.createArrayOf("text", normalized.toTypedArray())
+                statement.setArray(2, sqlArray)
+                statement.setTimestamp(3, java.sql.Timestamp.from(recentActivityCutoff))
+                statement.setTimestamp(4, java.sql.Timestamp.from(staleCandleCutoff))
+                statement.setInt(5, limit.coerceAtLeast(1))
+                statement.executeQuery().use { rs ->
+                    buildList {
+                        while (rs.next()) {
+                            add(rs.getString("symbol") to "1m")
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private suspend fun runHistoricalCandleBackfillPass() {

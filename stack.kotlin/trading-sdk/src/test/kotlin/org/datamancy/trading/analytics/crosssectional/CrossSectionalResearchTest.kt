@@ -9,12 +9,12 @@ import java.time.Instant
 
 class CrossSectionalResearchTest {
     @Test
-    fun `selectResearchCandleSource chooses coarsest supported base interval`() {
+    fun `selectResearchCandleSource preserves requested bar interval`() {
         assertEquals(CandleSource("1m", 1), selectResearchCandleSource(1))
-        assertEquals(CandleSource("5m", 5), selectResearchCandleSource(10))
-        assertEquals(CandleSource("15m", 15), selectResearchCandleSource(30))
+        assertEquals(CandleSource("10m", 10), selectResearchCandleSource(10))
+        assertEquals(CandleSource("30m", 30), selectResearchCandleSource(30))
         assertEquals(CandleSource("1h", 60), selectResearchCandleSource(60))
-        assertEquals(CandleSource("1h", 60), selectResearchCandleSource(240))
+        assertEquals(CandleSource("4h", 240), selectResearchCandleSource(240))
     }
 
     @Test
@@ -24,6 +24,22 @@ class CrossSectionalResearchTest {
         assertEquals(720, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 15, targetBarMinutes = 30))
         assertEquals(720, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 5, targetBarMinutes = 10))
         assertEquals(360, scaleRequiredSourceBars(minBars = 360, sourceMinutes = 60, targetBarMinutes = 60))
+    }
+
+    @Test
+    fun `requiredResearchWindowBars matches full requested lookback when it exceeds min bars`() {
+        assertEquals(96, requiredResearchWindowBars(lookbackHours = 48, barMinutes = 30, minBars = 48))
+        assertEquals(48, requiredResearchWindowBars(lookbackHours = 24, barMinutes = 30, minBars = 32))
+        assertEquals(72, requiredResearchWindowBars(lookbackHours = 8, barMinutes = 15, minBars = 72))
+    }
+
+    @Test
+    fun `bar close lag semantics anchor freshness to candle close not bucket start`() {
+        val reference = Instant.parse("2026-03-25T08:36:13Z")
+        val bucketStart = Instant.parse("2026-03-25T08:33:00Z")
+
+        assertEquals(133L, barCloseLagSeconds(bucketStart, reference))
+        assertEquals(2L, barCloseLagMinutes(bucketStart, reference))
     }
 
     @Test
@@ -739,6 +755,56 @@ class CrossSectionalResearchTest {
         assertEquals(240, topTrend.config.barMinutes)
         assertEquals(3, result.evaluatedConfigs)
         assertEquals(2, result.roundsCompleted)
+    }
+
+    @Test
+    fun `search engine skips coverage failures instead of aborting the full run`() {
+        val baseConfig = ResearchConfig(
+            marketExchange = "hyperliquid_mainnet",
+            barMinutes = 60,
+            lookbackHours = 720,
+            forwardHours = 72,
+            betaLookbackBars = 72,
+            trendLookbackBars = 12,
+            trendSlowBars = 48,
+            reversionLookbackBars = 8,
+            trendHoldBars = 4,
+            reversionHoldBars = 2,
+            topPerSide = 1,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val searchConfig = CrossSectionalSearchConfig(
+            baseConfig = baseConfig,
+            beamWidth = 1,
+            rounds = 1,
+            maxEvaluations = 4,
+            leaderboardSize = 1,
+            minBacktestTrades = 8,
+            minForwardTrades = 3,
+            barMinutes = listOf(60, 240),
+            lookbackHours = listOf(720),
+            forwardHours = listOf(72),
+            betaLookbackBars = listOf(72),
+            trendLookbackBars = listOf(12),
+            trendSlowBars = listOf(48),
+            reversionLookbackBars = listOf(8),
+            trendHoldBars = listOf(4),
+            reversionHoldBars = listOf(2),
+            topPerSide = listOf(1),
+            maxSymbols = listOf(baseConfig.maxSymbols),
+            discoveryMaxSymbols = listOf(baseConfig.discoveryMaxSymbols)
+        )
+
+        val result = searchCrossSectionalResearch(searchConfig) { config ->
+            if (config.barMinutes == 240) {
+                throw ResearchCoverageException("coverage gate failed exchange=hyperliquid eligible=0/190")
+            }
+            fakeSearchResult(config)
+        }
+
+        assertEquals(1, result.evaluatedConfigs)
+        assertEquals(60, result.topTrendConfigs.first().config.barMinutes)
     }
 
     @Test

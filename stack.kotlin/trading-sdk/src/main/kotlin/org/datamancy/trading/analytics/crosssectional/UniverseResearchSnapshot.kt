@@ -170,7 +170,12 @@ private fun loadUniverseSnapshotFromFeatures(
 ): UniverseSnapshot {
     val aliasSql = sqlList(aliases)
     val preferredAlias = aliases.first()
-    val bucketSeconds = max(barMinutes, 1) * 60
+    val window = alignedResearchWindowBounds(
+        lookbackHours = lookbackHours,
+        barMinutes = barMinutes,
+        now = loadedAt
+    )
+    val bucketSeconds = window.bucketSeconds
     val sql = """
         WITH minute_rows AS (
             SELECT DISTINCT ON (symbol, time)
@@ -186,7 +191,8 @@ private fun loadUniverseSnapshotFromFeatures(
                 exchange
             FROM research_features_1m
             WHERE exchange IN ($aliasSql)
-              AND time >= NOW() - INTERVAL '${lookbackHours} hours'
+              AND time >= ?
+              AND time < ?
               AND candle_observed
             ORDER BY
                 symbol,
@@ -259,6 +265,8 @@ private fun loadUniverseSnapshotFromFeatures(
     val rows = buildList {
         pgConnection().use { conn ->
             conn.prepareStatement(sql).use { stmt ->
+                stmt.setTimestamp(1, Timestamp.from(window.startInclusive))
+                stmt.setTimestamp(2, Timestamp.from(window.endExclusive))
                 stmt.executeQuery().use { rs ->
                     while (rs.next()) {
                         add(
@@ -304,12 +312,12 @@ internal fun loadUniverseSnapshotBars(
 ): List<Bar> {
     if (symbols.isEmpty()) return emptyList()
     val snapshot = universeSnapshotCache.getOrLoad(aliases, lookbackHours, barMinutes) ?: return emptyList()
-    val cutoff = now.minus(lookbackHours.toLong(), ChronoUnit.HOURS)
+    val window = alignedResearchWindowBounds(lookbackHours = lookbackHours, barMinutes = barMinutes, now = now)
     return symbols.asSequence()
         .distinct()
         .flatMap { symbol ->
             snapshot.barsBySymbol[symbol].orEmpty().asSequence()
-                .filter { !it.time.isBefore(cutoff) }
+                .filter { !it.time.isBefore(window.startInclusive) && it.time.isBefore(window.endExclusive) }
                 .map { bar ->
                     Bar(
                         exchange = exchange,
@@ -339,14 +347,15 @@ internal fun loadUniverseSnapshotLiquidity(
     now: Instant = Instant.now()
 ): List<SymbolLiquiditySnapshot> {
     val snapshot = universeSnapshotCache.getOrLoad(aliases, lookbackHours, barMinutes) ?: return emptyList()
-    val cutoff = now.minus(lookbackHours.toLong(), ChronoUnit.HOURS)
+    val window = alignedResearchWindowBounds(lookbackHours = lookbackHours, barMinutes = barMinutes, now = now)
     val targetSymbols = if (symbols.isEmpty()) {
         snapshot.barsBySymbol.keys.sorted()
     } else {
         symbols.distinct()
     }
     val ranked = targetSymbols.mapNotNull { symbol ->
-        val bars = snapshot.barsBySymbol[symbol].orEmpty().filter { !it.time.isBefore(cutoff) }
+        val bars = snapshot.barsBySymbol[symbol].orEmpty()
+            .filter { !it.time.isBefore(window.startInclusive) && it.time.isBefore(window.endExclusive) }
         if (bars.size < minBars) {
             null
         } else {

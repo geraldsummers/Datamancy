@@ -216,6 +216,8 @@ class HyperliquidContinuityTest {
             receivedAt = now
         )
         watchdog.markInitialCandleRepairComplete(now)
+
+        now = Instant.parse("2026-03-23T10:02:40Z")
         watchdog.record(
             HyperliquidMarketData.AssetContext(
                 HyperliquidAssetContext(
