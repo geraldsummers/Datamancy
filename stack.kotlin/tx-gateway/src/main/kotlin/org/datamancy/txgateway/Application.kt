@@ -15,10 +15,11 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import io.micrometer.prometheus.PrometheusConfig
 import io.micrometer.prometheus.PrometheusMeterRegistry
+import org.datamancy.txgateway.execution.routes.unifiedExchangeRoutes
+import org.datamancy.txgateway.risk.routes.riskRoutes
+import org.datamancy.txgateway.risk.services.RiskEngineService
 import org.datamancy.txgateway.routes.evmRoutes
 import org.datamancy.txgateway.routes.hyperliquidRoutes
-import org.datamancy.txgateway.routes.riskRoutes
-import org.datamancy.txgateway.routes.unifiedExchangeRoutes
 import org.datamancy.txgateway.services.*
 import org.slf4j.LoggerFactory
 

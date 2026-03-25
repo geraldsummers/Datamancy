@@ -1,4 +1,4 @@
-package org.datamancy.txgateway.services
+package org.datamancy.txgateway.risk.services
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -6,6 +6,9 @@ import org.slf4j.LoggerFactory
 import java.math.BigDecimal
 import java.math.RoundingMode
 import kotlin.math.max
+import org.datamancy.txgateway.services.DatabaseService
+import org.datamancy.txgateway.services.RiskAccountStateRecord
+import org.datamancy.txgateway.services.SentimentSnapshot
 
 @Serializable
 data class RiskPolicyDefinition(

@@ -1,4 +1,4 @@
-package org.datamancy.txgateway.routes
+package org.datamancy.txgateway.execution.routes
 
 import com.google.gson.Gson
 import io.ktor.http.ContentType
@@ -14,6 +14,8 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import org.datamancy.txgateway.models.OrderRequest
+import org.datamancy.txgateway.risk.services.RiskDecision
+import org.datamancy.txgateway.risk.services.RiskEngineService
 import org.datamancy.txgateway.services.AuthService
 import org.datamancy.txgateway.services.CredentialResolver
 import org.datamancy.txgateway.services.DatabaseService
@@ -22,8 +24,6 @@ import org.datamancy.txgateway.services.LatestQuote
 import org.datamancy.txgateway.services.RiskPolicyRecord
 import org.datamancy.txgateway.services.TradingAccountAudit
 import org.datamancy.txgateway.services.TradingPermissionCatalog
-import org.datamancy.txgateway.services.RiskDecision
-import org.datamancy.txgateway.services.RiskEngineService
 import org.datamancy.txgateway.services.RiskAccountStatePatch
 import org.datamancy.txgateway.services.StrategyExecutionBaseline
 import org.datamancy.txgateway.services.TradingTelemetryMetrics

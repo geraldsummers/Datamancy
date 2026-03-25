@@ -1,4 +1,4 @@
-package org.datamancy.txgateway.routes
+package org.datamancy.txgateway.execution.routes
 
 import org.junit.jupiter.api.Test
 import kotlin.test.assertFalse

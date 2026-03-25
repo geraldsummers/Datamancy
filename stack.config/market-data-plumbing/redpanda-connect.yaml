@@ -1,0 +1,34 @@
+input:
+  nats_jetstream:
+    urls:
+      - ${RAW_EVENT_BUS_URL:"nats://nats:4222"}
+    subject: ${RAW_EVENT_INGEST_SUBJECT_PREFIX:"raw.market.ingest"}.>
+    stream: ${RAW_EVENT_STREAM:"MARKET_DATA_RAW"}
+    durable: market-data-plumbing
+    deliver: all
+    ack_wait: 30s
+    max_ack_pending: ${RAW_EVENT_MAX_ACK_PENDING:2048}
+
+pipeline:
+  processors:
+    - mapping: |
+        meta exchange = this.exchange.string()
+        meta channel = this.channel.string()
+        root = this
+
+output:
+  switch:
+    cases:
+      - check: errored()
+        output:
+          nats_jetstream:
+            urls:
+              - ${RAW_EVENT_BUS_URL:"nats://nats:4222"}
+            subject: ${RAW_EVENT_DLQ_SUBJECT:"raw.market.dlq"}
+            stream: ${RAW_EVENT_STREAM:"MARKET_DATA_RAW"}
+      - output:
+          nats_jetstream:
+            urls:
+              - ${RAW_EVENT_BUS_URL:"nats://nats:4222"}
+            subject: ${RAW_EVENT_PERSIST_SUBJECT_PREFIX:"raw.market.persist"}.${! meta("exchange") }.${! meta("channel") }
+            stream: ${RAW_EVENT_STREAM:"MARKET_DATA_RAW"}

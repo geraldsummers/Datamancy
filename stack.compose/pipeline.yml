@@ -147,19 +147,147 @@ services:
       POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
 
-  market-data-ingestion:
-    image: datamancy/market-data-ingestion:local-build
-    build:
-      context: .
-      dockerfile: ./stack.containers/market-data-ingestion/Dockerfile
-    container_name: market-data-ingestion
+  nats:
+    image: nats:2.11-alpine
+    container_name: market-data-nats
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
+    command:
+      - "--jetstream"
+      - "--store_dir=/data"
+    networks:
+      - postgres
 
+  market-data-plumbing:
+    image: docker.redpanda.com/redpandadata/connect:latest
+    container_name: market-data-plumbing
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    command: ["run", "/etc/redpanda-connect/redpanda-connect.yaml"]
+    depends_on:
+      nats:
+        condition: service_started
+    networks:
+      - postgres
+    environment:
+      RAW_EVENT_BUS_URL: nats://nats:4222
+      RAW_EVENT_STREAM: MARKET_DATA_RAW
+      RAW_EVENT_INGEST_SUBJECT_PREFIX: raw.market.ingest
+      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist
+      RAW_EVENT_DLQ_SUBJECT: raw.market.dlq
+      RAW_EVENT_MAX_ACK_PENDING: "2048"
+    volumes:
+      - ./stack.config/market-data-plumbing/redpanda-connect.yaml:/etc/redpanda-connect/redpanda-connect.yaml:ro
+
+  market-data-sync:
+    image: datamancy/market-data-sync:local-build
+    build:
+      context: .
+      dockerfile: ./stack.containers/market-data-sync/Dockerfile
+    container_name: market-data-sync
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    networks:
+      - internet
+      - postgres
+    depends_on:
+      nats:
+        condition: service_started
+    environment:
+      DATAMANCY_TRADING_POLICY_FILE: /app/config/trading-policy.json
+      RAW_EVENT_BUS_URL: nats://nats:4222
+      RAW_EVENT_STREAM: MARKET_DATA_RAW
+      RAW_EVENT_INGEST_SUBJECT_PREFIX: raw.market.ingest
+      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist
+      RAW_EVENT_DLQ_SUBJECT: raw.market.dlq
+    volumes:
+      - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro
+
+  market-data-repair:
+    image: datamancy/market-data-repair:local-build
+    build:
+      context: .
+      dockerfile: ./stack.containers/market-data-repair/Dockerfile
+    container_name: market-data-repair
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
     networks:
       - postgres
       - internet
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-datamancy-reconcile:
+        condition: service_completed_successfully
+      nats:
+        condition: service_started
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: datamancy
+      POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
+      DATAMANCY_TRADING_POLICY_FILE: /app/config/trading-policy.json
+      RAW_EVENT_BUS_URL: nats://nats:4222
+      RAW_EVENT_STREAM: MARKET_DATA_RAW
+      RAW_EVENT_INGEST_SUBJECT_PREFIX: raw.market.ingest
+      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist
+      RAW_EVENT_DLQ_SUBJECT: raw.market.dlq
+    volumes:
+      - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro
+
+  market-data-persist:
+    image: datamancy/market-data-persist:local-build
+    build:
+      context: .
+      dockerfile: ./stack.containers/market-data-persist/Dockerfile
+    container_name: market-data-persist
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    networks:
+      - postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-datamancy-reconcile:
+        condition: service_completed_successfully
+      nats:
+        condition: service_started
+      market-data-plumbing:
+        condition: service_started
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: datamancy
+      POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
+      DATAMANCY_TRADING_POLICY_FILE: /app/config/trading-policy.json
+      MARKET_DATA_BATCH_SIZE: "250"
+      MARKET_DATA_FLUSH_SECONDS: "10"
+      RAW_EVENT_BUS_URL: nats://nats:4222
+      RAW_EVENT_STREAM: MARKET_DATA_RAW
+      RAW_EVENT_INGEST_SUBJECT_PREFIX: raw.market.ingest
+      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist
+      RAW_EVENT_DLQ_SUBJECT: raw.market.dlq
+    volumes:
+      - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro
+
+  feature-materializer:
+    image: datamancy/feature-materializer:local-build
+    build:
+      context: .
+      dockerfile: ./stack.containers/feature-materializer/Dockerfile
+    container_name: feature-materializer
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    networks:
+      - postgres
     depends_on:
       postgres:
         condition: service_healthy
@@ -172,7 +300,33 @@ services:
       POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
       DATAMANCY_TRADING_POLICY_FILE: /app/config/trading-policy.json
-      MARKET_DATA_BATCH_SIZE: "250"
-      MARKET_DATA_FLUSH_SECONDS: "10"
+    volumes:
+      - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro
+
+  market-data-state-updater:
+    image: datamancy/market-data-state-updater:local-build
+    build:
+      context: .
+      dockerfile: ./stack.containers/market-data-state-updater/Dockerfile
+    container_name: market-data-state-updater
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    networks:
+      - postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-datamancy-reconcile:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: datamancy
+      POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
+      DATAMANCY_TRADING_POLICY_FILE: /app/config/trading-policy.json
+      MARKET_DATA_STATE_REFRESH_INTERVAL_MS: "300000"
+      MARKET_DATA_STATE_REFRESH_LOOKBACK_HOURS: "48"
     volumes:
       - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro

@@ -1,8 +1,11 @@
-package org.datamancy.txgateway.services
+package org.datamancy.txgateway.risk.services
 
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
+import org.datamancy.txgateway.services.DatabaseService
+import org.datamancy.txgateway.services.RiskAccountStateRecord
+import org.datamancy.txgateway.services.RiskKillSwitchStateRecord
 import java.math.BigDecimal
 import java.time.Instant
 import kotlin.test.assertEquals
@@ -101,4 +104,3 @@ class RiskEngineServiceTest {
         updatedAt = Instant.now()
     )
 }
-

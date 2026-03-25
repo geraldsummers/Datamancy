@@ -1,4 +1,4 @@
-package org.datamancy.txgateway.routes
+package org.datamancy.txgateway.risk.routes
 
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
@@ -13,11 +13,11 @@ import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.datamancy.txgateway.risk.services.RiskDecision
+import org.datamancy.txgateway.risk.services.RiskEngineService
+import org.datamancy.txgateway.risk.services.RiskPolicyDefinition
 import org.datamancy.txgateway.services.AuthService
 import org.datamancy.txgateway.services.DatabaseService
-import org.datamancy.txgateway.services.RiskDecision
-import org.datamancy.txgateway.services.RiskEngineService
-import org.datamancy.txgateway.services.RiskPolicyDefinition
 import org.datamancy.txgateway.services.WalletSignatureService
 import java.math.BigDecimal
 import java.time.Instant
