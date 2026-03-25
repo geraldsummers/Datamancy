@@ -4,12 +4,15 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.datamancy.pipeline.sinks.MarketDataSink
 import org.datamancy.pipeline.sources.HyperliquidMarketData
 import org.datamancy.pipeline.sources.HyperliquidSource
 import org.datamancy.trading.policy.ActiveTradingPolicy
 import org.datamancy.trading.policy.UniverseSelectionMode
 import org.postgresql.ds.PGSimpleDataSource
+import java.sql.Array as SqlArray
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.pow
@@ -66,6 +69,7 @@ class MarketDataIngestionRunner {
     private var researchFeaturesJob: Job? = null
     private var historicalBackfillJob: Job? = null
     private var persistentStateBackfillJob: Job? = null
+    private val initialRecentCandleRepairCompleted = CompletableDeferred<Unit>()
 
     private val postgresHost = System.getenv("POSTGRES_HOST") ?: "postgres"
     private val postgresPort = System.getenv("POSTGRES_PORT")?.toIntOrNull() ?: 5432
@@ -152,6 +156,7 @@ class MarketDataIngestionRunner {
     private lateinit var sink: MarketDataSink
     private lateinit var rawSyncStateStore: RawSyncStateStore
     private lateinit var featureStateStore: FeatureStateStore
+    private lateinit var dataSource: PGSimpleDataSource
     private val activeSourcesLock = Any()
     @Volatile
     private var activeSources: List<HyperliquidSource> = emptyList()
@@ -213,7 +218,7 @@ class MarketDataIngestionRunner {
         )
         universeResolver = HyperliquidUniverseResolver(infoUrl = hyperliquidInfoUrl)
 
-        val dataSource = createDataSource()
+        dataSource = createDataSource()
         sink = MarketDataSink(
             dataSource = dataSource,
             batchSize = batchSize,
@@ -304,6 +309,10 @@ class MarketDataIngestionRunner {
             researchFeatureAggregator.runLoop()
         }
         historicalBackfillJob = scope.launch {
+            logger.info { "Waiting for initial recent candle repair before historical backfill" }
+            initialRecentCandleRepairCompleted.await()
+            logger.info { "Initial recent candle repair complete; starting historical backfill after 120s guard window" }
+            delay(120.seconds)
             runHistoricalCandleBackfillPass()
         }
 
@@ -379,7 +388,7 @@ class MarketDataIngestionRunner {
                 supervisorScope {
                     val sessionRestart = CompletableDeferred<IngestionSessionRestartReason>()
                     val candleRepairJob = launch {
-                        repairRecentCandleHistory(universe.symbols, continuityWatchdog)
+                        runRecentCandleRepairLoop(continuityWatchdog)
                     }
                     val universeRefreshJob = launch {
                         refreshUniverseDuringSession(
@@ -762,53 +771,183 @@ class MarketDataIngestionRunner {
         sessionSymbols: List<String>,
         continuityWatchdog: HyperliquidContinuityWatchdog
     ) {
+        val prioritizedSymbols = prioritizeRecentRepairSymbols(sessionSymbols)
+        val streams = prioritizedSymbols.flatMap { symbol ->
+            candleIntervals.map { interval -> symbol to interval }
+        }
+        repairCandleStreams(
+            streams = streams,
+            continuityWatchdog = continuityWatchdog,
+            label = "Recent candle repair pass",
+            lookbackHours = DEFAULT_HYPERLIQUID_RECENT_REPAIR_LOOKBACK_HOURS.coerceAtMost(hyperliquidBackfillLookbackHours),
+            markInitialRepairComplete = true
+        )
+    }
+
+    private suspend fun prioritizeRecentRepairSymbols(sessionSymbols: List<String>): List<String> = withContext(Dispatchers.IO) {
+        val normalized = sessionSymbols.map(String::trim).filter(String::isNotEmpty).distinct()
+        if (normalized.isEmpty()) {
+            return@withContext emptyList()
+        }
+
+        val sql = """
+            WITH raw_ranked AS (
+                SELECT
+                    symbol,
+                    MAX(latest_raw_time) FILTER (WHERE channel = 'candle_1m') AS candle_latest_raw_time,
+                    MAX(latest_raw_time) FILTER (WHERE channel = 'trade') AS trade_latest_raw_time,
+                    MAX(latest_raw_time) FILTER (WHERE channel = 'orderbook_l2') AS orderbook_latest_raw_time,
+                    MAX(latest_raw_time) FILTER (WHERE channel = 'funding') AS funding_latest_raw_time
+                FROM raw_sync_state
+                WHERE exchange = ?
+                  AND symbol = ANY (?)
+                GROUP BY symbol
+            )
+            SELECT symbol
+            FROM raw_ranked
+            ORDER BY
+                candle_latest_raw_time ASC NULLS FIRST,
+                GREATEST(
+                    COALESCE(trade_latest_raw_time, '-infinity'::timestamptz),
+                    COALESCE(orderbook_latest_raw_time, '-infinity'::timestamptz),
+                    COALESCE(funding_latest_raw_time, '-infinity'::timestamptz)
+                ) DESC NULLS LAST,
+                symbol ASC
+        """.trimIndent()
+
+        val ordered = dataSource.connection.use { connection ->
+            connection.prepareStatement(sql).use { statement ->
+                statement.setString(1, hyperliquidPolicy.exchangeId)
+                val sqlArray: SqlArray = connection.createArrayOf("text", normalized.toTypedArray())
+                statement.setArray(2, sqlArray)
+                statement.executeQuery().use { rs ->
+                    buildList {
+                        while (rs.next()) {
+                            add(rs.getString("symbol"))
+                        }
+                    }
+                }
+            }
+        }
+
+        val prioritized = linkedSetOf<String>()
+        ordered.forEach(prioritized::add)
+        normalized.forEach(prioritized::add)
+        prioritized.toList()
+    }
+
+    private suspend fun repairCandleStreams(
+        streams: List<Pair<String, String>>,
+        continuityWatchdog: HyperliquidContinuityWatchdog,
+        label: String,
+        lookbackHours: Long,
+        markInitialRepairComplete: Boolean
+    ) {
         val sessionStart = java.time.Instant.now()
         var fetchedCandles = 0
         var repairedStreams = 0
+        val semaphore = Semaphore(permits = 8)
 
-        for (symbol in sessionSymbols) {
-            for (interval in candleIntervals) {
-                try {
-                    val candles = candleBackfillClient.fetchRecentCandles(
-                        symbol = symbol,
-                        interval = interval,
-                        now = java.time.Instant.now()
-                    )
-                    if (candles.isEmpty()) {
-                        logger.warn { "Candle backfill returned no data for $symbol/$interval" }
-                        continue
-                    }
+        supervisorScope {
+            streams
+                .distinct()
+                .map { (symbol, interval) ->
+                    async {
+                        semaphore.withPermit {
+                            try {
+                                val candles = candleBackfillClient.fetchRecentCandles(
+                                    symbol = symbol,
+                                    interval = interval,
+                                    now = java.time.Instant.now(),
+                                    lookbackHoursOverride = lookbackHours
+                                )
+                                if (candles.isEmpty()) {
+                                    logger.warn { "$label returned no data for $symbol/$interval" }
+                                    return@withPermit 0 to 0
+                                }
 
-                    candles.forEach { candle ->
-                        sink.write(org.datamancy.pipeline.sources.HyperliquidMarketData.Candle(candle))
+                                candles.forEach { candle ->
+                                    sink.write(org.datamancy.pipeline.sources.HyperliquidMarketData.Candle(candle))
+                                }
+                                continuityWatchdog.seedBackfilledCandles(candles)
+                                candles.size to 1
+                            } catch (e: CancellationException) {
+                                logger.info { "$label cancelled while processing $symbol/$interval" }
+                                throw e
+                            } catch (e: Exception) {
+                                logger.error(e) { "$label failed for $symbol/$interval: ${e.message}" }
+                                0 to 0
+                            }
+                        }
                     }
-                    continuityWatchdog.seedBackfilledCandles(candles)
-                    fetchedCandles += candles.size
-                    repairedStreams++
-                } catch (e: CancellationException) {
-                    logger.info { "Recent candle repair cancelled while processing $symbol/$interval" }
-                    throw e
-                } catch (e: Exception) {
-                    logger.error(e) { "Candle backfill failed for $symbol/$interval: ${e.message}" }
                 }
-            }
+                .awaitAll()
+                .forEach { (candles, repaired) ->
+                    fetchedCandles += candles
+                    repairedStreams += repaired
+                }
         }
 
         try {
             sink.flush()
         } catch (e: CancellationException) {
-            logger.info { "Recent candle repair flush cancelled" }
+            logger.info { "$label flush cancelled" }
             throw e
         } catch (e: Exception) {
-            logger.error(e) { "Failed to flush backfilled candles: ${e.message}" }
+            logger.error(e) { "Failed to flush backfilled candles during $label: ${e.message}" }
             throw e
         }
 
         logger.info {
-            "Recent candle repair pass completed: $repairedStreams streams, " +
+            "$label completed: $repairedStreams streams, " +
                 "$fetchedCandles candles fetched in ${java.time.Duration.between(sessionStart, java.time.Instant.now()).seconds}s"
         }
-        continuityWatchdog.markInitialCandleRepairComplete()
+        if (markInitialRepairComplete) {
+            continuityWatchdog.markInitialCandleRepairComplete()
+            if (!initialRecentCandleRepairCompleted.isCompleted) {
+                initialRecentCandleRepairCompleted.complete(Unit)
+            }
+        }
+    }
+
+    private suspend fun runRecentCandleRepairLoop(
+        continuityWatchdog: HyperliquidContinuityWatchdog
+    ) {
+        val initialSymbols = activeUniverse?.symbols.orEmpty()
+        if (initialSymbols.isNotEmpty()) {
+            repairRecentCandleHistory(initialSymbols, continuityWatchdog)
+        } else if (!initialRecentCandleRepairCompleted.isCompleted) {
+            initialRecentCandleRepairCompleted.complete(Unit)
+        }
+
+        val repairIntervalMs = hyperliquidFreshnessCheckIntervalMs.coerceAtLeast(60_000L)
+        while (currentCoroutineContext().isActive) {
+            delay(repairIntervalMs)
+
+            val staleStreams = continuityWatchdog.staleCandleStreams()
+            if (staleStreams.isEmpty()) {
+                continue
+            }
+
+            logger.warn {
+                "Targeted candle repair triggered streams=${staleStreams.size} " +
+                    "sample=${staleStreams.take(5).joinToString { "${it.symbol}/${it.interval}" }}"
+            }
+            repairTargetedCandleStreams(staleStreams, continuityWatchdog)
+        }
+    }
+
+    private suspend fun repairTargetedCandleStreams(
+        streams: List<StaleCandleStream>,
+        continuityWatchdog: HyperliquidContinuityWatchdog
+    ) {
+        repairCandleStreams(
+            streams = streams.map { it.symbol to it.interval },
+            continuityWatchdog = continuityWatchdog,
+            label = "Targeted candle repair",
+            lookbackHours = DEFAULT_HYPERLIQUID_RECENT_REPAIR_LOOKBACK_HOURS.coerceAtMost(hyperliquidBackfillLookbackHours),
+            markInitialRepairComplete = false
+        )
     }
 
     private suspend fun runHistoricalCandleBackfillPass() {

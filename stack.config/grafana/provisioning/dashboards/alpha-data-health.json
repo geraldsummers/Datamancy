@@ -1,0 +1,323 @@
+{
+  "uid": "alpha-data-health",
+  "title": "Alpha Data Health",
+  "tags": ["trading", "alpha", "data", "health"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "health_exchange",
+        "type": "query",
+        "label": "Exchange",
+        "datasource": {
+          "type": "postgres",
+          "uid": "timescaledb"
+        },
+        "query": "SELECT exchange AS __text, exchange AS __value FROM data_health_exchange_1m ORDER BY 1",
+        "definition": "SELECT exchange AS __text, exchange AS __value FROM data_health_exchange_1m ORDER BY 1",
+        "includeAll": false,
+        "multi": false,
+        "refresh": 2,
+        "current": {
+          "selected": true,
+          "text": "hyperliquid_mainnet",
+          "value": "hyperliquid_mainnet"
+        },
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Active Symbols",
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT active_symbols AS value FROM data_health_exchange_1m WHERE exchange = '${health_exchange}'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 64 },
+              { "color": "green", "value": 128 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Critical Symbols",
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) FILTER (WHERE active_recent AND (candle_1m_latest_raw_time IS NULL OR latest_feature_time IS NULL OR COALESCE(candle_1m_raw_lag_seconds, 999999) > 90 OR COALESCE(feature_lag_seconds, 999999) > 180 OR recent_feature_rows_24h = 0)) AS value FROM data_health_symbol_1m WHERE exchange = '${health_exchange}'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Degraded Symbols",
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) FILTER (WHERE active_recent AND candle_1m_latest_raw_time IS NOT NULL AND latest_feature_time IS NOT NULL AND COALESCE(candle_1m_raw_lag_seconds, 0) <= 90 AND COALESCE(feature_lag_seconds, 0) <= 180 AND recent_feature_rows_24h > 0 AND (coverage_ratio < 0.98 OR finalized_ratio < 0.95 OR recent_execution_observed_share_24h < 0.55)) AS value FROM data_health_symbol_1m WHERE exchange = '${health_exchange}'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 8 },
+              { "color": "red", "value": 24 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Healthy Symbols",
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) FILTER (WHERE active_recent AND candle_1m_latest_raw_time IS NOT NULL AND latest_feature_time IS NOT NULL AND COALESCE(candle_1m_raw_lag_seconds, 0) <= 90 AND COALESCE(feature_lag_seconds, 0) <= 180 AND recent_feature_rows_24h > 0 AND coverage_ratio >= 0.98 AND finalized_ratio >= 0.95 AND recent_execution_observed_share_24h >= 0.55) AS value FROM data_health_symbol_1m WHERE exchange = '${health_exchange}'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 48 },
+              { "color": "green", "value": 96 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Max Candle Lag",
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(max_candle_1m_raw_lag_seconds, 0) AS value FROM data_health_exchange_1m WHERE exchange = '${health_exchange}'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 90 },
+              { "color": "red", "value": 300 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Max Feature Lag",
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(max_feature_lag_seconds, 0) AS value FROM data_health_exchange_1m WHERE exchange = '${health_exchange}'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 180 },
+              { "color": "red", "value": 600 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Worst Symbols",
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT symbol, CASE WHEN NOT active_recent THEN 'inactive' WHEN candle_1m_latest_raw_time IS NULL OR latest_feature_time IS NULL OR COALESCE(candle_1m_raw_lag_seconds, 999999) > 90 OR COALESCE(feature_lag_seconds, 999999) > 180 OR recent_feature_rows_24h = 0 THEN 'critical' WHEN coverage_ratio < 0.98 OR finalized_ratio < 0.95 OR recent_execution_observed_share_24h < 0.55 THEN 'degraded' ELSE 'healthy' END AS status, candle_1m_raw_lag_seconds, feature_lag_seconds, ROUND((coverage_ratio * 100)::numeric, 2) AS coverage_pct, ROUND((finalized_ratio * 100)::numeric, 2) AS finalized_pct, ROUND((recent_execution_observed_share_24h * 100)::numeric, 2) AS exec_share_24h_pct, latest_feature_time, finalized_through FROM data_health_symbol_1m WHERE exchange = '${health_exchange}' ORDER BY CASE WHEN NOT active_recent THEN 0 WHEN candle_1m_latest_raw_time IS NULL OR latest_feature_time IS NULL OR COALESCE(candle_1m_raw_lag_seconds, 999999) > 90 OR COALESCE(feature_lag_seconds, 999999) > 180 OR recent_feature_rows_24h = 0 THEN 3 WHEN coverage_ratio < 0.98 OR finalized_ratio < 0.95 OR recent_execution_observed_share_24h < 0.55 THEN 2 ELSE 1 END DESC, candle_1m_raw_lag_seconds DESC NULLS LAST, feature_lag_seconds DESC NULLS LAST, symbol ASC LIMIT 40"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 4 }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Channel Freshness",
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT symbol, candle_1m_raw_lag_seconds, trade_raw_lag_seconds, orderbook_l2_raw_lag_seconds, funding_raw_lag_seconds, recent_feature_rows_24h, ROUND((recent_trade_observed_share_24h * 100)::numeric, 2) AS trade_obs_24h_pct, ROUND((recent_orderbook_observed_share_24h * 100)::numeric, 2) AS book_obs_24h_pct, ROUND((recent_execution_observed_share_24h * 100)::numeric, 2) AS exec_obs_24h_pct FROM data_health_symbol_1m WHERE exchange = '${health_exchange}' AND active_recent ORDER BY candle_1m_raw_lag_seconds DESC NULLS LAST, trade_raw_lag_seconds DESC NULLS LAST, symbol ASC LIMIT 40"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 4 }
+    }
+  ]
+}

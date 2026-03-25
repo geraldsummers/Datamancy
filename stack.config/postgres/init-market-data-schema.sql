@@ -476,6 +476,219 @@ CREATE INDEX IF NOT EXISTS idx_strategy_portfolio_profiles_run_at ON strategy_po
 CREATE INDEX IF NOT EXISTS idx_strategy_portfolio_profiles_strategy_time ON strategy_portfolio_profiles (strategy_name, run_at DESC);
 CREATE INDEX IF NOT EXISTS idx_strategy_portfolio_profiles_stage_time ON strategy_portfolio_profiles (stage, run_at DESC);
 
+-- Canonical symbol-level data health contract for the 1m research layer.
+CREATE OR REPLACE VIEW data_health_symbol_1m AS
+WITH symbol_universe AS (
+    SELECT DISTINCT exchange, symbol FROM raw_sync_state
+    UNION
+    SELECT DISTINCT exchange, symbol FROM feature_materialization_state WHERE bar_size_minutes = 1
+    UNION
+    SELECT DISTINCT exchange, symbol FROM feature_coverage_state WHERE bar_size_minutes = 1
+    UNION
+    SELECT DISTINCT exchange, symbol FROM research_features_1m
+),
+raw_pivot AS (
+    SELECT
+        exchange,
+        symbol,
+        MAX(latest_raw_time) FILTER (WHERE channel = 'candle_1m') AS candle_1m_latest_raw_time,
+        MAX(latest_raw_time) FILTER (WHERE channel = 'trade') AS trade_latest_raw_time,
+        MAX(latest_raw_time) FILTER (WHERE channel = 'orderbook_l2') AS orderbook_l2_latest_raw_time,
+        MAX(latest_raw_time) FILTER (WHERE channel = 'funding') AS funding_latest_raw_time,
+        MAX(latest_raw_time) FILTER (WHERE channel = 'open_interest') AS open_interest_latest_raw_time,
+        MAX(last_observed_at) FILTER (WHERE channel = 'candle_1m') AS candle_1m_last_observed_at,
+        MAX(last_observed_at) FILTER (WHERE channel = 'trade') AS trade_last_observed_at,
+        MAX(last_observed_at) FILTER (WHERE channel = 'orderbook_l2') AS orderbook_l2_last_observed_at,
+        MAX(last_observed_at) FILTER (WHERE channel = 'funding') AS funding_last_observed_at,
+        MAX(last_observed_at) FILTER (WHERE channel = 'open_interest') AS open_interest_last_observed_at,
+        MAX(last_persisted_at) FILTER (WHERE channel = 'candle_1m') AS candle_1m_last_persisted_at,
+        MAX(last_persisted_at) FILTER (WHERE channel = 'trade') AS trade_last_persisted_at,
+        MAX(last_persisted_at) FILTER (WHERE channel = 'orderbook_l2') AS orderbook_l2_last_persisted_at,
+        MAX(last_persisted_at) FILTER (WHERE channel = 'funding') AS funding_last_persisted_at,
+        MAX(last_persisted_at) FILTER (WHERE channel = 'open_interest') AS open_interest_last_persisted_at,
+        SUM(row_count) FILTER (WHERE channel = 'candle_1m') AS candle_1m_row_count,
+        SUM(row_count) FILTER (WHERE channel = 'trade') AS trade_row_count,
+        SUM(row_count) FILTER (WHERE channel = 'orderbook_l2') AS orderbook_l2_row_count,
+        SUM(row_count) FILTER (WHERE channel = 'funding') AS funding_row_count,
+        SUM(row_count) FILTER (WHERE channel = 'open_interest') AS open_interest_row_count
+    FROM raw_sync_state
+    GROUP BY exchange, symbol
+),
+recent_features AS (
+    SELECT
+        exchange,
+        symbol,
+        COUNT(*) FILTER (WHERE time >= NOW() - INTERVAL '24 hours') AS recent_feature_rows_24h,
+        COUNT(*) FILTER (WHERE time >= NOW() - INTERVAL '24 hours' AND candle_observed) AS recent_candle_observed_rows_24h,
+        COUNT(*) FILTER (WHERE time >= NOW() - INTERVAL '24 hours' AND trade_observed) AS recent_trade_observed_rows_24h,
+        COUNT(*) FILTER (WHERE time >= NOW() - INTERVAL '24 hours' AND orderbook_observed) AS recent_orderbook_observed_rows_24h,
+        COUNT(*) FILTER (
+            WHERE time >= NOW() - INTERVAL '24 hours'
+              AND orderbook_observed
+              AND COALESCE(spread, 0) > 0
+              AND (COALESCE(bid_depth_10, 0) > 0 OR COALESCE(ask_depth_10, 0) > 0)
+        ) AS recent_execution_observed_rows_24h,
+        COUNT(*) FILTER (WHERE time >= NOW() - INTERVAL '24 hours' AND is_finalized) AS recent_finalized_rows_24h
+    FROM research_features_1m
+    GROUP BY exchange, symbol
+),
+base AS (
+    SELECT
+        su.exchange,
+        su.symbol,
+        rp.candle_1m_latest_raw_time,
+        rp.trade_latest_raw_time,
+        rp.orderbook_l2_latest_raw_time,
+        rp.funding_latest_raw_time,
+        rp.open_interest_latest_raw_time,
+        rp.candle_1m_last_observed_at,
+        rp.trade_last_observed_at,
+        rp.orderbook_l2_last_observed_at,
+        rp.funding_last_observed_at,
+        rp.open_interest_last_observed_at,
+        rp.candle_1m_last_persisted_at,
+        rp.trade_last_persisted_at,
+        rp.orderbook_l2_last_persisted_at,
+        rp.funding_last_persisted_at,
+        rp.open_interest_last_persisted_at,
+        COALESCE(rp.candle_1m_row_count, 0) AS candle_1m_row_count,
+        COALESCE(rp.trade_row_count, 0) AS trade_row_count,
+        COALESCE(rp.orderbook_l2_row_count, 0) AS orderbook_l2_row_count,
+        COALESCE(rp.funding_row_count, 0) AS funding_row_count,
+        COALESCE(rp.open_interest_row_count, 0) AS open_interest_row_count,
+        fms.earliest_feature_time,
+        fms.latest_feature_time,
+        fms.finalized_through,
+        COALESCE(fms.feature_rows, 0) AS feature_rows,
+        fms.last_materialized_at,
+        fcs.earliest_raw_time,
+        fcs.latest_raw_time,
+        fcs.earliest_feature_time AS coverage_earliest_feature_time,
+        fcs.latest_feature_time AS coverage_latest_feature_time,
+        fcs.finalized_through AS coverage_finalized_through,
+        COALESCE(fcs.expected_bars, 0) AS expected_bars,
+        COALESCE(fcs.observed_bars, 0) AS observed_bars,
+        COALESCE(fcs.finalized_bars, 0) AS finalized_bars,
+        COALESCE(fcs.coverage_ratio, 0) AS coverage_ratio,
+        COALESCE(fcs.finalized_ratio, 0) AS finalized_ratio,
+        fcs.last_computed_at,
+        COALESCE(rf.recent_feature_rows_24h, 0) AS recent_feature_rows_24h,
+        COALESCE(rf.recent_candle_observed_rows_24h, 0) AS recent_candle_observed_rows_24h,
+        COALESCE(rf.recent_trade_observed_rows_24h, 0) AS recent_trade_observed_rows_24h,
+        COALESCE(rf.recent_orderbook_observed_rows_24h, 0) AS recent_orderbook_observed_rows_24h,
+        COALESCE(rf.recent_execution_observed_rows_24h, 0) AS recent_execution_observed_rows_24h,
+        COALESCE(rf.recent_finalized_rows_24h, 0) AS recent_finalized_rows_24h,
+        NULLIF(
+            GREATEST(
+                COALESCE(rp.candle_1m_latest_raw_time, '-infinity'::timestamptz),
+                COALESCE(rp.trade_latest_raw_time, '-infinity'::timestamptz),
+                COALESCE(rp.orderbook_l2_latest_raw_time, '-infinity'::timestamptz),
+                COALESCE(rp.funding_latest_raw_time, '-infinity'::timestamptz),
+                COALESCE(rp.open_interest_latest_raw_time, '-infinity'::timestamptz)
+            ),
+            '-infinity'::timestamptz
+        ) AS latest_any_raw_time
+    FROM symbol_universe su
+    LEFT JOIN raw_pivot rp
+        ON rp.exchange = su.exchange
+       AND rp.symbol = su.symbol
+    LEFT JOIN feature_materialization_state fms
+        ON fms.exchange = su.exchange
+       AND fms.symbol = su.symbol
+       AND fms.bar_size_minutes = 1
+    LEFT JOIN feature_coverage_state fcs
+        ON fcs.exchange = su.exchange
+       AND fcs.symbol = su.symbol
+       AND fcs.bar_size_minutes = 1
+    LEFT JOIN recent_features rf
+        ON rf.exchange = su.exchange
+       AND rf.symbol = su.symbol
+)
+SELECT
+    base.*,
+    CASE
+        WHEN candle_1m_latest_raw_time IS NULL THEN NULL
+        ELSE GREATEST(EXTRACT(EPOCH FROM (NOW() - candle_1m_latest_raw_time)), 0)::BIGINT
+    END AS candle_1m_raw_lag_seconds,
+    CASE
+        WHEN trade_latest_raw_time IS NULL THEN NULL
+        ELSE GREATEST(EXTRACT(EPOCH FROM (NOW() - trade_latest_raw_time)), 0)::BIGINT
+    END AS trade_raw_lag_seconds,
+    CASE
+        WHEN orderbook_l2_latest_raw_time IS NULL THEN NULL
+        ELSE GREATEST(EXTRACT(EPOCH FROM (NOW() - orderbook_l2_latest_raw_time)), 0)::BIGINT
+    END AS orderbook_l2_raw_lag_seconds,
+    CASE
+        WHEN funding_latest_raw_time IS NULL THEN NULL
+        ELSE GREATEST(EXTRACT(EPOCH FROM (NOW() - funding_latest_raw_time)), 0)::BIGINT
+    END AS funding_raw_lag_seconds,
+    CASE
+        WHEN open_interest_latest_raw_time IS NULL THEN NULL
+        ELSE GREATEST(EXTRACT(EPOCH FROM (NOW() - open_interest_latest_raw_time)), 0)::BIGINT
+    END AS open_interest_raw_lag_seconds,
+    CASE
+        WHEN latest_feature_time IS NULL THEN NULL
+        ELSE GREATEST(EXTRACT(EPOCH FROM (NOW() - latest_feature_time)), 0)::BIGINT
+    END AS feature_lag_seconds,
+    CASE
+        WHEN finalized_through IS NULL THEN NULL
+        ELSE GREATEST(EXTRACT(EPOCH FROM (NOW() - finalized_through)) / 60.0, 0)
+    END AS finalized_lag_minutes,
+    CASE
+        WHEN last_materialized_at IS NULL THEN NULL
+        ELSE GREATEST(EXTRACT(EPOCH FROM (NOW() - last_materialized_at)), 0)::BIGINT
+    END AS materializer_lag_seconds,
+    CASE
+        WHEN last_computed_at IS NULL THEN NULL
+        ELSE GREATEST(EXTRACT(EPOCH FROM (NOW() - last_computed_at)), 0)::BIGINT
+    END AS coverage_state_lag_seconds,
+    CASE
+        WHEN recent_feature_rows_24h = 0 THEN 0
+        ELSE recent_candle_observed_rows_24h::DOUBLE PRECISION / recent_feature_rows_24h::DOUBLE PRECISION
+    END AS recent_candle_observed_share_24h,
+    CASE
+        WHEN recent_feature_rows_24h = 0 THEN 0
+        ELSE recent_trade_observed_rows_24h::DOUBLE PRECISION / recent_feature_rows_24h::DOUBLE PRECISION
+    END AS recent_trade_observed_share_24h,
+    CASE
+        WHEN recent_feature_rows_24h = 0 THEN 0
+        ELSE recent_orderbook_observed_rows_24h::DOUBLE PRECISION / recent_feature_rows_24h::DOUBLE PRECISION
+    END AS recent_orderbook_observed_share_24h,
+    CASE
+        WHEN recent_feature_rows_24h = 0 THEN 0
+        ELSE recent_execution_observed_rows_24h::DOUBLE PRECISION / recent_feature_rows_24h::DOUBLE PRECISION
+    END AS recent_execution_observed_share_24h,
+    CASE
+        WHEN recent_feature_rows_24h = 0 THEN 0
+        ELSE recent_finalized_rows_24h::DOUBLE PRECISION / recent_feature_rows_24h::DOUBLE PRECISION
+    END AS recent_finalized_share_24h,
+    (
+        latest_any_raw_time IS NOT NULL
+        AND latest_any_raw_time >= NOW() - INTERVAL '6 hours'
+    ) AS active_recent
+FROM base;
+
+CREATE OR REPLACE VIEW data_health_exchange_1m AS
+SELECT
+    exchange,
+    COUNT(*) AS tracked_symbols,
+    COUNT(*) FILTER (WHERE active_recent) AS active_symbols,
+    COUNT(*) FILTER (WHERE NOT active_recent) AS inactive_symbols,
+    COUNT(*) FILTER (WHERE active_recent AND candle_1m_latest_raw_time IS NULL) AS active_symbols_missing_candle_1m,
+    COUNT(*) FILTER (WHERE active_recent AND latest_feature_time IS NULL) AS active_symbols_missing_features,
+    COUNT(*) FILTER (WHERE active_recent AND recent_feature_rows_24h = 0) AS active_symbols_without_recent_features,
+    MAX(candle_1m_raw_lag_seconds) FILTER (WHERE active_recent) AS max_candle_1m_raw_lag_seconds,
+    MAX(feature_lag_seconds) FILTER (WHERE active_recent) AS max_feature_lag_seconds,
+    AVG(coverage_ratio) FILTER (WHERE active_recent) AS avg_coverage_ratio,
+    AVG(finalized_ratio) FILTER (WHERE active_recent) AS avg_finalized_ratio,
+    AVG(recent_execution_observed_share_24h) FILTER (WHERE active_recent) AS avg_recent_execution_observed_share_24h,
+    AVG(recent_finalized_share_24h) FILTER (WHERE active_recent) AS avg_recent_finalized_share_24h,
+    MAX(latest_any_raw_time) FILTER (WHERE active_recent) AS latest_any_raw_time,
+    MAX(latest_feature_time) FILTER (WHERE active_recent) AS latest_feature_time,
+    MAX(finalized_through) FILTER (WHERE active_recent) AS finalized_through
+FROM data_health_symbol_1m
+GROUP BY exchange;
+
 -- Align ownership with the datamancy application role so pipeline_user can evolve schema safely.
 DO $$
 BEGIN
@@ -495,6 +708,8 @@ BEGIN
         ALTER TABLE IF EXISTS strategy_live_backtest_drift OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS strategy_universe_profiles OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS strategy_portfolio_profiles OWNER TO pipeline_user;
+        ALTER VIEW IF EXISTS data_health_symbol_1m OWNER TO pipeline_user;
+        ALTER VIEW IF EXISTS data_health_exchange_1m OWNER TO pipeline_user;
 
         ALTER SEQUENCE IF EXISTS rss_sentiment_signals_id_seq OWNER TO pipeline_user;
         ALTER SEQUENCE IF EXISTS strategy_backtest_runs_id_seq OWNER TO pipeline_user;
@@ -527,6 +742,8 @@ BEGIN
         GRANT SELECT, INSERT ON strategy_live_backtest_drift TO test_runner_user;
         GRANT SELECT, INSERT ON strategy_universe_profiles TO test_runner_user;
         GRANT SELECT, INSERT ON strategy_portfolio_profiles TO test_runner_user;
+        GRANT SELECT ON data_health_symbol_1m TO test_runner_user;
+        GRANT SELECT ON data_health_exchange_1m TO test_runner_user;
         GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO test_runner_user;
     END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pipeline_user') THEN
@@ -545,6 +762,8 @@ BEGIN
         GRANT SELECT, INSERT, UPDATE ON strategy_live_backtest_drift TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON strategy_universe_profiles TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON strategy_portfolio_profiles TO pipeline_user;
+        GRANT SELECT ON data_health_symbol_1m TO pipeline_user;
+        GRANT SELECT ON data_health_exchange_1m TO pipeline_user;
         GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO pipeline_user;
     END IF;
 END $$;

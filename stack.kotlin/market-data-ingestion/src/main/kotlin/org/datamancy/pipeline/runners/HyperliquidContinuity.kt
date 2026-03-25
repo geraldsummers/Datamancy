@@ -28,6 +28,7 @@ internal const val MIN_HYPERLIQUID_BACKFILL_LOOKBACK_HOURS = 1L
 internal const val DEFAULT_HYPERLIQUID_BACKFILL_MAX_BARS = 5_000
 internal const val MIN_HYPERLIQUID_BACKFILL_MAX_BARS = 2
 internal const val DEFAULT_HYPERLIQUID_BACKFILL_OVERLAP_BARS = 2
+internal const val DEFAULT_HYPERLIQUID_RECENT_REPAIR_LOOKBACK_HOURS = 24L
 
 internal fun resolveHyperliquidInfoUrl(explicitUrl: String?, mainnet: Boolean): String {
     val url = explicitUrl?.trim()
@@ -186,6 +187,16 @@ internal fun planCandleBackfillWindows(
 
 internal class HyperliquidContinuityException(message: String) : IllegalStateException(message)
 
+internal data class StaleCandleStream(
+    val symbol: String,
+    val interval: String,
+    val candleMarketTime: Instant?,
+    val candleAgeMs: Long?,
+    val receiveAgeMs: Long?,
+    val tradeActivityAgeMs: Long,
+    val reason: String
+)
+
 internal class HyperliquidContinuityWatchdog(
     symbols: Collection<String>,
     candleIntervals: Collection<String>,
@@ -230,10 +241,14 @@ internal class HyperliquidContinuityWatchdog(
         if (initialCandleRepairCompletedAt == null) {
             return
         }
-        val issues = staleCandleIssues(now)
+        val issues = staleCandleStreams(now).map { it.reason }
         if (issues.isNotEmpty()) {
             throw HyperliquidContinuityException(issues.joinToString(separator = "; "))
         }
+    }
+
+    fun staleCandleStreams(now: Instant = nowProvider()): List<StaleCandleStream> {
+        return collectStaleCandleStreams(now)
     }
 
     private fun updateTradeActivity(symbol: String, receivedAt: Instant) {
@@ -254,9 +269,9 @@ internal class HyperliquidContinuityWatchdog(
         }
     }
 
-    private fun staleCandleIssues(now: Instant): List<String> {
+    private fun collectStaleCandleStreams(now: Instant): List<StaleCandleStream> {
         val repairCompletedAt = initialCandleRepairCompletedAt ?: return emptyList()
-        val issues = mutableListOf<String>()
+        val issues = mutableListOf<StaleCandleStream>()
 
         trackedSymbols.forEach { symbol ->
             val tradeActivityAt = lastTradeActivityAt[symbol] ?: return@forEach
@@ -276,7 +291,15 @@ internal class HyperliquidContinuityWatchdog(
 
                 if (candleMarketTime == null) {
                     if (ageMs(repairCompletedAt, now) > allowedLagMs) {
-                        issues += "$symbol/$interval never produced a candle while trades remained active"
+                        issues += StaleCandleStream(
+                            symbol = symbol,
+                            interval = interval,
+                            candleMarketTime = null,
+                            candleAgeMs = null,
+                            receiveAgeMs = null,
+                            tradeActivityAgeMs = tradeActivityAgeMs,
+                            reason = "$symbol/$interval never produced a candle while trades remained active"
+                        )
                     }
                     return@forEach
                 }
@@ -284,7 +307,14 @@ internal class HyperliquidContinuityWatchdog(
                 val candleAgeMs = ageMs(candleMarketTime, now)
                 val receiveAgeMs = lastCandleReceivedAt[key]?.let { ageMs(it, now) } ?: Long.MAX_VALUE
                 if (candleAgeMs > allowedLagMs && receiveAgeMs > allowedLagMs) {
-                    issues += buildString {
+                    issues += StaleCandleStream(
+                        symbol = symbol,
+                        interval = interval,
+                        candleMarketTime = candleMarketTime,
+                        candleAgeMs = candleAgeMs,
+                        receiveAgeMs = receiveAgeMs,
+                        tradeActivityAgeMs = tradeActivityAgeMs,
+                        reason = buildString {
                         append("$symbol/$interval stale")
                         append(" last_bar=")
                         append(candleMarketTime)
@@ -295,6 +325,7 @@ internal class HyperliquidContinuityWatchdog(
                         append(" trade_activity_age_ms=")
                         append(tradeActivityAgeMs)
                     }
+                    )
                 }
             }
         }
@@ -317,13 +348,19 @@ internal class HyperliquidCandleBackfillClient(
     private val json = Json { ignoreUnknownKeys = true }
     private val client = HttpClient(CIO)
 
-    suspend fun fetchRecentCandles(symbol: String, interval: String, now: Instant = nowProvider()): List<HyperliquidCandle> {
+    suspend fun fetchRecentCandles(
+        symbol: String,
+        interval: String,
+        now: Instant = nowProvider(),
+        lookbackHoursOverride: Long? = null,
+        maxBarsOverride: Int? = null
+    ): List<HyperliquidCandle> {
         val window = planCandleBackfillWindow(
             symbol = symbol,
             interval = interval,
             now = now,
-            lookbackHours = lookbackHours,
-            maxBars = maxBarsPerRequest,
+            lookbackHours = lookbackHoursOverride ?: lookbackHours,
+            maxBars = maxBarsOverride ?: maxBarsPerRequest,
             overlapBars = overlapBars
         )
         return fetchWindow(window)

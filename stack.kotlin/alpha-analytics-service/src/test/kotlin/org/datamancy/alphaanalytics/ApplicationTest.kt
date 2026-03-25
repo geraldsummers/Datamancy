@@ -82,6 +82,53 @@ class ApplicationTest {
     }
 
     @Test
+    fun `data health summary endpoint exposes policy-backed health rollup`() = testApplication {
+        application {
+            configureAlphaAnalyticsApp(
+                runAnalysis = { fakeResult(it) },
+                runSearch = { fakeSearchResult(it) },
+                loadDataHealthSummary = { exchange, barMinutes ->
+                    assertEquals("hyperliquid_mainnet", exchange)
+                    assertEquals(1, barMinutes)
+                    fakeDataHealthSummary()
+                }
+            )
+        }
+
+        val response = client.get("/api/v1/data-health/summary?exchange=hyperliquid_mainnet&barMinutes=1")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"activeSymbols\": 182"), body)
+        assertTrue(body.contains("\"criticalSymbols\": 7"), body)
+        assertTrue(body.contains("\"requiredRawChannels\""), body)
+    }
+
+    @Test
+    fun `data health issues endpoint exposes symbol failures`() = testApplication {
+        application {
+            configureAlphaAnalyticsApp(
+                runAnalysis = { fakeResult(it) },
+                runSearch = { fakeSearchResult(it) },
+                loadDataHealthIssues = { exchange, barMinutes, limit, includeInactive, includeHealthy ->
+                    assertEquals("hyperliquid_mainnet", exchange)
+                    assertEquals(1, barMinutes)
+                    assertEquals(20, limit)
+                    assertEquals(false, includeInactive)
+                    assertEquals(false, includeHealthy)
+                    fakeDataHealthIssues()
+                }
+            )
+        }
+
+        val response = client.get("/api/v1/data-health/issues?exchange=hyperliquid_mainnet&barMinutes=1&limit=20")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"symbol\": \"KAS\""), body)
+        assertTrue(body.contains("\"status\": \"CRITICAL\""), body)
+        assertTrue(body.contains("missing required raw channel candle_1m"), body)
+    }
+
+    @Test
     fun `run endpoint decodes partial config and returns analysis payload`() = testApplication {
         application {
             configureAlphaAnalyticsApp(
@@ -331,6 +378,117 @@ class ApplicationTest {
                     avgCapacityUtilization = 0.0,
                     maxCapacityUtilization = 0.0,
                     entryConstraints = PortfolioConstraintSnapshot(0, 0, 0, 0, 0, 0, 0, 0)
+                )
+            )
+        )
+    }
+
+    private fun fakeDataHealthSummary(): DataHealthSummary {
+        return DataHealthSummary(
+            exchange = "hyperliquid_mainnet",
+            barMinutes = 1,
+            asOf = Instant.parse("2026-03-25T05:00:00Z"),
+            thresholds = DataHealthThresholds(
+                exchange = "hyperliquid_mainnet",
+                barMinutes = 1,
+                requiredRawChannels = listOf("candle_1m", "funding", "orderbook_l2", "trade"),
+                rawStaleAfterSeconds = 120,
+                candleRawLagMaxSeconds = 90,
+                featureLagMaxSeconds = 180,
+                finalizedLagMaxMinutes = 5,
+                minCoverageRatio = 0.98,
+                minFinalizedRatio = 0.95,
+                minExecutionObservedRatio = 0.55,
+                minUniverseSymbols = 12
+            ),
+            trackedSymbols = 185,
+            activeSymbols = 182,
+            inactiveSymbols = 3,
+            healthySymbols = 119,
+            degradedSymbols = 56,
+            criticalSymbols = 7,
+            symbolsMissingRequiredChannels = 2,
+            staleCandleSymbols = 5,
+            staleFeatureSymbols = 7,
+            coverageFailSymbols = 61,
+            finalizedFailSymbols = 88,
+            executionFailSymbols = 12,
+            avgCoverageRatioActive = 0.941,
+            avgFinalizedRatioActive = 0.903,
+            avgRecentExecutionObservedShare24hActive = 0.811,
+            maxCandleLagSecondsActive = 4_532,
+            maxFeatureLagSecondsActive = 4_500,
+            criticalSample = listOf("KAS", "KAITO", "YZY")
+        )
+    }
+
+    private fun fakeDataHealthIssues(): DataHealthIssuesResponse {
+        return DataHealthIssuesResponse(
+            exchange = "hyperliquid_mainnet",
+            barMinutes = 1,
+            asOf = Instant.parse("2026-03-25T05:00:00Z"),
+            thresholds = fakeDataHealthSummary().thresholds,
+            totalIssues = 2,
+            issues = listOf(
+                DataHealthSymbolIssue(
+                    exchange = "hyperliquid_mainnet",
+                    symbol = "KAS",
+                    status = DataHealthStatus.CRITICAL,
+                    activeRecent = true,
+                    missingRequiredChannels = listOf("candle_1m"),
+                    staleChannels = listOf("candle_1m"),
+                    reasons = listOf(
+                        "missing required raw channel candle_1m",
+                        "candle_1m lag 4532s exceeds 90s"
+                    ),
+                    latestAnyRawTime = Instant.parse("2026-03-25T05:00:00Z"),
+                    candleLatestRawTime = null,
+                    tradeLatestRawTime = Instant.parse("2026-03-25T04:59:59Z"),
+                    orderbookLatestRawTime = Instant.parse("2026-03-25T04:59:58Z"),
+                    fundingLatestRawTime = Instant.parse("2026-03-25T04:59:57Z"),
+                    latestFeatureTime = null,
+                    finalizedThrough = null,
+                    candleRawLagSeconds = null,
+                    tradeRawLagSeconds = 1,
+                    orderbookRawLagSeconds = 2,
+                    fundingRawLagSeconds = 3,
+                    featureLagSeconds = null,
+                    finalizedLagMinutes = null,
+                    materializerLagSeconds = 600,
+                    coverageRatio = 0.0,
+                    finalizedRatio = 0.0,
+                    recentExecutionObservedShare24h = 0.0,
+                    recentFeatureRows24h = 0
+                ),
+                DataHealthSymbolIssue(
+                    exchange = "hyperliquid_mainnet",
+                    symbol = "NOT",
+                    status = DataHealthStatus.DEGRADED,
+                    activeRecent = true,
+                    missingRequiredChannels = emptyList(),
+                    staleChannels = emptyList(),
+                    reasons = listOf(
+                        "coverage 0.021 below 0.980",
+                        "finalized coverage 0.001 below 0.950"
+                    ),
+                    latestAnyRawTime = Instant.parse("2026-03-25T04:59:00Z"),
+                    candleLatestRawTime = Instant.parse("2026-03-25T04:59:00Z"),
+                    tradeLatestRawTime = Instant.parse("2026-03-25T04:59:20Z"),
+                    orderbookLatestRawTime = Instant.parse("2026-03-25T04:59:22Z"),
+                    fundingLatestRawTime = Instant.parse("2026-03-25T04:59:25Z"),
+                    latestFeatureTime = Instant.parse("2026-03-25T04:59:00Z"),
+                    finalizedThrough = Instant.parse("2026-03-25T04:57:00Z"),
+                    candleRawLagSeconds = 60,
+                    tradeRawLagSeconds = 40,
+                    orderbookRawLagSeconds = 38,
+                    fundingRawLagSeconds = 35,
+                    featureLagSeconds = 60,
+                    finalizedLagMinutes = 3.0,
+                    materializerLagSeconds = 60,
+                    coverageRatio = 0.021,
+                    finalizedRatio = 0.001,
+                    recentExecutionObservedShare24h = 0.62,
+                    recentFeatureRows24h = 21
                 )
             )
         )

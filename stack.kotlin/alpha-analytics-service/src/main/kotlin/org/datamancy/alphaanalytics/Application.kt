@@ -67,7 +67,20 @@ fun Application.configureAlphaAnalyticsApp(
     runSearch: suspend (CrossSectionalSearchConfig) -> CrossSectionalSearchResult = ::searchCrossSectionalResearch,
     cacheStatus: () -> UniverseSnapshotCacheStatus = ::crossSectionalUniverseSnapshotCacheStatus,
     warmCache: suspend (ResearchConfig) -> UniverseSnapshotCacheStatus = ::warmCrossSectionalUniverseSnapshots,
-    tradingPolicy: () -> TradingPolicy = ActiveTradingPolicy::current
+    tradingPolicy: () -> TradingPolicy = ActiveTradingPolicy::current,
+    loadDataHealthSummary: suspend (String?, Int) -> DataHealthSummary = { exchange, barMinutes ->
+        DataHealthService.fromEnvironment(tradingPolicy).loadSummary(exchange = exchange, barMinutes = barMinutes)
+    },
+    loadDataHealthIssues: suspend (String?, Int, Int, Boolean, Boolean) -> DataHealthIssuesResponse =
+        { exchange, barMinutes, limit, includeInactive, includeHealthy ->
+            DataHealthService.fromEnvironment(tradingPolicy).loadIssues(
+                exchange = exchange,
+                barMinutes = barMinutes,
+                limit = limit,
+                includeInactive = includeInactive,
+                includeHealthy = includeHealthy
+            )
+        }
 ) {
     routing {
         get("/health") {
@@ -87,6 +100,8 @@ fun Application.configureAlphaAnalyticsApp(
                         endpoints = listOf(
                             "/health",
                             "/api/v1/policy/trading",
+                            "/api/v1/data-health/summary",
+                            "/api/v1/data-health/issues",
                             "/api/v1/alpha/cross-sectional/default-config",
                             "/api/v1/alpha/cross-sectional/cache/status",
                             "/api/v1/alpha/cross-sectional/cache/warm",
@@ -104,6 +119,65 @@ fun Application.configureAlphaAnalyticsApp(
         get("/api/v1/policy/trading") {
             call.respondText(
                 responseGson.toJson(tradingPolicy()),
+                ContentType.Application.Json,
+                HttpStatusCode.OK
+            )
+        }
+
+        get("/api/v1/data-health/summary") {
+            val exchange = call.request.queryParameters["exchange"]?.trim()?.ifEmpty { null }
+            val barMinutes = call.request.queryParameters["barMinutes"]?.toIntOrNull() ?: 1
+
+            val result = runCatching { loadDataHealthSummary(exchange, barMinutes) }
+                .onFailure { logger.warn("Data health summary load failed", it) }
+                .getOrElse { ex ->
+                    val status = if (ex is IllegalArgumentException) {
+                        HttpStatusCode.BadRequest
+                    } else {
+                        HttpStatusCode.InternalServerError
+                    }
+                    call.respondText(
+                        responseGson.toJson(ErrorResponse("data health summary failed: ${ex.message ?: ex::class.simpleName}")),
+                        ContentType.Application.Json,
+                        status
+                    )
+                    return@get
+                }
+
+            call.respondText(
+                responseGson.toJson(result),
+                ContentType.Application.Json,
+                HttpStatusCode.OK
+            )
+        }
+
+        get("/api/v1/data-health/issues") {
+            val exchange = call.request.queryParameters["exchange"]?.trim()?.ifEmpty { null }
+            val barMinutes = call.request.queryParameters["barMinutes"]?.toIntOrNull() ?: 1
+            val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 50
+            val includeInactive = call.request.queryParameters["includeInactive"]?.toBooleanStrictOrNull() ?: false
+            val includeHealthy = call.request.queryParameters["includeHealthy"]?.toBooleanStrictOrNull() ?: false
+
+            val result = runCatching {
+                loadDataHealthIssues(exchange, barMinutes, limit, includeInactive, includeHealthy)
+            }
+                .onFailure { logger.warn("Data health issues load failed", it) }
+                .getOrElse { ex ->
+                    val status = if (ex is IllegalArgumentException) {
+                        HttpStatusCode.BadRequest
+                    } else {
+                        HttpStatusCode.InternalServerError
+                    }
+                    call.respondText(
+                        responseGson.toJson(ErrorResponse("data health issues failed: ${ex.message ?: ex::class.simpleName}")),
+                        ContentType.Application.Json,
+                        status
+                    )
+                    return@get
+                }
+
+            call.respondText(
+                responseGson.toJson(result),
                 ContentType.Application.Json,
                 HttpStatusCode.OK
             )
