@@ -327,9 +327,12 @@ class MarketDataIngestionRunner {
 
     private suspend fun backfillPersistentState() {
         runCatching {
-            rawSyncStateStore.backfillAll()
-            featureStateStore.backfillAll()
-            logger.info { "Hydrated raw_sync_state and feature state tables from existing market data" }
+            if (rawSyncStateStore.hasPersistedState()) {
+                logger.info { "Skipping raw_sync_state hydration because persisted state already exists" }
+            } else {
+                rawSyncStateStore.backfillAll()
+                logger.info { "Hydrated raw_sync_state from existing market data" }
+            }
         }.onFailure { ex ->
             logger.error(ex) { "Failed to hydrate persistent sync/materialization state: ${ex.message}" }
             throw ex
@@ -805,6 +808,7 @@ class MarketDataIngestionRunner {
             "Recent candle repair pass completed: $repairedStreams streams, " +
                 "$fetchedCandles candles fetched in ${java.time.Duration.between(sessionStart, java.time.Instant.now()).seconds}s"
         }
+        continuityWatchdog.markInitialCandleRepairComplete()
     }
 
     private suspend fun runHistoricalCandleBackfillPass() {

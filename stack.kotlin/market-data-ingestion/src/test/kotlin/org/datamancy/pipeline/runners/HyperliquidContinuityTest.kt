@@ -115,6 +115,7 @@ class HyperliquidContinuityTest {
             ),
             receivedAt = now
         )
+        watchdog.markInitialCandleRepairComplete(now)
 
         now = Instant.parse("2026-03-23T10:03:01Z")
         assertFailsWith<HyperliquidContinuityException> {
@@ -149,6 +150,7 @@ class HyperliquidContinuityTest {
             ),
             receivedAt = now
         )
+        watchdog.markInitialCandleRepairComplete(now)
 
         now = Instant.parse("2026-03-23T10:02:20Z")
         watchdog.record(
@@ -213,6 +215,7 @@ class HyperliquidContinuityTest {
             ),
             receivedAt = now
         )
+        watchdog.markInitialCandleRepairComplete(now)
         watchdog.record(
             HyperliquidMarketData.AssetContext(
                 HyperliquidAssetContext(
@@ -256,8 +259,60 @@ class HyperliquidContinuityTest {
             ),
             receivedAt = now
         )
+        watchdog.markInitialCandleRepairComplete(now)
 
         now = Instant.parse("2026-03-23T10:10:00Z")
         watchdog.assertHealthy()
+    }
+
+    @Test
+    fun `watchdog waits for initial candle repair before flagging missing candles`() {
+        var now = Instant.parse("2026-03-23T10:00:00Z")
+        val watchdog = HyperliquidContinuityWatchdog(
+            symbols = listOf("BTC"),
+            candleIntervals = listOf("1m"),
+            activityTimeoutMs = 60_000L,
+            candleStaleMultiplier = 2.5,
+            nowProvider = { now }
+        )
+
+        watchdog.record(
+            HyperliquidMarketData.Trades(
+                listOf(
+                    HyperliquidTrade(
+                        time = now,
+                        symbol = "BTC",
+                        price = 1.0,
+                        size = 1.0,
+                        side = "buy"
+                    )
+                )
+            ),
+            receivedAt = now
+        )
+
+        now = Instant.parse("2026-03-23T10:05:00Z")
+        watchdog.assertHealthy()
+
+        watchdog.markInitialCandleRepairComplete(now)
+        now = Instant.parse("2026-03-23T10:07:00Z")
+        watchdog.record(
+            HyperliquidMarketData.Trades(
+                listOf(
+                    HyperliquidTrade(
+                        time = now,
+                        symbol = "BTC",
+                        price = 1.0,
+                        size = 1.0,
+                        side = "buy"
+                    )
+                )
+            ),
+            receivedAt = now
+        )
+        now = Instant.parse("2026-03-23T10:07:31Z")
+        assertFailsWith<HyperliquidContinuityException> {
+            watchdog.assertHealthy()
+        }
     }
 }

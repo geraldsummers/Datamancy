@@ -41,10 +41,10 @@ class HyperliquidSource(
     override val name = "HyperliquidSource"
 
     private val json = Json { ignoreUnknownKeys = true }
+    // Hyperliquid pushes market data continuously; rely on the explicit idle watchdog
+    // instead of Ktor's pinger, which was forcing avoidable reconnects under shard load.
     private val client = HttpClient(CIO) {
-        install(WebSockets) {
-            pingInterval = 30000 // 30 seconds in milliseconds
-        }
+        install(WebSockets)
     }
 
     override suspend fun fetch(): Flow<HyperliquidMarketData> = flow {

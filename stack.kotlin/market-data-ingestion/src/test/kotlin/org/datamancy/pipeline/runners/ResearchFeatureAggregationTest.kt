@@ -101,4 +101,11 @@ class ResearchFeatureAggregationTest {
             finalizedAtProjectionSql("c.bucket_time")
         )
     }
+
+    @Test
+    fun `startup refresh window caps bootstrap visibility query width`() {
+        assertEquals(5L, startupRefreshWindowMinutes(180L))
+        assertEquals(5L, startupRefreshWindowMinutes(15L))
+        assertEquals(3L, startupRefreshWindowMinutes(3L))
+    }
 }

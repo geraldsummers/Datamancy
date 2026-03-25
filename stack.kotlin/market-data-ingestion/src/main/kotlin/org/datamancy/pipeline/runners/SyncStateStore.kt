@@ -70,6 +70,26 @@ internal class RawSyncStateStore(
     private val dataSource: DataSource,
     private val exchangeId: String
 ) {
+    suspend fun hasPersistedState(): Boolean = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                """
+                    SELECT EXISTS(
+                        SELECT 1
+                        FROM raw_sync_state
+                        WHERE exchange = ?
+                    )
+                """.trimIndent()
+            ).use { stmt ->
+                stmt.setString(1, exchangeId)
+                stmt.executeQuery().use { rs ->
+                    rs.next()
+                    rs.getBoolean(1)
+                }
+            }
+        }
+    }
+
     suspend fun backfillAll() = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             conn.autoCommit = false
@@ -106,6 +126,24 @@ internal class RawSyncStateStore(
                 )
             }
         )
+    }
+
+    fun recordObservations(conn: Connection, observations: List<RawSyncObservation>) {
+        record(conn, observations)
+    }
+
+    suspend fun recordObservations(observations: List<RawSyncObservation>) = withContext(Dispatchers.IO) {
+        if (observations.isEmpty()) return@withContext
+        dataSource.connection.use { conn ->
+            conn.autoCommit = false
+            try {
+                record(conn, observations)
+                conn.commit()
+            } catch (e: Exception) {
+                conn.rollback()
+                throw e
+            }
+        }
     }
 
     private fun record(conn: Connection, observations: List<RawSyncObservation>) {

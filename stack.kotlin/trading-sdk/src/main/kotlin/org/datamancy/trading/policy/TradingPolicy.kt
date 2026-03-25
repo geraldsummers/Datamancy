@@ -55,7 +55,7 @@ data class UniversePolicy(
     val includeSymbols: List<String> = emptyList(),
     val excludeSymbols: List<String> = emptyList(),
     val refreshIntervalMs: Long = 300_000L,
-    val symbolsPerConnection: Int = 8,
+    val symbolsPerConnection: Int = 32,
     val includeDelisted: Boolean = false,
     val eligibility: UniverseEligibilityPolicy = UniverseEligibilityPolicy()
 )
@@ -97,8 +97,8 @@ data class FeatureMaterializationPolicy(
     val canonicalTable: String = "research_features_1m",
     val bootstrapHours: Long = 336L,
     val refreshIntervalMs: Long = 60_000L,
-    val refreshOverlapMinutes: Long = 180L,
-    val backfillChunkHours: Long = 6L,
+    val refreshOverlapMinutes: Long = 5L,
+    val backfillChunkHours: Long = 1L,
     val finalizationLagMinutes: Long = 3L,
     val freshness: FeatureFreshnessPolicy = FeatureFreshnessPolicy()
 )
@@ -862,7 +862,7 @@ object DatamancyTradingPolicy {
             universe {
                 selectionMode = UniverseSelectionMode.EXCHANGE_CATALOG
                 refreshIntervalMs = 300_000L
-                symbolsPerConnection = 8
+                symbolsPerConnection = 32
                 includeDelisted = false
                 eligibility {
                     minHistoryHours = 2_160
@@ -897,8 +897,8 @@ object DatamancyTradingPolicy {
                 canonicalTable = "research_features_1m"
                 bootstrapHours = 336L
                 refreshIntervalMs = 60_000L
-                refreshOverlapMinutes = 180L
-                backfillChunkHours = 6L
+                refreshOverlapMinutes = 5L
+                backfillChunkHours = 1L
                 finalizationLagMinutes = 3L
                 freshness {
                     maxRawLagSeconds = 90L

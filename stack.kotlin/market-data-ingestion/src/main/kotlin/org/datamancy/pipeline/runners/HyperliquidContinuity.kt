@@ -193,10 +193,10 @@ internal class HyperliquidContinuityWatchdog(
     private val candleStaleMultiplier: Double,
     private val nowProvider: () -> Instant = { Instant.now() }
 ) {
-    private val startedAt = nowProvider()
     private val trackedSymbols = symbols.map(String::trim).filter(String::isNotEmpty).distinct()
     private val trackedIntervals = candleIntervals.map(String::trim).filter(String::isNotEmpty).distinct()
 
+    private var initialCandleRepairCompletedAt: Instant? = null
     private val lastTradeActivityAt = mutableMapOf<String, Instant>()
     private val lastCandleMarketTime = mutableMapOf<String, Instant>()
     private val lastCandleReceivedAt = mutableMapOf<String, Instant>()
@@ -220,7 +220,16 @@ internal class HyperliquidContinuityWatchdog(
         }
     }
 
+    fun markInitialCandleRepairComplete(completedAt: Instant = nowProvider()) {
+        if (initialCandleRepairCompletedAt == null || completedAt.isAfter(initialCandleRepairCompletedAt)) {
+            initialCandleRepairCompletedAt = completedAt
+        }
+    }
+
     fun assertHealthy(now: Instant = nowProvider()) {
+        if (initialCandleRepairCompletedAt == null) {
+            return
+        }
         val issues = staleCandleIssues(now)
         if (issues.isNotEmpty()) {
             throw HyperliquidContinuityException(issues.joinToString(separator = "; "))
@@ -246,6 +255,7 @@ internal class HyperliquidContinuityWatchdog(
     }
 
     private fun staleCandleIssues(now: Instant): List<String> {
+        val repairCompletedAt = initialCandleRepairCompletedAt ?: return emptyList()
         val issues = mutableListOf<String>()
 
         trackedSymbols.forEach { symbol ->
@@ -265,7 +275,7 @@ internal class HyperliquidContinuityWatchdog(
                 val candleMarketTime = lastCandleMarketTime[key]
 
                 if (candleMarketTime == null) {
-                    if (ageMs(startedAt, now) > allowedLagMs) {
+                    if (ageMs(repairCompletedAt, now) > allowedLagMs) {
                         issues += "$symbol/$interval never produced a candle while trades remained active"
                     }
                     return@forEach

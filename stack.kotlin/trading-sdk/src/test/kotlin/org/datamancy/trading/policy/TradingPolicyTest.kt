@@ -30,5 +30,8 @@ class TradingPolicyTest {
         assertEquals(0, policy.research.crossSectional.maxSymbols)
         assertEquals(0, policy.research.crossSectional.discoveryMaxSymbols)
         assertTrue(policy.venue("hyperliquid").features.enabled)
+        assertEquals(32, policy.venue("hyperliquid").universe.symbolsPerConnection)
+        assertEquals(5L, policy.venue("hyperliquid").features.refreshOverlapMinutes)
+        assertEquals(1L, policy.venue("hyperliquid").features.backfillChunkHours)
     }
 }

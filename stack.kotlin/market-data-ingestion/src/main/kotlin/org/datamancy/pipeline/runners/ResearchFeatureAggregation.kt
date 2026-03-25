@@ -24,6 +24,7 @@ internal const val MIN_RESEARCH_FEATURES_REFRESH_OVERLAP_MINUTES = 1L
 internal const val DEFAULT_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS = 6L
 internal const val MIN_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS = 1L
 internal const val DEFAULT_RESEARCH_FEATURES_HISTORICAL_CATCHUP_WINDOWS_PER_CYCLE = 8
+internal const val DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES = 5L
 
 internal fun resolveResearchFeaturesBootstrapHours(explicitHours: Long?): Long {
     val hours = explicitHours ?: DEFAULT_RESEARCH_FEATURES_BOOTSTRAP_HOURS
@@ -101,6 +102,10 @@ internal fun finalizedAtProjectionSql(bucketColumn: String): String {
     return "CASE WHEN $bucketColumn <= CAST(? AS TIMESTAMPTZ) THEN CAST(? AS TIMESTAMPTZ) ELSE NULL::TIMESTAMPTZ END"
 }
 
+internal fun startupRefreshWindowMinutes(refreshOverlapMinutes: Long): Long {
+    return refreshOverlapMinutes.coerceAtMost(DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES).coerceAtLeast(1L)
+}
+
 internal class ResearchFeatureAggregator(
     private val dataSource: DataSource,
     private val exchangeId: String,
@@ -168,6 +173,15 @@ internal class ResearchFeatureAggregator(
 
         while (coroutineContext.isActive) {
             try {
+                val refreshWindowMinutes = if (bootstrapCompleted) {
+                    refreshOverlapMinutes
+                } else {
+                    startupRefreshWindowMinutes(refreshOverlapMinutes)
+                }
+                refreshRecentWindow(
+                    windowMinutes = refreshWindowMinutes,
+                    phase = if (bootstrapCompleted) "refresh" else "startup_refresh"
+                )
                 if (!bootstrapCompleted) {
                     bootstrapCompleted = bootstrap()
                     if (!bootstrapCompleted) {
@@ -176,7 +190,6 @@ internal class ResearchFeatureAggregator(
                     }
                 }
                 catchUpHistoricalWindows()
-                refreshRecentWindow()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -256,19 +269,22 @@ internal class ResearchFeatureAggregator(
         }
     }
 
-    private suspend fun refreshRecentWindow() = withContext(Dispatchers.IO) {
+    private suspend fun refreshRecentWindow(
+        windowMinutes: Long = refreshOverlapMinutes,
+        phase: String = "refresh"
+    ) = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             conn.autoCommit = false
             if (!ensureSchema(conn)) {
                 return@withContext
             }
             val end = Instant.now().truncatedTo(ChronoUnit.MINUTES).plus(1, ChronoUnit.MINUTES)
-            val start = end.minus(refreshOverlapMinutes, ChronoUnit.MINUTES)
+            val start = end.minus(windowMinutes, ChronoUnit.MINUTES)
             val rows = upsertWindow(conn, start, end)
             featureStateStore.refresh(conn, start, end)
             conn.commit()
             researchFeatureLogger.info {
-                "research_features_1m refresh exchange=$exchangeId window=$start..$end rows=$rows"
+                "research_features_1m $phase exchange=$exchangeId window=$start..$end rows=$rows"
             }
         }
     }
