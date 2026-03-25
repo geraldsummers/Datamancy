@@ -25,10 +25,8 @@ output:
             urls:
               - ${RAW_EVENT_BUS_URL:"nats://nats:4222"}
             subject: ${RAW_EVENT_DLQ_SUBJECT:"raw.market.dlq"}
-            stream: ${RAW_EVENT_STREAM:"MARKET_DATA_RAW"}
       - output:
           nats_jetstream:
             urls:
               - ${RAW_EVENT_BUS_URL:"nats://nats:4222"}
-            subject: ${RAW_EVENT_PERSIST_SUBJECT_PREFIX:"raw.market.persist"}.${! meta("exchange") }.${! meta("channel") }
-            stream: ${RAW_EVENT_STREAM:"MARKET_DATA_RAW"}
+            subject: ${RAW_EVENT_PERSIST_SUBJECT_PREFIX:"raw.market.persist"}.${!meta("exchange")}.${!meta("channel")}
