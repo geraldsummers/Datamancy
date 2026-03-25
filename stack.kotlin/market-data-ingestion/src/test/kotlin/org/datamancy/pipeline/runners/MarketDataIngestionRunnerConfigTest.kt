@@ -3,6 +3,7 @@ package org.datamancy.pipeline.runners
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 
 class MarketDataIngestionRunnerConfigTest {
@@ -197,5 +198,109 @@ class MarketDataIngestionRunnerConfigTest {
     fun `targeted candle repair remains conservative under backlog`() {
         assertEquals(3, determineCandleRepairPermits(streamCount = 8, markInitialRepairComplete = false))
         assertEquals(2, determineCandleRepairPermits(streamCount = 24, markInitialRepairComplete = false))
+    }
+
+    @Test
+    fun `raw candle recovery planner prioritizes initial repair over all other work`() {
+        val action = planRawCandleRecoveryAction(
+            now = Instant.parse("2026-03-26T00:00:00Z"),
+            state = RawCandleRecoveryPlannerState(initialRecentRepairPending = true),
+            initialStreams = listOf("BTC" to "1m", "ETH" to "1m"),
+            targetedStreams = listOf("SOL" to "1m"),
+            historicalCandidates = listOf(
+                CandleHistoricalBackfillCandidate(
+                    symbol = "ADA",
+                    interval = "1m",
+                    range = HistoricalCandleBackfillRange(
+                        startTime = Instant.parse("2026-03-25T00:00:00Z"),
+                        endTime = Instant.parse("2026-03-25T12:00:00Z")
+                    )
+                )
+            )
+        )
+
+        val initial = assertIs<RawCandleRecoveryAction.InitialRecentRepair>(action)
+        assertEquals(listOf("BTC" to "1m", "ETH" to "1m"), initial.streams)
+    }
+
+    @Test
+    fun `raw candle recovery planner prioritizes targeted repair before historical backfill`() {
+        val action = planRawCandleRecoveryAction(
+            now = Instant.parse("2026-03-26T00:00:00Z"),
+            state = RawCandleRecoveryPlannerState(
+                initialRecentRepairPending = false,
+                initialRecentRepairCompletedAt = Instant.parse("2026-03-25T23:55:00Z")
+            ),
+            initialStreams = emptyList(),
+            targetedStreams = listOf("BTC" to "1m", "BTC" to "1m"),
+            historicalCandidates = listOf(
+                CandleHistoricalBackfillCandidate(
+                    symbol = "ETH",
+                    interval = "1m",
+                    range = HistoricalCandleBackfillRange(
+                        startTime = Instant.parse("2026-03-25T00:00:00Z"),
+                        endTime = Instant.parse("2026-03-25T12:00:00Z")
+                    )
+                )
+            )
+        )
+
+        val targeted = assertIs<RawCandleRecoveryAction.TargetedRecentRepair>(action)
+        assertEquals(listOf("BTC" to "1m"), targeted.streams)
+    }
+
+    @Test
+    fun `raw candle recovery planner waits for historical backfill guard window`() {
+        val action = planRawCandleRecoveryAction(
+            now = Instant.parse("2026-03-26T00:00:30Z"),
+            state = RawCandleRecoveryPlannerState(
+                initialRecentRepairPending = false,
+                initialRecentRepairCompletedAt = Instant.parse("2026-03-26T00:00:00Z")
+            ),
+            initialStreams = emptyList(),
+            targetedStreams = emptyList(),
+            historicalCandidates = listOf(
+                CandleHistoricalBackfillCandidate(
+                    symbol = "BTC",
+                    interval = "1m",
+                    range = HistoricalCandleBackfillRange(
+                        startTime = Instant.parse("2026-03-25T00:00:00Z"),
+                        endTime = Instant.parse("2026-03-25T12:00:00Z")
+                    )
+                )
+            ),
+            historicalBackfillGuardMs = 120_000L
+        )
+
+        val idle = assertIs<RawCandleRecoveryAction.Idle>(action)
+        assertEquals(
+            "historical_backfill_guard_until=2026-03-26T00:02:00Z",
+            idle.reason
+        )
+    }
+
+    @Test
+    fun `historical backfill prioritization focuses on the newest missing history first`() {
+        val candidates = prioritizeHistoricalBackfillCandidates(
+            interval = "1m",
+            now = Instant.parse("2026-03-26T00:00:00Z"),
+            lookbackHours = 24L,
+            coverageStates = listOf(
+                RawCandleCoverageState(
+                    symbol = "BTC",
+                    earliestRawTime = Instant.parse("2026-03-25T12:00:00Z"),
+                    latestRawTime = Instant.parse("2026-03-25T23:59:00Z")
+                ),
+                RawCandleCoverageState(
+                    symbol = "ETH",
+                    earliestRawTime = Instant.parse("2026-03-25T04:00:00Z"),
+                    latestRawTime = Instant.parse("2026-03-25T23:59:00Z")
+                )
+            ),
+            maxCandidates = 2
+        )
+
+        assertEquals(listOf("BTC", "ETH"), candidates.map { it.symbol })
+        assertEquals(Instant.parse("2026-03-25T11:59:00Z"), candidates.first().range.endTime)
     }
 }

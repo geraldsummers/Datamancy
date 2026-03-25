@@ -23,7 +23,7 @@ internal const val HYPERLIQUID_MAINNET_WS_URL = "wss://api.hyperliquid.xyz/ws"
 internal const val HYPERLIQUID_TESTNET_WS_URL = "wss://api.hyperliquid-testnet.xyz/ws"
 internal const val DEFAULT_HYPERLIQUID_IDLE_TIMEOUT_MS = 120_000L
 internal const val MIN_HYPERLIQUID_IDLE_TIMEOUT_MS = 5_000L
-internal const val DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_PAUSE_MS = 30_000L
+internal const val DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_GUARD_MS = 120_000L
 
 internal fun determineCandleRepairPermits(
     streamCount: Int,
@@ -48,6 +48,107 @@ internal data class HistoricalCandleBackfillRange(
     val startTime: java.time.Instant,
     val endTime: java.time.Instant
 )
+
+internal data class CandleHistoricalBackfillCandidate(
+    val symbol: String,
+    val interval: String,
+    val range: HistoricalCandleBackfillRange
+)
+
+internal data class RawCandleCoverageState(
+    val symbol: String,
+    val earliestRawTime: java.time.Instant?,
+    val latestRawTime: java.time.Instant?
+)
+
+internal data class RawCandleRecoveryPlannerState(
+    val initialRecentRepairPending: Boolean = true,
+    val initialRecentRepairCompletedAt: java.time.Instant? = null
+)
+
+internal sealed interface RawCandleRecoveryAction {
+    data class InitialRecentRepair(
+        val streams: List<Pair<String, String>>
+    ) : RawCandleRecoveryAction
+
+    data class TargetedRecentRepair(
+        val streams: List<Pair<String, String>>
+    ) : RawCandleRecoveryAction
+
+    data class HistoricalBackfill(
+        val candidate: CandleHistoricalBackfillCandidate
+    ) : RawCandleRecoveryAction
+
+    data class Idle(
+        val reason: String
+    ) : RawCandleRecoveryAction
+}
+
+internal fun prioritizeHistoricalBackfillCandidates(
+    interval: String,
+    now: java.time.Instant,
+    lookbackHours: Long,
+    coverageStates: List<RawCandleCoverageState>,
+    maxCandidates: Int = 1
+): List<CandleHistoricalBackfillCandidate> {
+    if (maxCandidates <= 0) return emptyList()
+    return coverageStates
+        .distinctBy { it.symbol }
+        .mapNotNull { state ->
+            determineHistoricalCandleBackfillRange(
+                interval = interval,
+                now = now,
+                lookbackHours = lookbackHours,
+                earliestRawTime = state.earliestRawTime,
+                latestRawTime = state.latestRawTime
+            )?.let { range ->
+                CandleHistoricalBackfillCandidate(
+                    symbol = state.symbol,
+                    interval = interval,
+                    range = range
+                )
+            }
+        }
+        .sortedWith(
+            compareByDescending<CandleHistoricalBackfillCandidate> { it.range.endTime }
+                .thenBy { it.symbol }
+        )
+        .take(maxCandidates)
+}
+
+internal fun planRawCandleRecoveryAction(
+    now: java.time.Instant,
+    state: RawCandleRecoveryPlannerState,
+    initialStreams: List<Pair<String, String>>,
+    targetedStreams: List<Pair<String, String>>,
+    historicalCandidates: List<CandleHistoricalBackfillCandidate>,
+    historicalBackfillGuardMs: Long = DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_GUARD_MS
+): RawCandleRecoveryAction {
+    if (state.initialRecentRepairPending) {
+        return RawCandleRecoveryAction.InitialRecentRepair(initialStreams.distinct())
+    }
+
+    val distinctTargetedStreams = targetedStreams.distinct()
+    if (distinctTargetedStreams.isNotEmpty()) {
+        return RawCandleRecoveryAction.TargetedRecentRepair(distinctTargetedStreams)
+    }
+
+    val completedAt = state.initialRecentRepairCompletedAt
+    if (completedAt == null) {
+        return RawCandleRecoveryAction.Idle("initial_recent_repair_completion_unknown")
+    }
+
+    val historicalReadyAt = completedAt.plusMillis(historicalBackfillGuardMs.coerceAtLeast(0L))
+    if (now.isBefore(historicalReadyAt)) {
+        return RawCandleRecoveryAction.Idle(
+            "historical_backfill_guard_until=$historicalReadyAt"
+        )
+    }
+
+    val candidate = historicalCandidates.firstOrNull()
+        ?: return RawCandleRecoveryAction.Idle("no_candle_recovery_work")
+    return RawCandleRecoveryAction.HistoricalBackfill(candidate)
+}
 
 internal fun determineHistoricalCandleBackfillRange(
     interval: String,
@@ -122,9 +223,7 @@ class MarketDataIngestionRunner {
     private var ingestionJob: Job? = null
     private var flushJob: Job? = null
     private var researchFeaturesJob: Job? = null
-    private var historicalBackfillJob: Job? = null
     private var persistentStateBackfillJob: Job? = null
-    private val initialRecentCandleRepairCompleted = CompletableDeferred<Unit>()
 
     private val postgresHost = System.getenv("POSTGRES_HOST") ?: "postgres"
     private val postgresPort = System.getenv("POSTGRES_PORT")?.toIntOrNull() ?: 5432
@@ -372,14 +471,6 @@ class MarketDataIngestionRunner {
         researchFeaturesJob = scope.launch {
             researchFeatureAggregator.runLoop()
         }
-        historicalBackfillJob = scope.launch {
-            logger.info { "Waiting for initial recent candle repair before historical backfill" }
-            initialRecentCandleRepairCompleted.await()
-            logger.info { "Initial recent candle repair complete; starting historical backfill after 120s guard window" }
-            delay(120.seconds)
-            runHistoricalCandleBackfillPass()
-        }
-
         logger.info { "Pipeline started successfully" }
     }
 
@@ -455,7 +546,10 @@ class MarketDataIngestionRunner {
                 supervisorScope {
                     val sessionRestart = CompletableDeferred<IngestionSessionRestartReason>()
                     val candleRepairJob = launch {
-                        runRecentCandleRepairLoop(continuityWatchdog)
+                        runCandleRecoveryLoop(
+                            sessionSymbols = universe.symbols,
+                            continuityWatchdog = continuityWatchdog
+                        )
                     }
                     val universeRefreshJob = launch {
                         refreshUniverseDuringSession(
@@ -855,7 +949,7 @@ class MarketDataIngestionRunner {
         ingestionJob?.cancel()
         flushJob?.cancel()
         researchFeaturesJob?.cancel()
-        historicalBackfillJob?.cancel()
+        persistentStateBackfillJob?.cancel()
 
         // Flush remaining data
         runBlocking {
@@ -904,23 +998,6 @@ class MarketDataIngestionRunner {
             user = postgresUser
             password = postgresPassword
         }
-    }
-
-    private suspend fun repairRecentCandleHistory(
-        sessionSymbols: List<String>,
-        continuityWatchdog: HyperliquidContinuityWatchdog
-    ) {
-        val prioritizedSymbols = prioritizeRecentRepairSymbols(sessionSymbols)
-        val streams = prioritizedSymbols.flatMap { symbol ->
-            candleIntervals.map { interval -> symbol to interval }
-        }
-        repairCandleStreams(
-            streams = streams,
-            continuityWatchdog = continuityWatchdog,
-            label = "Recent candle repair pass",
-            lookbackHours = DEFAULT_HYPERLIQUID_RECENT_REPAIR_LOOKBACK_HOURS.coerceAtMost(hyperliquidBackfillLookbackHours),
-            markInitialRepairComplete = true
-        )
     }
 
     private suspend fun prioritizeRecentRepairSymbols(sessionSymbols: List<String>): List<String> = withContext(Dispatchers.IO) {
@@ -1052,55 +1129,89 @@ class MarketDataIngestionRunner {
         }
         if (markInitialRepairComplete) {
             continuityWatchdog.markInitialCandleRepairComplete()
-            if (!initialRecentCandleRepairCompleted.isCompleted) {
-                initialRecentCandleRepairCompleted.complete(Unit)
-            }
         }
     }
 
-    private suspend fun runRecentCandleRepairLoop(
+    private suspend fun runCandleRecoveryLoop(
+        sessionSymbols: List<String>,
         continuityWatchdog: HyperliquidContinuityWatchdog
     ) {
-        val initialSymbols = activeUniverse?.symbols.orEmpty()
-        if (initialSymbols.isNotEmpty()) {
-            repairRecentCandleHistory(initialSymbols, continuityWatchdog)
-        } else if (!initialRecentCandleRepairCompleted.isCompleted) {
-            initialRecentCandleRepairCompleted.complete(Unit)
+        val repairIntervalMs = hyperliquidFreshnessCheckIntervalMs.coerceAtLeast(30_000L)
+        var plannerState = RawCandleRecoveryPlannerState(initialRecentRepairPending = true)
+        if (sessionSymbols.isEmpty()) {
+            continuityWatchdog.markInitialCandleRepairComplete()
+            plannerState = plannerState.copy(
+                initialRecentRepairPending = false,
+                initialRecentRepairCompletedAt = java.time.Instant.now()
+            )
         }
 
-        val repairIntervalMs = hyperliquidFreshnessCheckIntervalMs.coerceAtLeast(30_000L)
         while (currentCoroutineContext().isActive) {
-            delay(repairIntervalMs)
-
+            val initialStreams = if (plannerState.initialRecentRepairPending) {
+                prioritizeRecentRepairSymbols(sessionSymbols).flatMap { symbol ->
+                    candleIntervals.map { interval -> symbol to interval }
+                }
+            } else {
+                emptyList()
+            }
             val watchdogStreams = continuityWatchdog.staleCandleStreams().map { it.symbol to it.interval }
             val persistedStreams = loadPersistedCandleRepairStreams(
-                sessionSymbols = activeUniverse?.symbols.orEmpty(),
-                limit = activeUniverse?.symbols?.size ?: 48
+                sessionSymbols = sessionSymbols,
+                limit = sessionSymbols.size.coerceAtLeast(1)
             )
-            val staleStreams = (watchdogStreams + persistedStreams).distinct()
-            if (staleStreams.isEmpty()) {
-                continue
+            val historicalCandidates =
+                if (plannerState.initialRecentRepairPending || watchdogStreams.isNotEmpty() || persistedStreams.isNotEmpty()) {
+                    emptyList()
+                } else {
+                    loadHistoricalCandleBackfillCandidates(
+                        sessionSymbols = sessionSymbols,
+                        limit = 1
+                    )
+                }
+            when (
+                val action = planRawCandleRecoveryAction(
+                    now = java.time.Instant.now(),
+                    state = plannerState,
+                    initialStreams = initialStreams,
+                    targetedStreams = watchdogStreams + persistedStreams,
+                    historicalCandidates = historicalCandidates
+                )
+            ) {
+                is RawCandleRecoveryAction.InitialRecentRepair -> {
+                    repairCandleStreams(
+                        streams = action.streams,
+                        continuityWatchdog = continuityWatchdog,
+                        label = "Initial recent candle repair",
+                        lookbackHours = DEFAULT_HYPERLIQUID_RECENT_REPAIR_LOOKBACK_HOURS
+                            .coerceAtMost(hyperliquidBackfillLookbackHours),
+                        markInitialRepairComplete = true
+                    )
+                    plannerState = plannerState.copy(
+                        initialRecentRepairPending = false,
+                        initialRecentRepairCompletedAt = java.time.Instant.now()
+                    )
+                }
+                is RawCandleRecoveryAction.TargetedRecentRepair -> {
+                    logger.warn {
+                        "Targeted candle repair triggered streams=${action.streams.size} " +
+                            "sample=${action.streams.take(5).joinToString { "${it.first}/${it.second}" }}"
+                    }
+                    repairCandleStreams(
+                        streams = action.streams,
+                        continuityWatchdog = continuityWatchdog,
+                        label = "Targeted candle repair",
+                        lookbackHours = 1L.coerceAtMost(hyperliquidBackfillLookbackHours),
+                        markInitialRepairComplete = false
+                    )
+                }
+                is RawCandleRecoveryAction.HistoricalBackfill -> {
+                    runHistoricalCandleBackfill(action.candidate)
+                }
+                is RawCandleRecoveryAction.Idle -> {
+                    delay(repairIntervalMs)
+                }
             }
-
-            logger.warn {
-                "Targeted candle repair triggered streams=${staleStreams.size} " +
-                    "sample=${staleStreams.take(5).joinToString { "${it.first}/${it.second}" }}"
-            }
-            repairTargetedCandleStreams(staleStreams, continuityWatchdog)
         }
-    }
-
-    private suspend fun repairTargetedCandleStreams(
-        streams: List<Pair<String, String>>,
-        continuityWatchdog: HyperliquidContinuityWatchdog
-    ) {
-        repairCandleStreams(
-            streams = streams,
-            continuityWatchdog = continuityWatchdog,
-            label = "Targeted candle repair",
-            lookbackHours = 1L.coerceAtMost(hyperliquidBackfillLookbackHours),
-            markInitialRepairComplete = false
-        )
     }
 
     private suspend fun loadPersistedCandleRepairStreams(
@@ -1174,160 +1285,101 @@ class MarketDataIngestionRunner {
         }
     }
 
-    private suspend fun runHistoricalCandleBackfillPass() {
+    private suspend fun runHistoricalCandleBackfill(candidate: CandleHistoricalBackfillCandidate) {
         val startedAt = java.time.Instant.now()
-        val universe = activeUniverse ?: resolveUniverseSnapshot(previous = emptyList())
-        val totalStreams = universe.symbols.size * candleIntervals.size
-        var completedStreams = 0
+        val windows = planCandleBackfillWindowsForRange(
+            symbol = candidate.symbol,
+            interval = candidate.interval,
+            startTime = candidate.range.startTime,
+            endTime = candidate.range.endTime,
+            maxBars = hyperliquidBackfillMaxBars,
+            overlapBars = hyperliquidBackfillOverlapBars
+        )
+        if (windows.isEmpty()) {
+            return
+        }
+
         var fetchedCandles = 0
-
-        logger.info {
-            "Starting historical Hyperliquid candle backfill source=${universe.source} " +
-                "symbols=${universe.symbols.size} intervals=${candleIntervals.joinToString()} " +
-                "configuredLookbackHours=$hyperliquidBackfillLookbackHours"
-        }
-
-        for ((symbolIndex, symbol) in universe.symbols.withIndex()) {
+        for ((windowIndex, window) in windows.withIndex()) {
             currentCoroutineContext().ensureActive()
-            for (interval in candleIntervals) {
-                currentCoroutineContext().ensureActive()
-                try {
-                    val now = java.time.Instant.now()
-                    val range = loadHistoricalCandleBackfillRange(
-                        symbol = symbol,
-                        interval = interval,
-                        now = now
-                    )
-                    if (range == null) {
-                        completedStreams += 1
-                        continue
-                    }
-
-                    val windows = planCandleBackfillWindowsForRange(
-                        symbol = symbol,
-                        interval = interval,
-                        startTime = range.startTime,
-                        endTime = range.endTime,
-                        maxBars = hyperliquidBackfillMaxBars,
-                        overlapBars = hyperliquidBackfillOverlapBars
-                    )
-                    if (windows.isEmpty()) {
-                        completedStreams += 1
-                        continue
-                    }
-
-                    var streamCandles = 0
-                    for ((windowIndex, window) in windows.withIndex()) {
-                        currentCoroutineContext().ensureActive()
-                        awaitHistoricalBackfillBudget(universe.symbols)
-
-                        val candles = candleBackfillClient.fetchWindowCandles(window)
-                        if (candles.isEmpty()) {
-                            logger.warn {
-                                "Historical candle backfill returned no data for $symbol/$interval " +
-                                    "window=${windowIndex + 1}/${windows.size} start=${window.startTime} end=${window.endTime}"
-                            }
-                            continue
-                        }
-
-                        candles.forEach { candle ->
-                            sink.write(HyperliquidMarketData.Candle(candle))
-                        }
-                        fetchedCandles += candles.size
-                        streamCandles += candles.size
-                        sink.flush()
-                    }
-
-                    completedStreams += 1
-                    if (streamCandles == 0) {
-                        logger.warn { "Historical candle backfill returned no data for $symbol/$interval" }
-                    } else {
-                        logger.info {
-                            "Historical candle backfill stream=$completedStreams/$totalStreams " +
-                                "symbol=$symbol interval=$interval candles=$streamCandles " +
-                                "windows=${windows.size} symbolIndex=${symbolIndex + 1}/${universe.symbols.size}"
-                        }
-                    }
-                } catch (e: CancellationException) {
-                    logger.info { "Historical candle backfill cancelled while processing $symbol/$interval" }
-                    throw e
-                } catch (e: Exception) {
-                    completedStreams += 1
-                    logger.error(e) { "Historical candle backfill failed for $symbol/$interval: ${e.message}" }
+            val candles = candleBackfillClient.fetchWindowCandles(window)
+            if (candles.isEmpty()) {
+                logger.warn {
+                    "Historical candle backfill returned no data for ${candidate.symbol}/${candidate.interval} " +
+                        "window=${windowIndex + 1}/${windows.size} start=${window.startTime} end=${window.endTime}"
                 }
+                continue
             }
-        }
 
-        try {
+            candles.forEach { candle ->
+                sink.write(HyperliquidMarketData.Candle(candle))
+            }
+            fetchedCandles += candles.size
             sink.flush()
-        } catch (e: CancellationException) {
-            logger.info { "Historical candle backfill final flush cancelled" }
-            throw e
         }
 
         logger.info {
-            "Historical candle backfill completed streams=$completedStreams/$totalStreams " +
-                "candles=$fetchedCandles durationSeconds=${java.time.Duration.between(startedAt, java.time.Instant.now()).seconds}"
+            "Historical candle backfill completed symbol=${candidate.symbol} interval=${candidate.interval} " +
+                "candles=$fetchedCandles windows=${windows.size} " +
+                "range=${candidate.range.startTime}..${candidate.range.endTime} " +
+                "durationSeconds=${java.time.Duration.between(startedAt, java.time.Instant.now()).seconds}"
         }
     }
 
-    private suspend fun awaitHistoricalBackfillBudget(sessionSymbols: List<String>) {
-        var pauseLogged = false
-        while (currentCoroutineContext().isActive) {
-            val backlog = loadPersistedCandleRepairStreams(sessionSymbols = sessionSymbols, limit = 1)
-            if (backlog.isEmpty()) {
-                if (pauseLogged) {
-                    logger.info { "Historical candle backfill resumed after live repair backlog cleared" }
-                }
-                return
-            }
-            if (!pauseLogged) {
-                logger.warn {
-                    "Pausing historical candle backfill while live repair backlog exists " +
-                        "sample=${backlog.joinToString { "${it.first}/${it.second}" }}"
-                }
-                pauseLogged = true
-            }
-            delay(DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_PAUSE_MS)
+    private suspend fun loadHistoricalCandleBackfillCandidates(
+        sessionSymbols: List<String>,
+        limit: Int = 1,
+        now: java.time.Instant = java.time.Instant.now()
+    ): List<CandleHistoricalBackfillCandidate> = withContext(Dispatchers.IO) {
+        val normalized = sessionSymbols.map(String::trim).filter(String::isNotEmpty).distinct()
+        if (normalized.isEmpty()) {
+            return@withContext emptyList()
         }
-    }
 
-    private suspend fun loadHistoricalCandleBackfillRange(
-        symbol: String,
-        interval: String,
-        now: java.time.Instant
-    ): HistoricalCandleBackfillRange? = withContext(Dispatchers.IO) {
-        val channel = "candle_$interval"
+        val channel = "candle_1m"
         val sql = """
-            SELECT earliest_raw_time, latest_raw_time
+            SELECT symbol, earliest_raw_time, latest_raw_time
             FROM raw_sync_state
             WHERE exchange = ?
-              AND symbol = ?
               AND channel = ?
+              AND symbol = ANY (?)
         """.trimIndent()
 
-        val state = dataSource.connection.use { connection ->
+        val persistedStates = dataSource.connection.use { connection ->
             connection.prepareStatement(sql).use { statement ->
                 statement.setString(1, hyperliquidPolicy.exchangeId)
-                statement.setString(2, symbol)
-                statement.setString(3, channel)
+                statement.setString(2, channel)
+                val sqlArray: SqlArray = connection.createArrayOf("text", normalized.toTypedArray())
+                statement.setArray(3, sqlArray)
                 statement.executeQuery().use { rs ->
-                    if (!rs.next()) {
-                        null
-                    } else {
-                        rs.getTimestamp("earliest_raw_time")?.toInstant() to
-                            rs.getTimestamp("latest_raw_time")?.toInstant()
+                    buildList {
+                        while (rs.next()) {
+                            add(
+                                RawCandleCoverageState(
+                                    symbol = rs.getString("symbol"),
+                                    earliestRawTime = rs.getTimestamp("earliest_raw_time")?.toInstant(),
+                                    latestRawTime = rs.getTimestamp("latest_raw_time")?.toInstant()
+                                )
+                            )
+                        }
                     }
                 }
             }
         }
 
-        determineHistoricalCandleBackfillRange(
-            interval = interval,
+        val stateBySymbol = persistedStates.associateBy { it.symbol }
+        prioritizeHistoricalBackfillCandidates(
+            interval = "1m",
             now = now,
             lookbackHours = hyperliquidBackfillLookbackHours,
-            earliestRawTime = state?.first,
-            latestRawTime = state?.second
+            coverageStates = normalized.map { symbol ->
+                stateBySymbol[symbol] ?: RawCandleCoverageState(
+                    symbol = symbol,
+                    earliestRawTime = null,
+                    latestRawTime = null
+                )
+            },
+            maxCandidates = limit.coerceAtLeast(1)
         )
     }
 }
