@@ -93,4 +93,12 @@ class ResearchFeatureAggregationTest {
 
         assertEquals(0, windows.size)
     }
+
+    @Test
+    fun `finalized at projection pins timestamptz typing`() {
+        assertEquals(
+            "CASE WHEN c.bucket_time <= CAST(? AS TIMESTAMPTZ) THEN CAST(? AS TIMESTAMPTZ) ELSE NULL::TIMESTAMPTZ END",
+            finalizedAtProjectionSql("c.bucket_time")
+        )
+    }
 }

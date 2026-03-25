@@ -97,6 +97,10 @@ internal fun planHistoricalCatchUpWindows(
     ).take(maxWindowsPerCycle)
 }
 
+internal fun finalizedAtProjectionSql(bucketColumn: String): String {
+    return "CASE WHEN $bucketColumn <= CAST(? AS TIMESTAMPTZ) THEN CAST(? AS TIMESTAMPTZ) ELSE NULL::TIMESTAMPTZ END"
+}
+
 internal class ResearchFeatureAggregator(
     private val dataSource: DataSource,
     private val exchangeId: String,
@@ -231,15 +235,20 @@ internal class ResearchFeatureAggregator(
             )
             var totalRows = 0
             windows.forEachIndexed { index, window ->
-                val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
-                featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
-                totalRows += rows
-                researchFeatureLogger.info {
-                    "research_features_1m bootstrap exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
-                        "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
+                try {
+                    val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
+                    featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
+                    conn.commit()
+                    totalRows += rows
+                    researchFeatureLogger.info {
+                        "research_features_1m bootstrap exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
+                            "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
+                    }
+                } catch (e: Exception) {
+                    conn.rollback()
+                    throw e
                 }
             }
-            conn.commit()
             researchFeatureLogger.info {
                 "research_features_1m bootstrap complete exchange=$exchangeId windows=${windows.size} totalRows=$totalRows"
             }
@@ -303,15 +312,20 @@ internal class ResearchFeatureAggregator(
 
             var totalRows = 0
             windows.forEachIndexed { index, window ->
-                val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
-                featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
-                totalRows += rows
-                researchFeatureLogger.info {
-                    "research_features_1m historical_catchup exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
-                        "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
+                try {
+                    val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
+                    featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
+                    conn.commit()
+                    totalRows += rows
+                    researchFeatureLogger.info {
+                        "research_features_1m historical_catchup exchange=$exchangeId chunk=${index + 1}/${windows.size} " +
+                            "window=${window.startInclusive}..${window.endExclusive} rows=$rows"
+                    }
+                } catch (e: Exception) {
+                    conn.rollback()
+                    throw e
                 }
             }
-            conn.commit()
 
             researchFeatureLogger.info {
                 "research_features_1m historical_catchup complete exchange=$exchangeId " +
@@ -539,10 +553,10 @@ internal class ResearchFeatureAggregator(
                 o.bucket_time IS NOT NULL,
                 f.bucket_time IS NOT NULL OR oi.bucket_time IS NOT NULL,
                 ?,
-                CASE WHEN c.bucket_time <= ? THEN FALSE ELSE TRUE END,
-                CASE WHEN c.bucket_time <= ? THEN TRUE ELSE FALSE END,
+                CASE WHEN c.bucket_time <= CAST(? AS TIMESTAMPTZ) THEN FALSE ELSE TRUE END,
+                CASE WHEN c.bucket_time <= CAST(? AS TIMESTAMPTZ) THEN TRUE ELSE FALSE END,
                 c.bucket_time + INTERVAL '${finalizationLagMinutes} minutes',
-                CASE WHEN c.bucket_time <= ? THEN ? ELSE NULL END
+                ${finalizedAtProjectionSql("c.bucket_time")}
             FROM minute_candles c
             LEFT JOIN minute_trades t
               ON t.bucket_time = c.bucket_time

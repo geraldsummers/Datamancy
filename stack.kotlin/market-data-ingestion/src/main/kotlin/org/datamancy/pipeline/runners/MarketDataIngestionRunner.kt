@@ -65,6 +65,7 @@ class MarketDataIngestionRunner {
     private var flushJob: Job? = null
     private var researchFeaturesJob: Job? = null
     private var historicalBackfillJob: Job? = null
+    private var persistentStateBackfillJob: Job? = null
 
     private val postgresHost = System.getenv("POSTGRES_HOST") ?: "postgres"
     private val postgresPort = System.getenv("POSTGRES_PORT")?.toIntOrNull() ?: 5432
@@ -246,9 +247,6 @@ class MarketDataIngestionRunner {
         }
         logger.info { "✓ TimescaleDB connection healthy" }
         runBlocking {
-            backfillPersistentState()
-        }
-        runBlocking {
             runCatching { resolveUniverseSnapshot(previous = emptyList()) }
                 .onSuccess { snapshot ->
                     activeUniverse = snapshot
@@ -285,6 +283,19 @@ class MarketDataIngestionRunner {
                     sink.flush()
                 } catch (e: Exception) {
                     logger.error(e) { "Periodic flush failed: ${e.message}" }
+                }
+            }
+        }
+
+        persistentStateBackfillJob = scope.launch {
+            logger.info { "Starting background persistent sync/materialization state hydration" }
+            runCatching {
+                backfillPersistentState()
+            }.onSuccess {
+                logger.info { "Background persistent sync/materialization state hydration complete" }
+            }.onFailure { ex ->
+                logger.error(ex) {
+                    "Background persistent sync/materialization state hydration failed: ${ex.message}"
                 }
             }
         }

@@ -6,11 +6,16 @@ import org.datamancy.pipeline.sources.HyperliquidAssetContext
 import org.datamancy.pipeline.sources.HyperliquidCandle
 import org.datamancy.pipeline.sources.HyperliquidOrderbook
 import org.datamancy.pipeline.sources.HyperliquidTrade
+import java.sql.BatchUpdateException
 import java.sql.Connection
 import java.sql.PreparedStatement
+import java.sql.SQLException
 import java.sql.Timestamp
 import java.time.Instant
 import javax.sql.DataSource
+
+internal const val POSTGRES_DEADLOCK_SQL_STATE = "40P01"
+private const val RAW_SYNC_UPSERT_MAX_RETRIES = 3
 
 internal data class RawSyncObservation(
     val symbol: String,
@@ -19,6 +24,47 @@ internal data class RawSyncObservation(
     val latestTime: Instant,
     val rowCount: Long
 )
+
+internal fun normalizeRawSyncObservations(observations: List<RawSyncObservation>): List<RawSyncObservation> {
+    if (observations.isEmpty()) return emptyList()
+    return observations
+        .groupBy { it.symbol to it.channel }
+        .map { (key, bucket) ->
+            RawSyncObservation(
+                symbol = key.first,
+                channel = key.second,
+                earliestTime = bucket.minOf { it.earliestTime },
+                latestTime = bucket.maxOf { it.latestTime },
+                rowCount = bucket.sumOf { it.rowCount }
+            )
+        }
+        .sortedWith(compareBy<RawSyncObservation>({ it.symbol }, { it.channel }))
+}
+
+internal fun isRetryableRawSyncFailure(throwable: Throwable?): Boolean {
+    var current = throwable
+    while (current != null) {
+        val sqlState = when (current) {
+            is BatchUpdateException -> current.nextException?.sqlState ?: current.sqlState
+            is SQLException -> current.sqlState
+            else -> null
+        }
+        if (sqlState == POSTGRES_DEADLOCK_SQL_STATE) {
+            return true
+        }
+        current = when (current) {
+            is BatchUpdateException -> current.nextException ?: current.cause
+            else -> current.cause
+        }
+    }
+    return false
+}
+
+private fun rawSyncRetryDelayMs(attempt: Int): Long = when (attempt) {
+    1 -> 25L
+    2 -> 100L
+    else -> 250L
+}
 
 internal class RawSyncStateStore(
     private val dataSource: DataSource,
@@ -64,17 +110,7 @@ internal class RawSyncStateStore(
 
     private fun record(conn: Connection, observations: List<RawSyncObservation>) {
         if (observations.isEmpty()) return
-        val aggregated = observations
-            .groupBy { it.symbol to it.channel }
-            .map { (key, bucket) ->
-                RawSyncObservation(
-                    symbol = key.first,
-                    channel = key.second,
-                    earliestTime = bucket.minOf { it.earliestTime },
-                    latestTime = bucket.maxOf { it.latestTime },
-                    rowCount = bucket.sumOf { it.rowCount }
-                )
-            }
+        val aggregated = normalizeRawSyncObservations(observations)
         upsert(conn, aggregated)
     }
 
@@ -112,18 +148,33 @@ internal class RawSyncStateStore(
                 row_count = raw_sync_state.row_count + EXCLUDED.row_count
         """.trimIndent()
 
-        conn.prepareStatement(sql).use { stmt ->
-            observations.forEach { observation ->
-                stmt.setString(1, exchangeId)
-                stmt.setString(2, observation.symbol)
-                stmt.setString(3, observation.channel)
-                stmt.setTimestamp(4, Timestamp.from(observation.earliestTime))
-                stmt.setTimestamp(5, Timestamp.from(observation.latestTime))
-                stmt.setTimestamp(6, Timestamp.from(observation.latestTime))
-                stmt.setLong(7, observation.rowCount)
-                stmt.addBatch()
+        var attempt = 0
+        while (true) {
+            val savepoint = if (!conn.autoCommit) conn.setSavepoint() else null
+            try {
+                conn.prepareStatement(sql).use { stmt ->
+                    observations.forEach { observation ->
+                        stmt.setString(1, exchangeId)
+                        stmt.setString(2, observation.symbol)
+                        stmt.setString(3, observation.channel)
+                        stmt.setTimestamp(4, Timestamp.from(observation.earliestTime))
+                        stmt.setTimestamp(5, Timestamp.from(observation.latestTime))
+                        stmt.setTimestamp(6, Timestamp.from(observation.latestTime))
+                        stmt.setLong(7, observation.rowCount)
+                        stmt.addBatch()
+                    }
+                    stmt.executeBatch()
+                }
+                savepoint?.let(conn::releaseSavepoint)
+                return
+            } catch (e: Exception) {
+                savepoint?.let(conn::rollback)
+                if (!isRetryableRawSyncFailure(e) || attempt >= RAW_SYNC_UPSERT_MAX_RETRIES) {
+                    throw e
+                }
+                attempt += 1
+                Thread.sleep(rawSyncRetryDelayMs(attempt))
             }
-            stmt.executeBatch()
         }
     }
 
@@ -166,6 +217,7 @@ internal class RawSyncStateStore(
                 NOW(),
                 row_count
             FROM aggregated
+            ORDER BY symbol, channel
             ON CONFLICT (exchange, symbol, channel) DO UPDATE SET
                 earliest_raw_time = CASE
                     WHEN raw_sync_state.earliest_raw_time IS NULL THEN EXCLUDED.earliest_raw_time
@@ -224,6 +276,7 @@ internal class RawSyncStateStore(
                 NOW(),
                 row_count
             FROM aggregated
+            ORDER BY symbol
             ON CONFLICT (exchange, symbol, channel) DO UPDATE SET
                 earliest_raw_time = CASE
                     WHEN raw_sync_state.earliest_raw_time IS NULL THEN EXCLUDED.earliest_raw_time
