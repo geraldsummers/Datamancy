@@ -259,6 +259,75 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `recent gap repair reuses pending split windows before planning new cursor work`() {
+        val pending = listOf(
+            AggregationWindow(
+                startInclusive = Instant.parse("2026-03-20T22:30:00Z"),
+                endExclusive = Instant.parse("2026-03-20T23:00:00Z")
+            ),
+            AggregationWindow(
+                startInclusive = Instant.parse("2026-03-20T22:00:00Z"),
+                endExclusive = Instant.parse("2026-03-20T22:30:00Z")
+            )
+        )
+
+        val batch = selectRecentGapRepairBatch(
+            startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+            endExclusive = Instant.parse("2026-03-21T00:00:00Z"),
+            chunkHours = 1,
+            cursorExclusive = Instant.parse("2026-03-20T23:00:00Z"),
+            pendingWindows = pending,
+            pendingNextCursorExclusive = Instant.parse("2026-03-20T22:00:00Z")
+        )
+
+        assertTrue(batch.reusedPendingWindows)
+        assertEquals(pending, batch.windows)
+        assertEquals(Instant.parse("2026-03-20T22:00:00Z"), batch.nextCursorExclusive)
+    }
+
+    @Test
+    fun `recent gap repair keeps pending windows when cycle pauses incomplete`() {
+        val pending = listOf(
+            AggregationWindow(
+                startInclusive = Instant.parse("2026-03-20T22:30:00Z"),
+                endExclusive = Instant.parse("2026-03-20T23:00:00Z")
+            )
+        )
+
+        val state = advanceRecentGapRepairState(
+            currentCursorExclusive = Instant.parse("2026-03-20T23:00:00Z"),
+            plannedNextCursorExclusive = Instant.parse("2026-03-20T22:00:00Z"),
+            result = WindowMaterializationResult(
+                totalRows = 100,
+                totalFinalizedRows = 80,
+                completed = false,
+                remainingWindows = pending
+            )
+        )
+
+        assertEquals(Instant.parse("2026-03-20T23:00:00Z"), state.cursorExclusive)
+        assertEquals(pending, state.pendingWindows)
+        assertEquals(Instant.parse("2026-03-20T22:00:00Z"), state.pendingNextCursorExclusive)
+    }
+
+    @Test
+    fun `recent gap repair advances cursor after pending work completes`() {
+        val state = advanceRecentGapRepairState(
+            currentCursorExclusive = Instant.parse("2026-03-20T23:00:00Z"),
+            plannedNextCursorExclusive = Instant.parse("2026-03-20T22:00:00Z"),
+            result = WindowMaterializationResult(
+                totalRows = 100,
+                totalFinalizedRows = 80,
+                completed = true
+            )
+        )
+
+        assertEquals(Instant.parse("2026-03-20T22:00:00Z"), state.cursorExclusive)
+        assertTrue(state.pendingWindows.isEmpty())
+        assertEquals(null, state.pendingNextCursorExclusive)
+    }
+
+    @Test
     fun `frontier recovery plans newest stale windows before older repairs`() {
         val windows = planFrontierRecoveryWindows(
             latestFinalizedTime = Instant.parse("2026-03-25T22:33:00Z"),

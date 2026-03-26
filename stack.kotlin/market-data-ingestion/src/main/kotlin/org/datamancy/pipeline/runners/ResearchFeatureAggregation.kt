@@ -181,7 +181,8 @@ internal fun isAggregationQueryTimeout(throwable: Throwable?): Boolean {
 internal data class WindowMaterializationResult(
     val totalRows: Int,
     val totalFinalizedRows: Int,
-    val completed: Boolean
+    val completed: Boolean,
+    val remainingWindows: List<AggregationWindow> = emptyList()
 )
 
 internal fun planRollingRecentGapRepairWindows(
@@ -254,6 +255,65 @@ internal fun frontierRecoveryBlocksBackgroundPhases(
     windows: List<AggregationWindow>
 ): Boolean = windows.size > 1
 
+internal data class RecentGapRepairBatch(
+    val windows: List<AggregationWindow>,
+    val nextCursorExclusive: Instant?,
+    val reusedPendingWindows: Boolean
+)
+
+internal data class RecentGapRepairState(
+    val cursorExclusive: Instant?,
+    val pendingWindows: List<AggregationWindow>,
+    val pendingNextCursorExclusive: Instant?
+)
+
+internal fun selectRecentGapRepairBatch(
+    startInclusive: Instant,
+    endExclusive: Instant,
+    chunkHours: Long,
+    cursorExclusive: Instant?,
+    pendingWindows: List<AggregationWindow>,
+    pendingNextCursorExclusive: Instant?
+): RecentGapRepairBatch {
+    if (pendingWindows.isNotEmpty()) {
+        return RecentGapRepairBatch(
+            windows = pendingWindows,
+            nextCursorExclusive = pendingNextCursorExclusive ?: cursorExclusive ?: endExclusive,
+            reusedPendingWindows = true
+        )
+    }
+    val (windows, nextCursor) = planRollingRecentGapRepairWindows(
+        startInclusive = startInclusive,
+        endExclusive = endExclusive,
+        chunkHours = chunkHours,
+        cursorExclusive = cursorExclusive
+    )
+    return RecentGapRepairBatch(
+        windows = windows,
+        nextCursorExclusive = nextCursor,
+        reusedPendingWindows = false
+    )
+}
+
+internal fun advanceRecentGapRepairState(
+    currentCursorExclusive: Instant?,
+    plannedNextCursorExclusive: Instant?,
+    result: WindowMaterializationResult
+): RecentGapRepairState =
+    if (result.completed) {
+        RecentGapRepairState(
+            cursorExclusive = plannedNextCursorExclusive ?: currentCursorExclusive,
+            pendingWindows = emptyList(),
+            pendingNextCursorExclusive = null
+        )
+    } else {
+        RecentGapRepairState(
+            cursorExclusive = currentCursorExclusive,
+            pendingWindows = result.remainingWindows,
+            pendingNextCursorExclusive = plannedNextCursorExclusive
+        )
+    }
+
 internal data class FrontierRecoveryOutcome(
     val attempted: Boolean,
     val blockingDebt: Boolean,
@@ -279,6 +339,10 @@ internal class ResearchFeatureAggregator(
     private var bootstrapCompleted = false
     @Volatile
     private var recentGapRepairCursorExclusive: Instant? = null
+    @Volatile
+    private var recentGapRepairPendingWindows: List<AggregationWindow> = emptyList()
+    @Volatile
+    private var recentGapRepairPendingNextCursorExclusive: Instant? = null
     private val effectiveWindowTimeoutSeconds = windowTimeoutSeconds.coerceAtLeast(
         MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS
     )
@@ -565,12 +629,15 @@ internal class ResearchFeatureAggregator(
             }
             val endExclusive = Instant.now().truncatedTo(ChronoUnit.HOURS)
             val startInclusive = endExclusive.minus(recentGapRepairHours(bootstrapHours), ChronoUnit.HOURS)
-            val (windows, nextCursor) = planRollingRecentGapRepairWindows(
+            val batch = selectRecentGapRepairBatch(
                 startInclusive = startInclusive,
                 endExclusive = endExclusive,
                 chunkHours = backfillChunkHours,
-                cursorExclusive = recentGapRepairCursorExclusive
+                cursorExclusive = recentGapRepairCursorExclusive,
+                pendingWindows = recentGapRepairPendingWindows,
+                pendingNextCursorExclusive = recentGapRepairPendingNextCursorExclusive
             )
+            val windows = batch.windows
             if (windows.isEmpty()) {
                 return@withContext false
             }
@@ -583,13 +650,19 @@ internal class ResearchFeatureAggregator(
                 maxRuntimeMs = backgroundPhaseBudgetMs()
             )
 
-            if (result.completed) {
-                recentGapRepairCursorExclusive = nextCursor
-            }
+            val nextState = advanceRecentGapRepairState(
+                currentCursorExclusive = recentGapRepairCursorExclusive,
+                plannedNextCursorExclusive = batch.nextCursorExclusive,
+                result = result
+            )
+            recentGapRepairCursorExclusive = nextState.cursorExclusive
+            recentGapRepairPendingWindows = nextState.pendingWindows
+            recentGapRepairPendingNextCursorExclusive = nextState.pendingNextCursorExclusive
             researchFeatureLogger.info {
                 "research_features_1m gap_repair complete exchange=$exchangeId windows=${windows.size} " +
-                    "totalRows=${result.totalRows} finalized=${result.totalFinalizedRows} " +
-                    "completed=${result.completed} nextCursor=$recentGapRepairCursorExclusive"
+                "totalRows=${result.totalRows} finalized=${result.totalFinalizedRows} " +
+                    "completed=${result.completed} reusedPending=${batch.reusedPendingWindows} " +
+                    "pending=${recentGapRepairPendingWindows.size} nextCursor=$recentGapRepairCursorExclusive"
             }
             return@withContext true
         }
@@ -623,7 +696,12 @@ internal class ResearchFeatureAggregator(
                     "research_features_1m $phase exchange=$exchangeId paused after ${maxRuntimeMs}ms budget " +
                         "rows=$totalRows finalized=$totalFinalizedRows remaining=${queue.size}"
                 }
-                return WindowMaterializationResult(totalRows, totalFinalizedRows, completed = false)
+                return WindowMaterializationResult(
+                    totalRows = totalRows,
+                    totalFinalizedRows = totalFinalizedRows,
+                    completed = false,
+                    remainingWindows = queue.toList()
+                )
             }
             val window = queue.removeFirst()
             val savepoint = conn.setSavepoint()
@@ -655,14 +733,19 @@ internal class ResearchFeatureAggregator(
                             "timed out after ${effectiveWindowTimeoutSeconds}s; subdividing into " +
                             splitWindows.joinToString { "${it.startInclusive}..${it.endExclusive}" }
                     }
+                    splitWindows.asReversed().forEach(queue::addFirst)
                     if (budgetExceeded()) {
                         researchFeatureLogger.info {
                             "research_features_1m $phase exchange=$exchangeId budget exhausted after timeout while " +
                                 "splitting ${window.startInclusive}..${window.endExclusive}"
                         }
-                        return WindowMaterializationResult(totalRows, totalFinalizedRows, completed = false)
+                        return WindowMaterializationResult(
+                            totalRows = totalRows,
+                            totalFinalizedRows = totalFinalizedRows,
+                            completed = false,
+                            remainingWindows = queue.toList()
+                        )
                     }
-                    splitWindows.asReversed().forEach(queue::addFirst)
                     continue
                 }
                 if (isAggregationQueryTimeout(e)) {
