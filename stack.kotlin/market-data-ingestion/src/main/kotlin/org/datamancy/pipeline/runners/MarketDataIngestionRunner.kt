@@ -26,7 +26,7 @@ internal const val MIN_HYPERLIQUID_IDLE_TIMEOUT_MS = 5_000L
 internal const val DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_GUARD_MS = 120_000L
 internal const val DEFAULT_HYPERLIQUID_INITIAL_RECENT_REPAIR_BATCH_STREAMS = 24
 internal const val DEFAULT_TARGETED_CANDLE_REPAIR_ACTIVE_WINDOW_MS = 6L * 60L * 60L * 1_000L
-internal const val DEFAULT_TARGETED_REPAIR_CYCLES_BEFORE_HISTORICAL = 8
+internal const val DEFAULT_TARGETED_REPAIR_CYCLES_BEFORE_HISTORICAL = 4
 
 internal fun determineCandleRepairPermits(
     streamCount: Int,
@@ -180,6 +180,28 @@ internal fun planRawCandleRecoveryAction(
         return RawCandleRecoveryAction.Idle("no_candle_recovery_work")
     }
     return RawCandleRecoveryAction.HistoricalBackfill(candidate)
+}
+
+internal fun shouldLoadHistoricalCandleBackfillCandidates(
+    now: java.time.Instant,
+    state: RawCandleRecoveryPlannerState,
+    targetedStreams: List<Pair<String, String>>,
+    historicalBackfillGuardMs: Long = DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_GUARD_MS,
+    targetedRepairCyclesBeforeHistorical: Int = DEFAULT_TARGETED_REPAIR_CYCLES_BEFORE_HISTORICAL
+): Boolean {
+    if (state.initialRecentRepairPending) {
+        return false
+    }
+    val completedAt = state.initialRecentRepairCompletedAt ?: return false
+    val historicalReady = !now.isBefore(completedAt.plusMillis(historicalBackfillGuardMs.coerceAtLeast(0L)))
+    if (!historicalReady) {
+        return false
+    }
+    val distinctTargetedStreams = targetedStreams.distinct()
+    if (distinctTargetedStreams.isEmpty()) {
+        return true
+    }
+    return state.targetedRecentRepairCycles >= targetedRepairCyclesBeforeHistorical.coerceAtLeast(1)
 }
 
 internal fun determineHistoricalCandleBackfillRange(
@@ -1220,18 +1242,30 @@ class MarketDataIngestionRunner {
                 sessionSymbols = sessionSymbols,
                 limit = sessionSymbols.size.coerceAtLeast(1)
             )
+            val cycleNow = java.time.Instant.now()
             val historicalCandidates =
-                if (plannerState.initialRecentRepairPending) {
-                    emptyList()
-                } else {
+                if (
+                    shouldLoadHistoricalCandleBackfillCandidates(
+                        now = cycleNow,
+                        state = plannerState,
+                        targetedStreams = watchdogStreams + persistedStreams
+                    )
+                ) {
+                    val historicalPrioritySymbols = prioritizeRecentRepairSymbols(sessionSymbols)
                     loadHistoricalCandleBackfillCandidates(
-                        sessionSymbols = sessionSymbols,
+                        sessionSymbols = if (historicalPrioritySymbols.isNotEmpty()) {
+                            historicalPrioritySymbols
+                        } else {
+                            sessionSymbols
+                        },
                         limit = 1
                     )
+                } else {
+                    emptyList()
                 }
             when (
                 val action = planRawCandleRecoveryAction(
-                    now = java.time.Instant.now(),
+                    now = cycleNow,
                     state = plannerState,
                     initialStreams = initialStreams,
                     targetedStreams = watchdogStreams + persistedStreams,

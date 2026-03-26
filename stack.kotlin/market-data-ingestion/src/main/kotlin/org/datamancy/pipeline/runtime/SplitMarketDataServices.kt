@@ -85,6 +85,7 @@ import org.datamancy.pipeline.runners.resolveResearchFeaturesBootstrapHours
 import org.datamancy.pipeline.runners.resolveResearchFeaturesRefreshIntervalMs
 import org.datamancy.pipeline.runners.resolveResearchFeaturesRefreshOverlapMinutes
 import org.datamancy.pipeline.runners.restartContinuityIssueThreshold
+import org.datamancy.pipeline.runners.shouldLoadHistoricalCandleBackfillCandidates
 import org.datamancy.pipeline.runners.shouldRestartForContinuityIssues
 import org.datamancy.pipeline.sinks.IngestionStats
 import org.datamancy.pipeline.sinks.MarketDataSink
@@ -129,7 +130,8 @@ private const val DEFAULT_DB_WAIT_DELAY_MS = 2_000L
 private const val DEFAULT_HYPERLIQUID_INITIAL_RECENT_REPAIR_BATCH_STREAMS = 24
 private const val DEFAULT_TARGETED_CANDLE_REPAIR_ACTIVE_WINDOW_MS = 6L * 60L * 60L * 1_000L
 private const val DEFAULT_RECENT_GAP_QUERY_TIMEOUT_SECONDS = 10
-private const val DEFAULT_RECENT_GAP_SCAN_SYMBOL_BATCH = 16
+private const val DEFAULT_RECENT_GAP_PRIORITY_SYMBOL_BATCH = 16
+private const val DEFAULT_RECENT_GAP_SCAN_SYMBOL_BATCH = 4
 
 internal fun latestCandleRepairActivityTime(vararg observedAt: Instant?): Instant? =
     observedAt.filterNotNull().maxOrNull()
@@ -200,6 +202,82 @@ internal fun historicalBackfillRangeForRecentGap(
             latestMissingBucket.plus(29, ChronoUnit.MINUTES)
         )
     )
+
+internal fun detectRecentGapCandidate(
+    symbol: String,
+    observedTimes: Collection<Instant>,
+    lookbackStart: Instant,
+    latestStableBoundary: Instant,
+    gapBucketMs: Long,
+    interval: String = "1m"
+): CandleHistoricalBackfillCandidate? {
+    val observedBuckets = observedTimes
+        .asSequence()
+        .map { alignDownToIntervalBoundary(it, gapBucketMs) }
+        .toSet()
+    var bucket = alignDownToIntervalBoundary(lookbackStart, gapBucketMs)
+    var earliestMissingBucket: Instant? = null
+    var latestMissingBucket: Instant? = null
+    while (!bucket.isAfter(latestStableBoundary)) {
+        if (bucket !in observedBuckets) {
+            if (earliestMissingBucket == null) {
+                earliestMissingBucket = bucket
+            }
+            latestMissingBucket = bucket
+        }
+        bucket = bucket.plusMillis(gapBucketMs)
+    }
+    val start = earliestMissingBucket ?: return null
+    val end = latestMissingBucket ?: return null
+    return CandleHistoricalBackfillCandidate(
+        symbol = symbol,
+        interval = interval,
+        range = historicalBackfillRangeForRecentGap(
+            earliestMissingBucket = start,
+            latestMissingBucket = end,
+            latestStableBoundary = latestStableBoundary
+        )
+    )
+}
+
+internal fun selectRecentGapScanSymbols(
+    sessionSymbols: List<String>,
+    recentGapScanCursor: Int,
+    batchSize: Int
+): Pair<List<String>, Int> {
+    val normalized = sessionSymbols.map(String::trim).filter(String::isNotEmpty).distinct()
+    if (normalized.isEmpty()) return emptyList<String>() to 0
+    val size = normalized.size
+    val window = batchSize.coerceAtLeast(1).coerceAtMost(size)
+    val start = if (recentGapScanCursor >= size) 0 else recentGapScanCursor.coerceAtLeast(0)
+    val selected = ArrayList<String>(window)
+    repeat(window) { offset ->
+        selected += normalized[(start + offset) % size]
+    }
+    val nextCursor = (start + window) % size
+    return selected to nextCursor
+}
+
+internal fun selectPrioritizedRecentGapScanSymbols(
+    sessionSymbols: List<String>,
+    recentGapScanCursor: Int,
+    priorityBatchSize: Int,
+    rotatingBatchSize: Int
+): Pair<List<String>, Int> {
+    val normalized = sessionSymbols.map(String::trim).filter(String::isNotEmpty).distinct()
+    if (normalized.isEmpty()) return emptyList<String>() to 0
+    val prioritySymbols = normalized.take(priorityBatchSize.coerceAtLeast(0).coerceAtMost(normalized.size))
+    val rotatingUniverse = normalized.drop(prioritySymbols.size)
+    if (rotatingUniverse.isEmpty()) {
+        return prioritySymbols to 0
+    }
+    val (rotatingSymbols, nextCursor) = selectRecentGapScanSymbols(
+        sessionSymbols = rotatingUniverse,
+        recentGapScanCursor = recentGapScanCursor,
+        batchSize = rotatingBatchSize
+    )
+    return (prioritySymbols + rotatingSymbols).distinct() to nextCursor
+}
 
 internal data class PersistedCandleRepairStream(
     val symbol: String,
@@ -1587,14 +1665,30 @@ class MarketDataRepairRunner internal constructor(
                     streams = targetedStreams,
                     maxLookbackHours = config.backfillLookbackHours
                 )
-                val historicalCandidates = if (plannerState.initialRecentRepairPending) {
-                    emptyList()
+                val cycleNow = Instant.now()
+                val historicalCandidates = if (
+                    shouldLoadHistoricalCandleBackfillCandidates(
+                        now = cycleNow,
+                        state = plannerState,
+                        targetedStreams = targetedStreams.map { it.symbol to it.interval }
+                    )
+                ) {
+                    val historicalPrioritySymbols = prioritizeRecentRepairSymbols(currentUniverseSymbols)
+                    loadHistoricalCandleBackfillCandidates(
+                        if (historicalPrioritySymbols.isNotEmpty()) {
+                            historicalPrioritySymbols
+                        } else if (initialRepairSymbols.isNotEmpty()) {
+                            initialRepairSymbols
+                        } else {
+                            currentUniverseSymbols
+                        }
+                    )
                 } else {
-                    loadHistoricalCandleBackfillCandidates(currentUniverseSymbols)
+                    emptyList()
                 }
                 when (
                     val action = planRawCandleRecoveryAction(
-                        now = Instant.now(),
+                        now = cycleNow,
                         state = plannerState,
                         initialStreams = initialStreams,
                         targetedStreams = targetedStreams.map { it.symbol to it.interval },
@@ -1816,19 +1910,13 @@ class MarketDataRepairRunner internal constructor(
         sessionSymbols: List<String>,
         batchSize: Int = DEFAULT_RECENT_GAP_SCAN_SYMBOL_BATCH
     ): List<String> {
-        val normalized = sessionSymbols.map(String::trim).filter(String::isNotEmpty).distinct().sorted()
-        if (normalized.isEmpty()) return emptyList()
-        val size = normalized.size
-        val window = batchSize.coerceAtLeast(1).coerceAtMost(size)
-        if (recentGapScanCursor >= size) {
-            recentGapScanCursor = 0
-        }
-        val start = recentGapScanCursor
-        val selected = ArrayList<String>(window)
-        repeat(window) { offset ->
-            selected += normalized[(start + offset) % size]
-        }
-        recentGapScanCursor = (start + window) % size
+        val (selected, nextCursor) = selectPrioritizedRecentGapScanSymbols(
+            sessionSymbols = sessionSymbols,
+            recentGapScanCursor = recentGapScanCursor,
+            priorityBatchSize = DEFAULT_RECENT_GAP_PRIORITY_SYMBOL_BATCH,
+            rotatingBatchSize = batchSize
+        )
+        recentGapScanCursor = nextCursor
         return selected
     }
 
@@ -1854,63 +1942,44 @@ class MarketDataRepairRunner internal constructor(
         val recentGapCandidates = try {
             dataSource.connection.use { connection ->
                 val recentGapSql = """
-                    SELECT symbol, time
-                    FROM market_data
+                    SELECT time
+                    FROM research_features_1m
                     WHERE exchange = ?
-                      AND data_type = 'candle_1m'
-                      AND symbol = ANY (?)
+                      AND symbol = ?
                       AND time >= ?
                       AND time <= ?
-                    ORDER BY symbol ASC, time ASC
+                    ORDER BY time ASC
                 """.trimIndent()
                 connection.prepareStatement(recentGapSql).use { statement ->
                     statement.queryTimeout = DEFAULT_RECENT_GAP_QUERY_TIMEOUT_SECONDS
-                    val sqlArray: SqlArray = connection.createArrayOf("text", recentGapSymbols.toTypedArray())
                     statement.setString(1, config.exchangeId)
-                    statement.setArray(2, sqlArray)
-                    statement.setTimestamp(3, Timestamp.from(lookbackStart))
-                    statement.setTimestamp(4, Timestamp.from(latestStableBoundary))
-                    statement.executeQuery().use { rs ->
-                        val observedBucketsBySymbol = recentGapSymbols.associateWith { linkedSetOf<Instant>() }.toMutableMap()
-                        val gapBucketMs = 30L * 60L * 1_000L
-                        while (rs.next()) {
-                            val symbol = rs.getString("symbol") ?: continue
-                            val time = rs.getTimestamp("time")?.toInstant() ?: continue
-                            observedBucketsBySymbol
-                                .getOrPut(symbol) { linkedSetOf() }
-                                .add(alignDownToIntervalBoundary(time, gapBucketMs))
-                        }
-                        recentGapSymbols.mapNotNull { symbol ->
-                            val observedBuckets = observedBucketsBySymbol[symbol].orEmpty()
-                            var bucket = alignDownToIntervalBoundary(lookbackStart, gapBucketMs)
-                            var earliestMissingBucket: Instant? = null
-                            var latestMissingBucket: Instant? = null
-                            while (!bucket.isAfter(latestStableBoundary)) {
-                                if (bucket !in observedBuckets) {
-                                    if (earliestMissingBucket == null) {
-                                        earliestMissingBucket = bucket
-                                    }
-                                    latestMissingBucket = bucket
+                    buildList {
+                        for (recentGapSymbol in recentGapSymbols) {
+                            statement.setString(2, recentGapSymbol)
+                            statement.setTimestamp(3, Timestamp.from(lookbackStart))
+                            statement.setTimestamp(4, Timestamp.from(latestStableBoundary))
+                            val candidate = statement.executeQuery().use { rs ->
+                                val observedTimes = ArrayList<Instant>()
+                                while (rs.next()) {
+                                    val time = rs.getTimestamp("time")?.toInstant() ?: continue
+                                    observedTimes += time
                                 }
-                                bucket = bucket.plusMillis(gapBucketMs)
-                            }
-                            val start = earliestMissingBucket ?: return@mapNotNull null
-                            val end = latestMissingBucket ?: return@mapNotNull null
-                            CandleHistoricalBackfillCandidate(
-                                symbol = symbol,
-                                interval = interval,
-                                range = historicalBackfillRangeForRecentGap(
-                                    earliestMissingBucket = start,
-                                    latestMissingBucket = end,
-                                    latestStableBoundary = latestStableBoundary
+                                detectRecentGapCandidate(
+                                    symbol = recentGapSymbol,
+                                    observedTimes = observedTimes,
+                                    lookbackStart = lookbackStart,
+                                    latestStableBoundary = latestStableBoundary,
+                                    gapBucketMs = 30L * 60L * 1_000L,
+                                    interval = interval
                                 )
-                            )
+                            }
+                            if (candidate != null) {
+                                add(candidate)
+                                if (size >= limit.coerceAtLeast(1)) {
+                                    break
+                                }
+                            }
                         }
-                            .sortedWith(
-                                compareByDescending<CandleHistoricalBackfillCandidate> { it.range.endTime }
-                                    .thenBy { it.symbol }
-                            )
-                            .take(limit.coerceAtLeast(1))
                     }
                 }
             }

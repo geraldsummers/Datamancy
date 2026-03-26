@@ -260,6 +260,51 @@ class SplitMarketDataServicesTest {
     }
 
     @Test
+    fun `recent gap candidate detects internal missing buckets from observed minute times`() {
+        val candidate = detectRecentGapCandidate(
+            symbol = "0G",
+            observedTimes = listOf(
+                Instant.parse("2026-03-26T04:00:00Z"),
+                Instant.parse("2026-03-26T04:01:00Z"),
+                Instant.parse("2026-03-26T05:00:00Z"),
+                Instant.parse("2026-03-26T05:01:00Z")
+            ),
+            lookbackStart = Instant.parse("2026-03-26T04:00:00Z"),
+            latestStableBoundary = Instant.parse("2026-03-26T05:59:00Z"),
+            gapBucketMs = 30L * 60L * 1_000L
+        )
+
+        assertEquals("0G", candidate?.symbol)
+        assertEquals(Instant.parse("2026-03-26T04:30:00Z"), candidate?.range?.startTime)
+        assertEquals(Instant.parse("2026-03-26T05:59:00Z"), candidate?.range?.endTime)
+    }
+
+    @Test
+    fun `recent gap scan preserves stale priority input order`() {
+        val (selected, nextCursor) = selectRecentGapScanSymbols(
+            sessionSymbols = listOf("BOME", "XRP", "YGG", "0G", "2Z"),
+            recentGapScanCursor = 0,
+            batchSize = 4
+        )
+
+        assertEquals(listOf("BOME", "XRP", "YGG", "0G"), selected)
+        assertEquals(4, nextCursor)
+    }
+
+    @Test
+    fun `prioritized recent gap scan keeps the stale head pinned ahead of the rotating tail`() {
+        val (selected, nextCursor) = selectPrioritizedRecentGapScanSymbols(
+            sessionSymbols = listOf("BOME", "ENA", "MNT", "DOT", "UNI", "ARK", "XRP", "YGG"),
+            recentGapScanCursor = 2,
+            priorityBatchSize = 4,
+            rotatingBatchSize = 2
+        )
+
+        assertEquals(listOf("BOME", "ENA", "MNT", "DOT", "XRP", "YGG"), selected)
+        assertEquals(0, nextCursor)
+    }
+
+    @Test
     fun `persisted candle repair skips symbols with no candle history and no recent trades`() {
         assertEquals(
             false,

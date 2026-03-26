@@ -3,8 +3,10 @@ package org.datamancy.pipeline.runners
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class MarketDataIngestionRunnerConfigTest {
 
@@ -283,7 +285,7 @@ class MarketDataIngestionRunnerConfigTest {
             state = RawCandleRecoveryPlannerState(
                 initialRecentRepairPending = false,
                 initialRecentRepairCompletedAt = Instant.parse("2026-03-25T23:55:00Z"),
-                targetedRecentRepairCycles = 8
+                targetedRecentRepairCycles = 4
             ),
             initialStreams = emptyList(),
             targetedStreams = listOf("BTC" to "1m"),
@@ -330,6 +332,59 @@ class MarketDataIngestionRunnerConfigTest {
         assertEquals(
             "historical_backfill_guard_until=2026-03-26T00:02:00Z",
             idle.reason
+        )
+    }
+
+    @Test
+    fun `historical candidate loading stays idle until historical selection is eligible`() {
+        assertFalse(
+            shouldLoadHistoricalCandleBackfillCandidates(
+                now = Instant.parse("2026-03-26T00:00:30Z"),
+                state = RawCandleRecoveryPlannerState(
+                    initialRecentRepairPending = false,
+                    initialRecentRepairCompletedAt = Instant.parse("2026-03-26T00:00:00Z"),
+                    targetedRecentRepairCycles = 4
+                ),
+                targetedStreams = listOf("BTC" to "1m")
+            )
+        )
+
+        assertFalse(
+            shouldLoadHistoricalCandleBackfillCandidates(
+                now = Instant.parse("2026-03-26T00:03:00Z"),
+                state = RawCandleRecoveryPlannerState(
+                    initialRecentRepairPending = false,
+                    initialRecentRepairCompletedAt = Instant.parse("2026-03-26T00:00:00Z"),
+                    targetedRecentRepairCycles = 3
+                ),
+                targetedStreams = listOf("BTC" to "1m")
+            )
+        )
+    }
+
+    @Test
+    fun `historical candidate loading starts only when the planner could actually take historical work`() {
+        assertTrue(
+            shouldLoadHistoricalCandleBackfillCandidates(
+                now = Instant.parse("2026-03-26T00:03:00Z"),
+                state = RawCandleRecoveryPlannerState(
+                    initialRecentRepairPending = false,
+                    initialRecentRepairCompletedAt = Instant.parse("2026-03-26T00:00:00Z"),
+                    targetedRecentRepairCycles = 4
+                ),
+                targetedStreams = listOf("BTC" to "1m")
+            )
+        )
+
+        assertTrue(
+            shouldLoadHistoricalCandleBackfillCandidates(
+                now = Instant.parse("2026-03-26T00:03:00Z"),
+                state = RawCandleRecoveryPlannerState(
+                    initialRecentRepairPending = false,
+                    initialRecentRepairCompletedAt = Instant.parse("2026-03-26T00:00:00Z")
+                ),
+                targetedStreams = emptyList()
+            )
         )
     }
 
