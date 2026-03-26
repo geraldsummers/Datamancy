@@ -1,33 +1,78 @@
+cache_resources:
+  - label: second_bucket_dedupe
+    memory:
+      default_ttl: 3s
+
 input:
   nats_jetstream:
     urls:
-      - ${RAW_EVENT_BUS_URL:"nats://nats:4222"}
-    subject: ${RAW_EVENT_INGEST_SUBJECT_PREFIX:"raw.market.ingest"}.>
-    stream: ${RAW_EVENT_STREAM:"MARKET_DATA_RAW"}
-    durable: market-data-plumbing
-    deliver: all
+      - '${RAW_EVENT_BUS_URL:"nats://nats:4222"}'
+    subject: '${RAW_EVENT_INGEST_SUBJECT_PREFIX:"raw.market.ingest"}.>'
+    stream: '${RAW_EVENT_STREAM:"MARKET_DATA_RAW"}'
+    durable: market-data-plumbing-v2
+    deliver: new
     ack_wait: 30s
-    max_ack_pending: ${RAW_EVENT_MAX_ACK_PENDING:2048}
+    max_ack_pending: 2048
 
 pipeline:
   processors:
     - mapping: |
-        meta exchange = this.exchange.string()
-        meta channel = this.channel.string()
-        meta lane = this.lane.string().lowercase()
+        let exch = this.exchange.or("").string().lowercase()
+        let chan = this.channel.string().lowercase()
+        let lane_value = this.lane.or("live").string().lowercase()
+        let should_dedupe = $chan == "orderbook_l2" || $chan == "asset_context"
+        let event_second = this.eventTime.string().slice(0, 19) + "Z"
+        meta exchange = $exch
+        meta channel = $chan
+        meta lane = $lane_value
+        meta dedupe_key = if $should_dedupe {
+          $exch + "|" + $lane_value + "|" + $chan + "|" + this.symbol.string() + "|" + $event_second
+        } else {
+          ""
+        }
         root = this
+        root.exchange = $exch
+        root.channel = $chan
+        root.lane = $lane_value
+        root.eventTime = if $should_dedupe { $event_second } else { this.eventTime }
+        root.publishedAt = if $should_dedupe {
+          now().ts_format("2006-01-02T15:04:05.999999999Z07:00")
+        } else {
+          this.publishedAt
+        }
+        if $should_dedupe && this.orderbook != null {
+          root.orderbook.time = $event_second
+        }
+        if $should_dedupe && this.assetContext != null {
+          root.assetContext.time = $event_second
+        }
+    - switch:
+        - check: meta("channel") == "orderbook_l2" || meta("channel") == "asset_context"
+          processors:
+            - cache:
+                resource: second_bucket_dedupe
+                operator: add
+                key: ${! meta("dedupe_key") }
+                value: "1"
+                ttl: 3s
+            - mapping: |
+                root = if errored() { deleted() }
+        - processors:
+            - noop: {}
 
 output:
-  switch:
-    cases:
-      - check: errored()
-        output:
-          nats_jetstream:
-            urls:
-              - ${RAW_EVENT_BUS_URL:"nats://nats:4222"}
-            subject: ${RAW_EVENT_DLQ_SUBJECT:"raw.market.dlq"}
-      - output:
-          nats_jetstream:
-            urls:
-              - ${RAW_EVENT_BUS_URL:"nats://nats:4222"}
-            subject: ${RAW_EVENT_PERSIST_SUBJECT_PREFIX:"raw.market.persist"}.${!meta("lane")}.${!meta("exchange")}.${!meta("channel")}
+  retry:
+    output:
+      switch:
+        cases:
+          - check: errored()
+            output:
+              nats_jetstream:
+                urls:
+                  - '${RAW_EVENT_BUS_URL:"nats://nats:4222"}'
+                subject: '${RAW_EVENT_DLQ_SUBJECT:"raw.market.dlq"}'
+          - output:
+              nats_jetstream:
+                urls:
+                  - '${RAW_EVENT_BUS_URL:"nats://nats:4222"}'
+                subject: '${RAW_EVENT_PERSIST_SUBJECT_PREFIX:"raw.market.persist"}.${!meta("lane")}.${!meta("exchange")}.${!meta("channel")}'

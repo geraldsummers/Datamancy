@@ -693,6 +693,13 @@ internal fun persistDeliverPolicy(lane: RawEventLane): DeliverPolicy = when (lan
     RawEventLane.REPLAY -> DeliverPolicy.All
 }
 
+internal val persistLiveChannels: List<String> = listOf(
+    "trade",
+    "candle_1m",
+    "orderbook_l2",
+    "asset_context"
+)
+
 internal data class HyperliquidSourcePlan(
     val family: String,
     val shardIndex: Int,
@@ -1167,7 +1174,7 @@ class MarketDataPersistRunner internal constructor(
 ) {
     private val logger = KotlinLogging.logger {}
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private var liveConsumeJob: Job? = null
+    private var liveConsumeJobs: List<Job> = emptyList()
     private var replayConsumeJob: Job? = null
     private var flushJob: Job? = null
     private var statsJob: Job? = null
@@ -1187,13 +1194,19 @@ class MarketDataPersistRunner internal constructor(
                 error("TimescaleDB did not become ready for market-data-persist")
             }
         }
-        liveConsumeJob = scope.launch {
-            transport.consume(
-                subjectFilter = config.rawEventTransport.persistWildcard(RawEventLane.LIVE),
-                durableName = "market-data-persist-live-v2-${sanitizeSubjectToken(config.exchangeId)}",
-                deliverPolicy = persistDeliverPolicy(RawEventLane.LIVE)
-            ) { envelope ->
-                sink.write(envelope.toMarketData())
+        liveConsumeJobs = persistLiveChannels.map { channel ->
+            scope.launch {
+                transport.consume(
+                    subjectFilter = config.rawEventTransport.persistSubject(
+                        exchangeId = config.exchangeId,
+                        channel = channel,
+                        lane = RawEventLane.LIVE
+                    ),
+                    durableName = "market-data-persist-live-v3-${sanitizeSubjectToken(config.exchangeId)}-${sanitizeSubjectToken(channel)}",
+                    deliverPolicy = persistDeliverPolicy(RawEventLane.LIVE)
+                ) { envelope ->
+                    sink.write(envelope.toMarketData())
+                }
             }
         }
         replayConsumeJob = scope.launch {
@@ -1224,7 +1237,7 @@ class MarketDataPersistRunner internal constructor(
             statsJob?.cancelAndJoin()
             flushJob?.cancelAndJoin()
             replayConsumeJob?.cancelAndJoin()
-            liveConsumeJob?.cancelAndJoin()
+            liveConsumeJobs.forEach { it.cancelAndJoin() }
             runCatching { sink.flush() }
             runCatching { transport.close() }
             scope.cancel()

@@ -199,6 +199,14 @@ class SplitMarketDataServicesTest {
     }
 
     @Test
+    fun `persist live channels split high volume lanes from candles and trades`() {
+        assertEquals(
+            listOf("trade", "candle_1m", "orderbook_l2", "asset_context"),
+            persistLiveChannels
+        )
+    }
+
+    @Test
     fun `orderbook envelopes round trip to market data`() {
         val original = HyperliquidMarketData.Orderbook(
             HyperliquidOrderbook(
