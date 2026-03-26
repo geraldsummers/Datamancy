@@ -235,6 +235,90 @@ class SplitMarketDataServicesTest {
     }
 
     @Test
+    fun `targeted candle repair cutoff widens to the active universe window`() {
+        assertEquals(
+            Instant.parse("2026-03-26T06:00:00Z"),
+            targetedCandleRepairActivityCutoff(
+                now = Instant.parse("2026-03-26T12:00:00Z"),
+                activityTimeoutMs = 60_000L,
+                intervalMs = 60_000L,
+                candleStaleMultiplier = 2.5
+            )
+        )
+    }
+
+    @Test
+    fun `recent gap backfill range covers the missing buckets and caps at the stable boundary`() {
+        val range = historicalBackfillRangeForRecentGap(
+            earliestMissingBucket = Instant.parse("2026-03-26T04:30:00Z"),
+            latestMissingBucket = Instant.parse("2026-03-26T05:00:00Z"),
+            latestStableBoundary = Instant.parse("2026-03-26T05:20:00Z")
+        )
+
+        assertEquals(Instant.parse("2026-03-26T04:30:00Z"), range.startTime)
+        assertEquals(Instant.parse("2026-03-26T05:20:00Z"), range.endTime)
+    }
+
+    @Test
+    fun `persisted candle repair skips symbols with no candle history and no recent trades`() {
+        assertEquals(
+            false,
+            shouldRepairPersistedCandleStream(
+                latestTradeTime = Instant.parse("2025-01-12T03:34:21Z"),
+                latestOrderbookTime = Instant.parse("2026-03-26T16:35:03Z"),
+                latestFundingTime = Instant.parse("2026-03-26T16:37:16Z"),
+                latestOpenInterestTime = Instant.parse("2026-03-26T16:37:16Z"),
+                latestCandleTime = null,
+                recentActivityCutoff = Instant.parse("2026-03-26T10:00:00Z"),
+                staleCandleCutoff = Instant.parse("2026-03-26T16:35:30Z")
+            )
+        )
+    }
+
+    @Test
+    fun `persisted candle repair keeps stale symbols eligible when candle history exists`() {
+        assertEquals(
+            true,
+            shouldRepairPersistedCandleStream(
+                latestTradeTime = Instant.parse("2026-03-26T10:30:00Z"),
+                latestOrderbookTime = Instant.parse("2026-03-26T16:35:03Z"),
+                latestFundingTime = Instant.parse("2026-03-26T16:37:16Z"),
+                latestOpenInterestTime = Instant.parse("2026-03-26T16:37:16Z"),
+                latestCandleTime = Instant.parse("2026-03-26T15:08:00Z"),
+                recentActivityCutoff = Instant.parse("2026-03-26T10:00:00Z"),
+                staleCandleCutoff = Instant.parse("2026-03-26T16:35:30Z")
+            )
+        )
+    }
+
+    @Test
+    fun `targeted repair lookback expands to cover the oldest stale frontier`() {
+        assertEquals(
+            3L,
+            resolveTargetedRepairLookbackHours(
+                now = Instant.parse("2026-03-26T16:48:00Z"),
+                maxLookbackHours = 6L,
+                streams = listOf(
+                    PersistedCandleRepairStream(
+                        symbol = "BOME",
+                        interval = "1m",
+                        latestTradeTime = Instant.parse("2026-03-26T14:55:55Z"),
+                        latestActivityTime = Instant.parse("2026-03-26T15:08:53Z"),
+                        latestCandleTime = Instant.parse("2026-03-26T14:39:00Z")
+                    ),
+                    PersistedCandleRepairStream(
+                        symbol = "HMSTR",
+                        interval = "1m",
+                        latestTradeTime = Instant.parse("2026-03-26T16:17:29Z"),
+                        latestActivityTime = Instant.parse("2026-03-26T16:47:11Z"),
+                        latestCandleTime = Instant.parse("2026-03-26T16:17:00Z")
+                    )
+                )
+            )
+        )
+    }
+
+    @Test
     fun `split sync continuity watchdog is armed for stale live candle detection`() {
         val now = Instant.parse("2026-03-26T00:02:10Z")
         val watchdog = HyperliquidContinuityWatchdog(

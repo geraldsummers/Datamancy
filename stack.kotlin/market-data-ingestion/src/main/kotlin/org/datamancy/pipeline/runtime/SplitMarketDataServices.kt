@@ -46,6 +46,7 @@ import kotlinx.serialization.json.JsonNames
 import org.datamancy.pipeline.runners.CandleHistoricalBackfillCandidate
 import org.datamancy.pipeline.runners.DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS
 import org.datamancy.pipeline.runners.FeatureStateStore
+import org.datamancy.pipeline.runners.HistoricalCandleBackfillRange
 import org.datamancy.pipeline.runners.HYPERLIQUID_MAINNET_WS_URL
 import org.datamancy.pipeline.runners.HYPERLIQUID_TESTNET_WS_URL
 import org.datamancy.pipeline.runners.HyperliquidBackfillDeferredException
@@ -60,6 +61,7 @@ import org.datamancy.pipeline.runners.RawCandleRecoveryAction
 import org.datamancy.pipeline.runners.RawCandleRecoveryPlannerState
 import org.datamancy.pipeline.runners.RawSyncStateStore
 import org.datamancy.pipeline.runners.ResearchFeatureAggregator
+import org.datamancy.pipeline.runners.alignDownToIntervalBoundary
 import org.datamancy.pipeline.runners.candleAllowedLagMs
 import org.datamancy.pipeline.runners.candleIntervalToMillis
 import org.datamancy.pipeline.runners.candleTradeRelevanceWindowMs
@@ -125,9 +127,27 @@ private const val DEFAULT_PERSIST_STATS_INTERVAL_MS = 60_000L
 private const val DEFAULT_DB_WAIT_ATTEMPTS = 90
 private const val DEFAULT_DB_WAIT_DELAY_MS = 2_000L
 private const val DEFAULT_HYPERLIQUID_INITIAL_RECENT_REPAIR_BATCH_STREAMS = 24
+private const val DEFAULT_TARGETED_CANDLE_REPAIR_ACTIVE_WINDOW_MS = 6L * 60L * 60L * 1_000L
+private const val DEFAULT_RECENT_GAP_QUERY_TIMEOUT_SECONDS = 10
+private const val DEFAULT_RECENT_GAP_SCAN_SYMBOL_BATCH = 16
 
 internal fun latestCandleRepairActivityTime(vararg observedAt: Instant?): Instant? =
     observedAt.filterNotNull().maxOrNull()
+
+internal fun targetedCandleRepairActivityCutoff(
+    now: Instant,
+    activityTimeoutMs: Long,
+    intervalMs: Long,
+    candleStaleMultiplier: Double,
+    activeUniverseWindowMs: Long = DEFAULT_TARGETED_CANDLE_REPAIR_ACTIVE_WINDOW_MS
+): Instant {
+    val relevanceWindowMs = candleTradeRelevanceWindowMs(
+        activityTimeoutMs = activityTimeoutMs,
+        intervalMs = intervalMs,
+        candleStaleMultiplier = candleStaleMultiplier
+    )
+    return now.minusMillis(maxOf(relevanceWindowMs, activeUniverseWindowMs.coerceAtLeast(1L)))
+}
 
 internal fun shouldRepairRecentCandleStream(
     latestActivityTime: Instant?,
@@ -141,6 +161,67 @@ internal fun shouldRepairRecentCandleStream(
     val candleFrontier = latestCandleTime ?: return true
     return candleFrontier.isBefore(latestActivityTime.truncatedTo(ChronoUnit.MINUTES)) ||
         candleFrontier.isBefore(staleCandleCutoff)
+}
+
+internal fun shouldRepairPersistedCandleStream(
+    latestTradeTime: Instant?,
+    latestOrderbookTime: Instant?,
+    latestFundingTime: Instant?,
+    latestOpenInterestTime: Instant?,
+    latestCandleTime: Instant?,
+    recentActivityCutoff: Instant,
+    staleCandleCutoff: Instant
+): Boolean {
+    val latestActivityTime = latestCandleRepairActivityTime(
+        latestTradeTime,
+        latestOrderbookTime,
+        latestFundingTime,
+        latestOpenInterestTime
+    ) ?: return false
+    if (latestActivityTime.isBefore(recentActivityCutoff)) {
+        return false
+    }
+    if (latestCandleTime == null) {
+        return latestTradeTime != null && !latestTradeTime.isBefore(recentActivityCutoff)
+    }
+    return latestCandleTime.isBefore(latestActivityTime.truncatedTo(ChronoUnit.MINUTES)) ||
+        latestCandleTime.isBefore(staleCandleCutoff)
+}
+
+internal fun historicalBackfillRangeForRecentGap(
+    earliestMissingBucket: Instant,
+    latestMissingBucket: Instant,
+    latestStableBoundary: Instant
+): HistoricalCandleBackfillRange =
+    HistoricalCandleBackfillRange(
+        startTime = earliestMissingBucket,
+        endTime = minOf(
+            latestStableBoundary,
+            latestMissingBucket.plus(29, ChronoUnit.MINUTES)
+        )
+    )
+
+internal data class PersistedCandleRepairStream(
+    val symbol: String,
+    val interval: String,
+    val latestTradeTime: Instant?,
+    val latestActivityTime: Instant,
+    val latestCandleTime: Instant?
+)
+
+internal fun resolveTargetedRepairLookbackHours(
+    now: Instant,
+    streams: List<PersistedCandleRepairStream>,
+    maxLookbackHours: Long,
+    defaultLookbackHours: Long = 1L
+): Long {
+    val defaultHours = defaultLookbackHours.coerceAtLeast(1L)
+    val maxHours = maxLookbackHours.coerceAtLeast(defaultHours)
+    val oldestFrontier = streams.minOfOrNull { it.latestCandleTime ?: it.latestActivityTime }
+        ?: return defaultHours
+    val missingMinutes = Duration.between(oldestFrontier, now).toMinutes().coerceAtLeast(0L)
+    val requiredHours = ((missingMinutes + 59L) / 60L).coerceAtLeast(defaultHours)
+    return requiredHours.coerceAtMost(maxHours)
 }
 
 internal fun armSplitSyncContinuityWatchdog(
@@ -1452,6 +1533,7 @@ class MarketDataRepairRunner internal constructor(
     private var plannerState = RawCandleRecoveryPlannerState(initialRecentRepairPending = true)
     private var currentUniverseSymbols: List<String> = emptyList()
     private var initialRepairSymbols: List<String> = emptyList()
+    private var recentGapScanCursor: Int = 0
 
     constructor() : this(buildRepairRunnerDependencies())
 
@@ -1500,9 +1582,12 @@ class MarketDataRepairRunner internal constructor(
                     emptyList()
                 }
                 val targetedStreams = loadPersistedCandleRepairStreams(currentUniverseSymbols)
-                val historicalCandidates = if (
-                    plannerState.initialRecentRepairPending || targetedStreams.isNotEmpty()
-                ) {
+                val targetedLookbackHours = resolveTargetedRepairLookbackHours(
+                    now = Instant.now(),
+                    streams = targetedStreams,
+                    maxLookbackHours = config.backfillLookbackHours
+                )
+                val historicalCandidates = if (plannerState.initialRecentRepairPending) {
                     emptyList()
                 } else {
                     loadHistoricalCandleBackfillCandidates(currentUniverseSymbols)
@@ -1512,7 +1597,7 @@ class MarketDataRepairRunner internal constructor(
                         now = Instant.now(),
                         state = plannerState,
                         initialStreams = initialStreams,
-                        targetedStreams = targetedStreams,
+                        targetedStreams = targetedStreams.map { it.symbol to it.interval },
                         historicalCandidates = historicalCandidates
                     )
                 ) {
@@ -1527,18 +1612,23 @@ class MarketDataRepairRunner internal constructor(
                         plannerState = plannerState.copy(
                             initialRecentRepairPending = !initialRepairComplete,
                             initialRecentRepairCursor = nextCursor,
-                            initialRecentRepairCompletedAt = if (initialRepairComplete) Instant.now() else null
+                            initialRecentRepairCompletedAt = if (initialRepairComplete) Instant.now() else null,
+                            targetedRecentRepairCycles = 0
                         )
                     }
                     is RawCandleRecoveryAction.TargetedRecentRepair -> {
                         repairCandleStreams(
                             streams = action.streams,
                             label = "targeted_recent_candle_repair",
-                            lookbackHours = 1L.coerceAtMost(config.backfillLookbackHours)
+                            lookbackHours = targetedLookbackHours
+                        )
+                        plannerState = plannerState.copy(
+                            targetedRecentRepairCycles = plannerState.targetedRecentRepairCycles + 1
                         )
                     }
                     is RawCandleRecoveryAction.HistoricalBackfill -> {
                         runHistoricalCandleBackfill(action.candidate)
+                        plannerState = plannerState.copy(targetedRecentRepairCycles = 0)
                     }
                     is RawCandleRecoveryAction.Idle -> delay(repairIntervalMs)
                 }
@@ -1599,12 +1689,12 @@ class MarketDataRepairRunner internal constructor(
             SELECT symbol
             FROM raw_ranked
             ORDER BY
+                candle_latest_raw_time ASC NULLS FIRST,
                 GREATEST(
                     COALESCE(trade_latest_raw_time, '-infinity'::timestamptz),
                     COALESCE(orderbook_latest_raw_time, '-infinity'::timestamptz),
                     COALESCE(funding_latest_raw_time, '-infinity'::timestamptz)
                 ) DESC NULLS LAST,
-                candle_latest_raw_time ASC NULLS FIRST,
                 symbol ASC
         """.trimIndent()
         val ordered = dataSource.connection.use { connection ->
@@ -1628,17 +1718,16 @@ class MarketDataRepairRunner internal constructor(
     private suspend fun loadPersistedCandleRepairStreams(
         sessionSymbols: List<String>,
         limit: Int = 16
-    ): List<Pair<String, String>> = withContext(Dispatchers.IO) {
+    ): List<PersistedCandleRepairStream> = withContext(Dispatchers.IO) {
         val normalized = sessionSymbols.map(String::trim).filter(String::isNotEmpty).distinct()
         if (normalized.isEmpty()) return@withContext emptyList()
         val now = Instant.now()
         val candleIntervalMs = candleIntervalToMillis("1m")
-        val recentActivityCutoff = now.minusMillis(
-            candleTradeRelevanceWindowMs(
-                activityTimeoutMs = config.channelActivityTimeoutMs,
-                intervalMs = candleIntervalMs,
-                candleStaleMultiplier = config.candleStaleMultiplier
-            )
+        val recentActivityCutoff = targetedCandleRepairActivityCutoff(
+            now = now,
+            activityTimeoutMs = config.channelActivityTimeoutMs,
+            intervalMs = candleIntervalMs,
+            candleStaleMultiplier = config.candleStaleMultiplier
         )
         val staleCandleCutoff = now.minusMillis(
             candleAllowedLagMs(
@@ -1660,49 +1749,87 @@ class MarketDataRepairRunner internal constructor(
                 WHERE exchange = ?
                   AND symbol = ANY (?)
                 GROUP BY symbol
-            ),
-            eligible_streams AS (
-                SELECT
-                    symbol,
-                    GREATEST(
-                        COALESCE(latest_trade_time, '-infinity'::timestamptz),
-                        COALESCE(latest_orderbook_time, '-infinity'::timestamptz),
-                        COALESCE(latest_funding_time, '-infinity'::timestamptz),
-                        COALESCE(latest_open_interest_time, '-infinity'::timestamptz)
-                    ) AS latest_activity_time,
-                    latest_candle_time
-                FROM channel_state
             )
-            SELECT symbol
-            FROM eligible_streams
-            WHERE latest_activity_time > '-infinity'::timestamptz
-              AND latest_activity_time >= ?
-              AND (
-                    latest_candle_time IS NULL OR
-                    latest_candle_time < date_trunc('minute', latest_activity_time) OR
-                    latest_candle_time < ?
-                )
-            ORDER BY
-                latest_activity_time DESC,
-                latest_candle_time ASC NULLS FIRST,
-                symbol ASC
-            LIMIT ?
+            SELECT
+                symbol,
+                latest_trade_time,
+                latest_orderbook_time,
+                latest_funding_time,
+                latest_open_interest_time,
+                latest_candle_time
+            FROM channel_state
         """.trimIndent()
-        dataSource.connection.use { connection ->
+
+        val states = dataSource.connection.use { connection ->
             connection.prepareStatement(sql).use { statement ->
                 statement.setString(1, config.exchangeId)
                 val sqlArray: SqlArray = connection.createArrayOf("text", normalized.toTypedArray())
                 statement.setArray(2, sqlArray)
-                statement.setTimestamp(3, Timestamp.from(recentActivityCutoff))
-                statement.setTimestamp(4, Timestamp.from(staleCandleCutoff))
-                statement.setInt(5, limit.coerceAtLeast(1))
                 statement.executeQuery().use { rs ->
                     buildList {
-                        while (rs.next()) add(rs.getString("symbol") to "1m")
+                        while (rs.next()) {
+                            add(
+                                PersistedCandleRepairStream(
+                                    symbol = rs.getString("symbol"),
+                                    interval = "1m",
+                                    latestTradeTime = rs.getTimestamp("latest_trade_time")?.toInstant(),
+                                    latestActivityTime = latestCandleRepairActivityTime(
+                                        rs.getTimestamp("latest_trade_time")?.toInstant(),
+                                        rs.getTimestamp("latest_orderbook_time")?.toInstant(),
+                                        rs.getTimestamp("latest_funding_time")?.toInstant(),
+                                        rs.getTimestamp("latest_open_interest_time")?.toInstant()
+                                    ) ?: Instant.EPOCH,
+                                    latestCandleTime = rs.getTimestamp("latest_candle_time")?.toInstant()
+                                )
+                            )
+                        }
                     }
                 }
             }
         }
+
+        states
+            .asSequence()
+            .filter { state ->
+                shouldRepairPersistedCandleStream(
+                    latestTradeTime = state.latestTradeTime,
+                    latestOrderbookTime = state.latestActivityTime,
+                    latestFundingTime = null,
+                    latestOpenInterestTime = null,
+                    latestCandleTime = state.latestCandleTime,
+                    recentActivityCutoff = recentActivityCutoff,
+                    staleCandleCutoff = staleCandleCutoff
+                )
+            }
+            .sortedWith(
+                compareBy<PersistedCandleRepairStream> { it.latestCandleTime == null }
+                    .reversed()
+                    .thenBy { it.latestCandleTime ?: Instant.EPOCH }
+                    .thenByDescending { it.latestActivityTime }
+                    .thenBy { it.symbol }
+            )
+            .take(limit.coerceAtLeast(1))
+            .toList()
+    }
+
+    private fun nextRecentGapScanSymbols(
+        sessionSymbols: List<String>,
+        batchSize: Int = DEFAULT_RECENT_GAP_SCAN_SYMBOL_BATCH
+    ): List<String> {
+        val normalized = sessionSymbols.map(String::trim).filter(String::isNotEmpty).distinct().sorted()
+        if (normalized.isEmpty()) return emptyList()
+        val size = normalized.size
+        val window = batchSize.coerceAtLeast(1).coerceAtMost(size)
+        if (recentGapScanCursor >= size) {
+            recentGapScanCursor = 0
+        }
+        val start = recentGapScanCursor
+        val selected = ArrayList<String>(window)
+        repeat(window) { offset ->
+            selected += normalized[(start + offset) % size]
+        }
+        recentGapScanCursor = (start + window) % size
+        return selected
     }
 
     private suspend fun loadHistoricalCandleBackfillCandidates(
@@ -1712,6 +1839,91 @@ class MarketDataRepairRunner internal constructor(
     ): List<CandleHistoricalBackfillCandidate> = withContext(Dispatchers.IO) {
         val normalized = sessionSymbols.map(String::trim).filter(String::isNotEmpty).distinct()
         if (normalized.isEmpty()) return@withContext emptyList()
+        val interval = "1m"
+        val intervalMs = candleIntervalToMillis(interval)
+        val lookbackHours = minOf(config.backfillLookbackHours, 48L).coerceAtLeast(1L)
+        val lookbackStart = alignDownToIntervalBoundary(
+            now.minus(lookbackHours, ChronoUnit.HOURS),
+            intervalMs
+        )
+        val latestStableBoundary = alignDownToIntervalBoundary(now, intervalMs).minusMillis(intervalMs)
+        if (latestStableBoundary.isBefore(lookbackStart)) return@withContext emptyList()
+        val recentGapSymbols = nextRecentGapScanSymbols(normalized)
+        if (recentGapSymbols.isEmpty()) return@withContext emptyList()
+
+        val recentGapCandidates = try {
+            dataSource.connection.use { connection ->
+                val recentGapSql = """
+                    SELECT symbol, time
+                    FROM market_data
+                    WHERE exchange = ?
+                      AND data_type = 'candle_1m'
+                      AND symbol = ANY (?)
+                      AND time >= ?
+                      AND time <= ?
+                    ORDER BY symbol ASC, time ASC
+                """.trimIndent()
+                connection.prepareStatement(recentGapSql).use { statement ->
+                    statement.queryTimeout = DEFAULT_RECENT_GAP_QUERY_TIMEOUT_SECONDS
+                    val sqlArray: SqlArray = connection.createArrayOf("text", recentGapSymbols.toTypedArray())
+                    statement.setString(1, config.exchangeId)
+                    statement.setArray(2, sqlArray)
+                    statement.setTimestamp(3, Timestamp.from(lookbackStart))
+                    statement.setTimestamp(4, Timestamp.from(latestStableBoundary))
+                    statement.executeQuery().use { rs ->
+                        val observedBucketsBySymbol = recentGapSymbols.associateWith { linkedSetOf<Instant>() }.toMutableMap()
+                        val gapBucketMs = 30L * 60L * 1_000L
+                        while (rs.next()) {
+                            val symbol = rs.getString("symbol") ?: continue
+                            val time = rs.getTimestamp("time")?.toInstant() ?: continue
+                            observedBucketsBySymbol
+                                .getOrPut(symbol) { linkedSetOf() }
+                                .add(alignDownToIntervalBoundary(time, gapBucketMs))
+                        }
+                        recentGapSymbols.mapNotNull { symbol ->
+                            val observedBuckets = observedBucketsBySymbol[symbol].orEmpty()
+                            var bucket = alignDownToIntervalBoundary(lookbackStart, gapBucketMs)
+                            var earliestMissingBucket: Instant? = null
+                            var latestMissingBucket: Instant? = null
+                            while (!bucket.isAfter(latestStableBoundary)) {
+                                if (bucket !in observedBuckets) {
+                                    if (earliestMissingBucket == null) {
+                                        earliestMissingBucket = bucket
+                                    }
+                                    latestMissingBucket = bucket
+                                }
+                                bucket = bucket.plusMillis(gapBucketMs)
+                            }
+                            val start = earliestMissingBucket ?: return@mapNotNull null
+                            val end = latestMissingBucket ?: return@mapNotNull null
+                            CandleHistoricalBackfillCandidate(
+                                symbol = symbol,
+                                interval = interval,
+                                range = historicalBackfillRangeForRecentGap(
+                                    earliestMissingBucket = start,
+                                    latestMissingBucket = end,
+                                    latestStableBoundary = latestStableBoundary
+                                )
+                            )
+                        }
+                            .sortedWith(
+                                compareByDescending<CandleHistoricalBackfillCandidate> { it.range.endTime }
+                                    .thenBy { it.symbol }
+                            )
+                            .take(limit.coerceAtLeast(1))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn(e) {
+                "Skipping recent-gap historical candidate scan after query failure; falling back to raw_sync_state coverage"
+            }
+            emptyList()
+        }
+        if (recentGapCandidates.isNotEmpty()) {
+            return@withContext recentGapCandidates
+        }
+
         val sql = """
             SELECT symbol, earliest_raw_time, latest_raw_time
             FROM raw_sync_state
@@ -1741,7 +1953,7 @@ class MarketDataRepairRunner internal constructor(
         }
         val stateBySymbol = persistedStates.associateBy { it.symbol }
         prioritizeHistoricalBackfillCandidates(
-            interval = "1m",
+            interval = interval,
             now = now,
             lookbackHours = config.backfillLookbackHours,
             coverageStates = normalized.map { symbol ->
@@ -1798,6 +2010,10 @@ class MarketDataRepairRunner internal constructor(
     }
 
     private suspend fun runHistoricalCandleBackfill(candidate: CandleHistoricalBackfillCandidate) {
+        logger.info {
+            "historical_candle_backfill start ${candidate.symbol}/${candidate.interval} " +
+                "range=${candidate.range.startTime}..${candidate.range.endTime}"
+        }
         val windows = planCandleBackfillWindowsForRange(
             symbol = candidate.symbol,
             interval = candidate.interval,

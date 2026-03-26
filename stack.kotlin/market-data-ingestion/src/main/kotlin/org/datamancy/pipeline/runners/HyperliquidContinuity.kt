@@ -549,12 +549,10 @@ internal class HyperliquidCandleBackfillClient(
             if (responseWithBody == null) {
                 val retryDelayMs = backfillRetryDelayMs(window, attempt)
                 if (attempt == DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS - 1) {
-                    val cooldownMs = terminalBackfillCooldownMs(retryDelayMs)
-                    pushBackfillCooldown(cooldownMs)
                     throw HyperliquidBackfillDeferredException(
                         symbol = window.symbol,
                         interval = window.interval,
-                        retryAfterMs = cooldownMs,
+                        retryAfterMs = terminalBackfillCooldownMs(retryDelayMs),
                         reason = "request timeout after ${DEFAULT_HYPERLIQUID_BACKFILL_REQUEST_TIMEOUT_MS}ms"
                     )
                 }
@@ -586,12 +584,10 @@ internal class HyperliquidCandleBackfillClient(
 
             val retryable = response.status.value == 429 || response.status.value in 500..599
             if (retryable && attempt == DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS - 1) {
-                val cooldownMs = terminalBackfillCooldownMs(backfillRetryDelayMs(window, attempt))
-                pushBackfillCooldown(cooldownMs)
                 throw HyperliquidBackfillDeferredException(
                     symbol = window.symbol,
                     interval = window.interval,
-                    retryAfterMs = cooldownMs,
+                    retryAfterMs = terminalBackfillCooldownMs(backfillRetryDelayMs(window, attempt)),
                     reason = "HTTP ${response.status.value} ${response.status.description} ${responseText.take(200)}"
                 )
             }

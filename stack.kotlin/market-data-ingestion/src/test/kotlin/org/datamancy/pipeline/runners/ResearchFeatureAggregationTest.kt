@@ -89,6 +89,30 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `background phase budget is capped to half the refresh interval`() {
+        assertEquals(
+            30_000L,
+            resolveResearchFeaturesBackgroundPhaseBudgetMs(
+                explicitBudgetMs = 300_000L,
+                refreshIntervalMs = 60_000L
+            )
+        )
+        assertEquals(
+            30_000L,
+            resolveResearchFeaturesBackgroundPhaseBudgetMs(
+                explicitBudgetMs = null,
+                refreshIntervalMs = 60_000L
+            )
+        )
+    }
+
+    @Test
+    fun `maintenance loop only waits the remaining interval after a long cycle`() {
+        assertEquals(0L, nextMaintenanceDelayMs(refreshIntervalMs = 60_000L, cycleElapsedMs = 75_000L))
+        assertEquals(15_000L, nextMaintenanceDelayMs(refreshIntervalMs = 60_000L, cycleElapsedMs = 45_000L))
+    }
+
+    @Test
     fun `historical catchup prioritizes newest missing windows near feature floor`() {
         val windows = planHistoricalCatchUpWindows(
             rawStartInclusive = Instant.parse("2026-03-10T00:00:00Z"),

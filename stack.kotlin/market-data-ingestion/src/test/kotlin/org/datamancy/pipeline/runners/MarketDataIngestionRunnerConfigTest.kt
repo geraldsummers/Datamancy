@@ -216,6 +216,18 @@ class MarketDataIngestionRunnerConfigTest {
     }
 
     @Test
+    fun `targeted candle repair keeps six hour active universe laggards eligible`() {
+        val cutoff = targetedCandleRepairActivityCutoff(
+            now = Instant.parse("2026-03-26T12:00:00Z"),
+            activityTimeoutMs = 60_000L,
+            intervalMs = 60_000L,
+            candleStaleMultiplier = 2.5
+        )
+
+        assertEquals(Instant.parse("2026-03-26T06:00:00Z"), cutoff)
+    }
+
+    @Test
     fun `raw candle recovery planner prioritizes initial repair over all other work`() {
         val action = planRawCandleRecoveryAction(
             now = Instant.parse("2026-03-26T00:00:00Z"),
@@ -262,6 +274,33 @@ class MarketDataIngestionRunnerConfigTest {
 
         val targeted = assertIs<RawCandleRecoveryAction.TargetedRecentRepair>(action)
         assertEquals(listOf("BTC" to "1m"), targeted.streams)
+    }
+
+    @Test
+    fun `raw candle recovery planner interleaves historical catchup after repeated targeted cycles`() {
+        val action = planRawCandleRecoveryAction(
+            now = Instant.parse("2026-03-26T00:10:00Z"),
+            state = RawCandleRecoveryPlannerState(
+                initialRecentRepairPending = false,
+                initialRecentRepairCompletedAt = Instant.parse("2026-03-25T23:55:00Z"),
+                targetedRecentRepairCycles = 8
+            ),
+            initialStreams = emptyList(),
+            targetedStreams = listOf("BTC" to "1m"),
+            historicalCandidates = listOf(
+                CandleHistoricalBackfillCandidate(
+                    symbol = "ETH",
+                    interval = "1m",
+                    range = HistoricalCandleBackfillRange(
+                        startTime = Instant.parse("2026-03-25T00:00:00Z"),
+                        endTime = Instant.parse("2026-03-25T12:00:00Z")
+                    )
+                )
+            )
+        )
+
+        val historical = assertIs<RawCandleRecoveryAction.HistoricalBackfill>(action)
+        assertEquals("ETH", historical.candidate.symbol)
     }
 
     @Test

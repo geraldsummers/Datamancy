@@ -34,6 +34,7 @@ internal const val MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 5
 internal const val DEFAULT_RESEARCH_FEATURES_BACKGROUND_WINDOW_TIMEOUT_SECONDS = 30
 internal const val DEFAULT_RESEARCH_FEATURES_MIN_WINDOW_MINUTES = 1L
 internal const val DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS = 30_000L
+internal const val MIN_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS = 5_000L
 internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOW_MINUTES = 15L
 internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOWS_PER_CYCLE = 8
 
@@ -69,6 +70,22 @@ internal fun resolveResearchFeaturesBackgroundWindowTimeoutSeconds(
     val fallbackSeconds = minOf(defaultSeconds, DEFAULT_RESEARCH_FEATURES_BACKGROUND_WINDOW_TIMEOUT_SECONDS)
     return (explicitSeconds ?: fallbackSeconds).coerceAtLeast(MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS)
 }
+
+internal fun resolveResearchFeaturesBackgroundPhaseBudgetMs(
+    explicitBudgetMs: Long?,
+    refreshIntervalMs: Long
+): Long {
+    val capMs = (refreshIntervalMs / 2L).coerceAtLeast(MIN_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS)
+    val requestedBudgetMs = explicitBudgetMs ?: capMs
+    return requestedBudgetMs
+        .coerceAtLeast(MIN_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS)
+        .coerceAtMost(capMs)
+}
+
+internal fun nextMaintenanceDelayMs(
+    refreshIntervalMs: Long,
+    cycleElapsedMs: Long
+): Long = (refreshIntervalMs - cycleElapsedMs).coerceAtLeast(0L)
 
 internal data class AggregationWindow(
     val startInclusive: Instant,
@@ -431,8 +448,10 @@ internal class ResearchFeatureAggregator(
         explicitSeconds = backgroundWindowTimeoutSeconds,
         defaultSeconds = effectiveWindowTimeoutSeconds
     )
-    private val configuredBackgroundPhaseBudgetMs = backgroundPhaseBudgetMs
-        ?.coerceAtLeast(DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS)
+    private val effectiveBackgroundPhaseBudgetMs = resolveResearchFeaturesBackgroundPhaseBudgetMs(
+        explicitBudgetMs = backgroundPhaseBudgetMs,
+        refreshIntervalMs = refreshIntervalMs
+    )
 
     private val requiredColumns = listOf(
         "time",
@@ -483,6 +502,7 @@ internal class ResearchFeatureAggregator(
         }
 
         while (coroutineContext.isActive) {
+            val cycleStartedAtMs = System.currentTimeMillis()
             try {
                 runMaintenanceCycle()
             } catch (e: CancellationException) {
@@ -492,7 +512,8 @@ internal class ResearchFeatureAggregator(
                     "research_features_1m maintenance loop failed for $exchangeId: ${e.message}"
                 }
             }
-            delay(refreshIntervalMs)
+            val cycleElapsedMs = System.currentTimeMillis() - cycleStartedAtMs
+            delay(nextMaintenanceDelayMs(refreshIntervalMs, cycleElapsedMs))
         }
     }
 
@@ -877,8 +898,7 @@ internal class ResearchFeatureAggregator(
     }
 
     private fun backgroundPhaseBudgetMs(): Long =
-        configuredBackgroundPhaseBudgetMs
-            ?: (refreshIntervalMs / 2).coerceAtLeast(DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS)
+        effectiveBackgroundPhaseBudgetMs
 
     private fun windowTimeoutSecondsForPhase(phase: String): Int = when (phase) {
         "gap_repair", "historical_catchup", "frontier_recovery" -> effectiveBackgroundWindowTimeoutSeconds

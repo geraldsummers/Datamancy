@@ -25,6 +25,8 @@ internal const val DEFAULT_HYPERLIQUID_IDLE_TIMEOUT_MS = 120_000L
 internal const val MIN_HYPERLIQUID_IDLE_TIMEOUT_MS = 5_000L
 internal const val DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_GUARD_MS = 120_000L
 internal const val DEFAULT_HYPERLIQUID_INITIAL_RECENT_REPAIR_BATCH_STREAMS = 24
+internal const val DEFAULT_TARGETED_CANDLE_REPAIR_ACTIVE_WINDOW_MS = 6L * 60L * 60L * 1_000L
+internal const val DEFAULT_TARGETED_REPAIR_CYCLES_BEFORE_HISTORICAL = 8
 
 internal fun determineCandleRepairPermits(
     streamCount: Int,
@@ -43,6 +45,21 @@ internal fun determineCandleRepairPermits(
             else -> 3
         }
     }
+}
+
+internal fun targetedCandleRepairActivityCutoff(
+    now: java.time.Instant,
+    activityTimeoutMs: Long,
+    intervalMs: Long,
+    candleStaleMultiplier: Double,
+    activeUniverseWindowMs: Long = DEFAULT_TARGETED_CANDLE_REPAIR_ACTIVE_WINDOW_MS
+): java.time.Instant {
+    val relevanceWindowMs = candleTradeRelevanceWindowMs(
+        activityTimeoutMs = activityTimeoutMs,
+        intervalMs = intervalMs,
+        candleStaleMultiplier = candleStaleMultiplier
+    )
+    return now.minusMillis(maxOf(relevanceWindowMs, activeUniverseWindowMs.coerceAtLeast(1L)))
 }
 
 internal data class HistoricalCandleBackfillRange(
@@ -65,7 +82,8 @@ internal data class RawCandleCoverageState(
 internal data class RawCandleRecoveryPlannerState(
     val initialRecentRepairPending: Boolean = true,
     val initialRecentRepairCursor: Int = 0,
-    val initialRecentRepairCompletedAt: java.time.Instant? = null
+    val initialRecentRepairCompletedAt: java.time.Instant? = null,
+    val targetedRecentRepairCycles: Int = 0
 )
 
 internal sealed interface RawCandleRecoveryAction {
@@ -124,15 +142,11 @@ internal fun planRawCandleRecoveryAction(
     initialStreams: List<Pair<String, String>>,
     targetedStreams: List<Pair<String, String>>,
     historicalCandidates: List<CandleHistoricalBackfillCandidate>,
-    historicalBackfillGuardMs: Long = DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_GUARD_MS
+    historicalBackfillGuardMs: Long = DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_GUARD_MS,
+    targetedRepairCyclesBeforeHistorical: Int = DEFAULT_TARGETED_REPAIR_CYCLES_BEFORE_HISTORICAL
 ): RawCandleRecoveryAction {
     if (state.initialRecentRepairPending) {
         return RawCandleRecoveryAction.InitialRecentRepair(initialStreams.distinct())
-    }
-
-    val distinctTargetedStreams = targetedStreams.distinct()
-    if (distinctTargetedStreams.isNotEmpty()) {
-        return RawCandleRecoveryAction.TargetedRecentRepair(distinctTargetedStreams)
     }
 
     val completedAt = state.initialRecentRepairCompletedAt
@@ -141,14 +155,30 @@ internal fun planRawCandleRecoveryAction(
     }
 
     val historicalReadyAt = completedAt.plusMillis(historicalBackfillGuardMs.coerceAtLeast(0L))
-    if (now.isBefore(historicalReadyAt)) {
+    val historicalReady = !now.isBefore(historicalReadyAt)
+    val candidate = historicalCandidates.firstOrNull()
+    val distinctTargetedStreams = targetedStreams.distinct()
+    if (
+        historicalReady &&
+        candidate != null &&
+        state.targetedRecentRepairCycles >= targetedRepairCyclesBeforeHistorical.coerceAtLeast(1)
+    ) {
+        return RawCandleRecoveryAction.HistoricalBackfill(candidate)
+    }
+
+    if (distinctTargetedStreams.isNotEmpty()) {
+        return RawCandleRecoveryAction.TargetedRecentRepair(distinctTargetedStreams)
+    }
+
+    if (!historicalReady) {
         return RawCandleRecoveryAction.Idle(
             "historical_backfill_guard_until=$historicalReadyAt"
         )
     }
 
-    val candidate = historicalCandidates.firstOrNull()
-        ?: return RawCandleRecoveryAction.Idle("no_candle_recovery_work")
+    if (candidate == null) {
+        return RawCandleRecoveryAction.Idle("no_candle_recovery_work")
+    }
     return RawCandleRecoveryAction.HistoricalBackfill(candidate)
 }
 
@@ -1039,12 +1069,12 @@ class MarketDataIngestionRunner {
             SELECT symbol
             FROM raw_ranked
             ORDER BY
+                candle_latest_raw_time ASC NULLS FIRST,
                 GREATEST(
                     COALESCE(trade_latest_raw_time, '-infinity'::timestamptz),
                     COALESCE(orderbook_latest_raw_time, '-infinity'::timestamptz),
                     COALESCE(funding_latest_raw_time, '-infinity'::timestamptz)
                 ) DESC NULLS LAST,
-                candle_latest_raw_time ASC NULLS FIRST,
                 symbol ASC
         """.trimIndent()
 
@@ -1191,7 +1221,7 @@ class MarketDataIngestionRunner {
                 limit = sessionSymbols.size.coerceAtLeast(1)
             )
             val historicalCandidates =
-                if (plannerState.initialRecentRepairPending || watchdogStreams.isNotEmpty() || persistedStreams.isNotEmpty()) {
+                if (plannerState.initialRecentRepairPending) {
                     emptyList()
                 } else {
                     loadHistoricalCandleBackfillCandidates(
@@ -1226,7 +1256,8 @@ class MarketDataIngestionRunner {
                             java.time.Instant.now()
                         } else {
                             null
-                        }
+                        },
+                        targetedRecentRepairCycles = 0
                     )
                 }
                 is RawCandleRecoveryAction.TargetedRecentRepair -> {
@@ -1241,9 +1272,13 @@ class MarketDataIngestionRunner {
                         lookbackHours = 1L.coerceAtMost(hyperliquidBackfillLookbackHours),
                         markInitialRepairComplete = false
                     )
+                    plannerState = plannerState.copy(
+                        targetedRecentRepairCycles = plannerState.targetedRecentRepairCycles + 1
+                    )
                 }
                 is RawCandleRecoveryAction.HistoricalBackfill -> {
                     runHistoricalCandleBackfill(action.candidate)
+                    plannerState = plannerState.copy(targetedRecentRepairCycles = 0)
                 }
                 is RawCandleRecoveryAction.Idle -> {
                     delay(repairIntervalMs)
@@ -1263,12 +1298,11 @@ class MarketDataIngestionRunner {
 
         val now = java.time.Instant.now()
         val candleIntervalMs = candleIntervalToMillis("1m")
-        val recentActivityCutoff = now.minusMillis(
-            candleTradeRelevanceWindowMs(
-                activityTimeoutMs = hyperliquidChannelActivityTimeoutMs,
-                intervalMs = candleIntervalMs,
-                candleStaleMultiplier = hyperliquidCandleStaleMultiplier
-            )
+        val recentActivityCutoff = targetedCandleRepairActivityCutoff(
+            now = now,
+            activityTimeoutMs = hyperliquidChannelActivityTimeoutMs,
+            intervalMs = candleIntervalMs,
+            candleStaleMultiplier = hyperliquidCandleStaleMultiplier
         )
         val staleCandleCutoff = now.minusMillis(
             candleAllowedLagMs(
@@ -1298,8 +1332,8 @@ class MarketDataIngestionRunner {
                     latest_candle_time < ?
                 )
             ORDER BY
-                latest_trade_time DESC,
                 latest_candle_time ASC NULLS FIRST,
+                latest_trade_time DESC,
                 symbol ASC
             LIMIT ?
         """.trimIndent()
