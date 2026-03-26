@@ -162,6 +162,8 @@ internal class BufferedRawSyncStateWriter(
 class MarketDataSink(
     private val dataSource: DataSource,
     private val batchSize: Int = 1000,
+    private val orderbookBatchSize: Int = batchSize,
+    private val assetContextBatchSize: Int = batchSize,
     exchangeId: String = "hyperliquid"
 ) : Sink<HyperliquidMarketData> {
 
@@ -232,13 +234,13 @@ class MarketDataSink(
             is HyperliquidMarketData.Orderbook -> {
                 synchronized(batchLock) {
                     orderbookBatch.add(item.orderbook)
-                    flushOrderbooksNow = orderbookBatch.size >= batchSize
+                    flushOrderbooksNow = orderbookBatch.size >= orderbookBatchSize
                 }
             }
             is HyperliquidMarketData.AssetContext -> {
                 synchronized(batchLock) {
                     assetContextBatch.add(item.assetContext)
-                    flushAssetContextNow = assetContextBatch.size >= batchSize
+                    flushAssetContextNow = assetContextBatch.size >= assetContextBatchSize
                 }
             }
         }

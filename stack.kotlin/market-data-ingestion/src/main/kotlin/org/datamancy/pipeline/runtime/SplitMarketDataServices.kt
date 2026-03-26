@@ -44,6 +44,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNames
 import org.datamancy.pipeline.runners.CandleHistoricalBackfillCandidate
+import org.datamancy.pipeline.runners.DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS
 import org.datamancy.pipeline.runners.FeatureStateStore
 import org.datamancy.pipeline.runners.HYPERLIQUID_MAINNET_WS_URL
 import org.datamancy.pipeline.runners.HYPERLIQUID_TESTNET_WS_URL
@@ -181,6 +182,8 @@ internal data class MarketDataServiceConfig(
     val postgresUser: String,
     val postgresPassword: String,
     val batchSize: Int,
+    val orderbookBatchSize: Int,
+    val assetContextBatchSize: Int,
     val flushIntervalSeconds: Long,
     val exchangeId: String,
     val mainnet: Boolean,
@@ -199,6 +202,7 @@ internal data class MarketDataServiceConfig(
     val researchFeaturesRefreshOverlapMinutes: Long,
     val researchFeaturesBackfillChunkHours: Long,
     val researchFeaturesFinalizationLagMinutes: Long,
+    val researchFeaturesWindowTimeoutSeconds: Int,
     val universeSettings: HyperliquidUniverseSettings,
     val enableOrderbook: Boolean,
     val splitCandlesFromExecution: Boolean,
@@ -225,6 +229,8 @@ internal fun loadMarketDataServiceConfig(): MarketDataServiceConfig {
         postgresUser = System.getenv("POSTGRES_USER") ?: "pipeline",
         postgresPassword = System.getenv("POSTGRES_PASSWORD") ?: "",
         batchSize = System.getenv("MARKET_DATA_BATCH_SIZE")?.toIntOrNull() ?: 250,
+        orderbookBatchSize = System.getenv("MARKET_DATA_ORDERBOOK_BATCH_SIZE")?.toIntOrNull() ?: 5_000,
+        assetContextBatchSize = System.getenv("MARKET_DATA_ASSET_CONTEXT_BATCH_SIZE")?.toIntOrNull() ?: 5_000,
         flushIntervalSeconds = System.getenv("MARKET_DATA_FLUSH_SECONDS")?.toLongOrNull() ?: 10L,
         exchangeId = hyperliquidPolicy.exchangeId,
         mainnet = hyperliquidPolicy.mainnet,
@@ -267,6 +273,9 @@ internal fun loadMarketDataServiceConfig(): MarketDataServiceConfig {
             hyperliquidPolicy.features.backfillChunkHours
         ),
         researchFeaturesFinalizationLagMinutes = hyperliquidPolicy.features.finalizationLagMinutes,
+        researchFeaturesWindowTimeoutSeconds =
+            System.getenv("RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS")?.toIntOrNull()
+                ?: DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS,
         universeSettings = HyperliquidUniverseSettings(
             mode = universeMode,
             staticSymbols = hyperliquidPolicy.universe.staticSymbols,
@@ -845,7 +854,13 @@ private fun buildPersistRunnerDependencies(): PersistRunnerDependencies {
             config = config.rawEventTransport,
             connectionName = "market-data-persist"
         ),
-        sink = MarketDataSink(dataSource, config.batchSize, config.exchangeId)
+        sink = MarketDataSink(
+            dataSource = dataSource,
+            batchSize = config.batchSize,
+            orderbookBatchSize = config.orderbookBatchSize,
+            assetContextBatchSize = config.assetContextBatchSize,
+            exchangeId = config.exchangeId
+        )
     )
 }
 
@@ -873,7 +888,8 @@ private fun buildFeatureMaterializerDependencies(): FeatureMaterializerDependenc
             refreshOverlapMinutes = config.researchFeaturesRefreshOverlapMinutes,
             backfillChunkHours = config.researchFeaturesBackfillChunkHours,
             finalizationLagMinutes = config.researchFeaturesFinalizationLagMinutes,
-            featureStateStore = featureStateStore
+            featureStateStore = featureStateStore,
+            windowTimeoutSeconds = config.researchFeaturesWindowTimeoutSeconds
         )
     )
 }
