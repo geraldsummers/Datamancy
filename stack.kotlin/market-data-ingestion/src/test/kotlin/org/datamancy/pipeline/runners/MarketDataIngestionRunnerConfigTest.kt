@@ -188,6 +188,21 @@ class MarketDataIngestionRunnerConfigTest {
     }
 
     @Test
+    fun `historical backfill range repairs stale tails after latest covered candle`() {
+        val now = Instant.parse("2026-03-25T10:15:45Z")
+        val range = determineHistoricalCandleBackfillRange(
+            interval = "1m",
+            now = now,
+            lookbackHours = 4L,
+            earliestRawTime = Instant.parse("2026-03-25T08:12:00Z"),
+            latestRawTime = Instant.parse("2026-03-25T09:40:00Z")
+        )
+
+        assertEquals(Instant.parse("2026-03-25T09:41:00Z"), range?.startTime)
+        assertEquals(Instant.parse("2026-03-25T10:14:00Z"), range?.endTime)
+    }
+
+    @Test
     fun `initial candle repair scales permits with universe size`() {
         assertEquals(2, determineCandleRepairPermits(streamCount = 12, markInitialRepairComplete = true))
         assertEquals(3, determineCandleRepairPermits(streamCount = 64, markInitialRepairComplete = true))
@@ -302,5 +317,31 @@ class MarketDataIngestionRunnerConfigTest {
 
         assertEquals(listOf("BTC", "ETH"), candidates.map { it.symbol })
         assertEquals(Instant.parse("2026-03-25T11:59:00Z"), candidates.first().range.endTime)
+    }
+
+    @Test
+    fun `historical backfill prioritization prefers stale tails over older prefix gaps`() {
+        val candidates = prioritizeHistoricalBackfillCandidates(
+            interval = "1m",
+            now = Instant.parse("2026-03-26T00:00:00Z"),
+            lookbackHours = 24L,
+            coverageStates = listOf(
+                RawCandleCoverageState(
+                    symbol = "YZY",
+                    earliestRawTime = Instant.parse("2026-03-25T02:00:00Z"),
+                    latestRawTime = Instant.parse("2026-03-25T20:00:00Z")
+                ),
+                RawCandleCoverageState(
+                    symbol = "ETH",
+                    earliestRawTime = Instant.parse("2026-03-25T12:00:00Z"),
+                    latestRawTime = Instant.parse("2026-03-25T23:59:00Z")
+                )
+            ),
+            maxCandidates = 2
+        )
+
+        assertEquals(listOf("YZY", "ETH"), candidates.map { it.symbol })
+        assertEquals(Instant.parse("2026-03-25T20:01:00Z"), candidates.first().range.startTime)
+        assertEquals(Instant.parse("2026-03-25T23:59:00Z"), candidates.first().range.endTime)
     }
 }

@@ -165,12 +165,27 @@ internal fun determineHistoricalCandleBackfillRange(
         intervalMs
     )
     val latestBoundary = alignDownToIntervalBoundary(now, intervalMs)
-    val earliestBoundary = earliestRawTime?.let { alignDownToIntervalBoundary(it, intervalMs) }
-        ?: latestRawTime?.let { alignDownToIntervalBoundary(it, intervalMs) }
-    if (earliestBoundary == null) {
-        return HistoricalCandleBackfillRange(startTime = lookbackStart, endTime = latestBoundary)
+    val latestStableBoundary = latestBoundary.minusMillis(intervalMs)
+    if (latestStableBoundary.isBefore(lookbackStart)) {
+        return null
     }
 
+    val latestCoveredBoundary = latestRawTime?.let { alignDownToIntervalBoundary(it, intervalMs) }
+    if (latestCoveredBoundary != null) {
+        val missingTailStart = maxOf(lookbackStart, latestCoveredBoundary.plusMillis(intervalMs))
+        if (!missingTailStart.isAfter(latestStableBoundary)) {
+            return HistoricalCandleBackfillRange(
+                startTime = missingTailStart,
+                endTime = latestStableBoundary
+            )
+        }
+    }
+
+    val earliestBoundary = earliestRawTime?.let { alignDownToIntervalBoundary(it, intervalMs) }
+        ?: latestCoveredBoundary
+    if (earliestBoundary == null) {
+        return HistoricalCandleBackfillRange(startTime = lookbackStart, endTime = latestStableBoundary)
+    }
     val missingEnd = earliestBoundary.minusMillis(intervalMs)
     if (missingEnd.isBefore(lookbackStart)) {
         return null
@@ -178,7 +193,7 @@ internal fun determineHistoricalCandleBackfillRange(
 
     return HistoricalCandleBackfillRange(
         startTime = lookbackStart,
-        endTime = minOf(missingEnd, latestBoundary)
+        endTime = minOf(missingEnd, latestStableBoundary)
     )
 }
 
