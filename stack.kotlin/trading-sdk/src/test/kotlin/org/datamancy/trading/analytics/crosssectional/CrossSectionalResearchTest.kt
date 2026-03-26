@@ -1,5 +1,6 @@
 package org.datamancy.trading.analytics.crosssectional
 
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -31,6 +32,56 @@ class CrossSectionalResearchTest {
         assertEquals(96, requiredResearchWindowBars(lookbackHours = 48, barMinutes = 30, minBars = 48))
         assertEquals(48, requiredResearchWindowBars(lookbackHours = 24, barMinutes = 30, minBars = 32))
         assertEquals(72, requiredResearchWindowBars(lookbackHours = 8, barMinutes = 15, minBars = 72))
+    }
+
+    @Test
+    fun `resolveResearchQueryParallelism clamps configured fanout to work size`() {
+        assertEquals(1, resolveResearchQueryParallelism(workItems = 1, configuredMax = 4))
+        assertEquals(3, resolveResearchQueryParallelism(workItems = 3, configuredMax = 8))
+        assertEquals(4, resolveResearchQueryParallelism(workItems = 12, configuredMax = 4))
+        assertEquals(1, resolveResearchQueryParallelism(workItems = 0, configuredMax = 0))
+    }
+
+    @Test
+    fun `parallelMapBlocking preserves input order under bounded concurrency`() {
+        val inFlight = AtomicInteger(0)
+        val maxObserved = AtomicInteger(0)
+
+        val result = parallelMapBlocking(
+            items = listOf(1, 2, 3, 4, 5, 6),
+            maxParallelism = 2
+        ) { value ->
+            val active = inFlight.incrementAndGet()
+            maxObserved.accumulateAndGet(active, ::maxOf)
+            Thread.sleep(15)
+            inFlight.decrementAndGet()
+            value * 10
+        }
+
+        assertEquals(listOf(10, 20, 30, 40, 50, 60), result)
+        assertTrue(maxObserved.get() in 1..2)
+    }
+
+    @Test
+    fun `rankDiscoveredSymbolLiquidityBatches deduplicates and ranks merged batches`() {
+        val ranked = rankDiscoveredSymbolLiquidityBatches(
+            batches = listOf(
+                listOf("SOL", "ETH"),
+                listOf("BTC", "SOL")
+            ),
+            maxParallelism = 2
+        ) { batch ->
+            batch.map { symbol ->
+                when (symbol) {
+                    "SOL" -> SymbolLiquiditySnapshot(symbol = "SOL", bars = 90, avgVolume = 200_000.0)
+                    "ETH" -> SymbolLiquiditySnapshot(symbol = "ETH", bars = 96, avgVolume = 150_000.0)
+                    "BTC" -> SymbolLiquiditySnapshot(symbol = "BTC", bars = 96, avgVolume = 250_000.0)
+                    else -> SymbolLiquiditySnapshot(symbol = symbol, bars = 1, avgVolume = 1.0)
+                }
+            }
+        }
+
+        assertEquals(listOf("BTC", "ETH", "SOL"), ranked.map { it.symbol })
     }
 
     @Test

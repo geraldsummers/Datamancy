@@ -5,6 +5,13 @@ import com.google.gson.GsonBuilder
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.Serializable
 import org.datamancy.trading.policy.ActiveTradingPolicy
 import org.datamancy.trading.policy.CoverageContractPolicy
@@ -46,6 +53,7 @@ fun envBoolean(name: String, default: Boolean): Boolean {
 }
 
 private const val CANONICAL_RESEARCH_FEATURE_BAR_SECONDS = 60L
+private const val DEFAULT_RESEARCH_QUERY_PARALLELISM = 4
 
 private fun crossSectionalPolicy() = ActiveTradingPolicy.current().research.crossSectional
 
@@ -118,6 +126,37 @@ fun sqlList(values: List<String>): String =
 
 fun urlEncode(value: String): String =
     URLEncoder.encode(value, StandardCharsets.UTF_8)
+
+internal fun resolveResearchQueryParallelism(
+    workItems: Int,
+    configuredMax: Int = envInt("ALPHA_RESEARCH_QUERY_PARALLELISM", DEFAULT_RESEARCH_QUERY_PARALLELISM)
+): Int =
+    workItems.coerceAtLeast(1).coerceAtMost(configuredMax.coerceAtLeast(1))
+
+internal fun <T, R> parallelMapBlocking(
+    items: List<T>,
+    maxParallelism: Int,
+    block: (T) -> R
+): List<R> {
+    if (items.isEmpty()) return emptyList()
+    val parallelism = maxParallelism.coerceIn(1, items.size)
+    if (parallelism == 1) {
+        return items.map(block)
+    }
+
+    return runBlocking {
+        val semaphore = Semaphore(parallelism)
+        coroutineScope {
+            items.map { item ->
+                async(Dispatchers.IO) {
+                    semaphore.withPermit {
+                        block(item)
+                    }
+                }
+            }.awaitAll()
+        }
+    }
+}
 
 fun mean(values: List<Double>): Double =
     if (values.isEmpty()) 0.0 else values.average()
@@ -1221,6 +1260,24 @@ fun queryDiscoveredSymbolLiquidity(
                 .thenBy { it.symbol }
         )
 
+internal fun rankDiscoveredSymbolLiquidityBatches(
+    batches: List<List<String>>,
+    maxParallelism: Int,
+    query: (List<String>) -> List<SymbolLiquiditySnapshot>
+): List<SymbolLiquiditySnapshot> =
+    parallelMapBlocking(
+        items = batches,
+        maxParallelism = maxParallelism,
+        block = query
+    )
+        .flatten()
+        .distinctBy { it.symbol }
+        .sortedWith(
+            compareByDescending<SymbolLiquiditySnapshot> { it.bars }
+                .thenByDescending { it.avgVolume }
+                .thenBy { it.symbol }
+        )
+
 fun discoverSymbolsFromMarketCatalog(
     aliases: List<String>,
     candidateSymbols: List<String>,
@@ -1242,23 +1299,19 @@ fun discoverSymbolsFromMarketCatalog(
     } else {
         64
     }
-    val ranked = normalizedSymbols
-        .chunked(batchSize)
-        .flatMap { batch ->
-            queryDiscoveredSymbolLiquidity(
-                aliases = aliases,
-                symbols = batch,
-                lookbackHours = lookbackHours,
-                source = source,
-                scaledMinBars = scaledMinBars
-            )
-        }
-        .distinctBy { it.symbol }
-        .sortedWith(
-            compareByDescending<SymbolLiquiditySnapshot> { it.bars }
-                .thenByDescending { it.avgVolume }
-                .thenBy { it.symbol }
+    val batches = normalizedSymbols.chunked(batchSize)
+    val ranked = rankDiscoveredSymbolLiquidityBatches(
+        batches = batches,
+        maxParallelism = resolveResearchQueryParallelism(batches.size)
+    ) { batch ->
+        queryDiscoveredSymbolLiquidity(
+            aliases = aliases,
+            symbols = batch,
+            lookbackHours = lookbackHours,
+            source = source,
+            scaledMinBars = scaledMinBars
         )
+    }
         .map { it.symbol }
 
     return if (ranked.isNotEmpty()) {
@@ -4874,7 +4927,10 @@ private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUni
     val coveragePolicy = crossSectionalPolicy().coverage
 
     val (discoveredUniverse, discoveryMs) = timedMillis {
-        exchangePlans.associate { plan ->
+        parallelMapBlocking(
+            items = exchangePlans,
+            maxParallelism = resolveResearchQueryParallelism(exchangePlans.size)
+        ) { plan ->
             plan.exchange to discoverSymbols(
                 txBase = config.txGatewayUrl,
                 exchange = plan.exchange,
@@ -4884,10 +4940,13 @@ private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUni
                 minBars = config.minBars,
                 barMinutes = config.barMinutes
             )
-        }
+        }.toMap(LinkedHashMap())
     }
 
-    val coverageVerdicts = exchangePlans.associate { plan ->
+    val coverageVerdicts = parallelMapBlocking(
+        items = exchangePlans,
+        maxParallelism = resolveResearchQueryParallelism(exchangePlans.size)
+    ) { plan ->
         val symbols = discoveredUniverse[plan.exchange].orEmpty()
         val snapshots = computeResearchCoverageSnapshots(
             exchange = plan.exchange,
@@ -4904,7 +4963,7 @@ private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUni
             requiredBars = requiredCoverageBars,
             coveragePolicy = coveragePolicy
         )
-    }
+    }.toMap(LinkedHashMap())
 
     return PreparedResearchUniverse(
         exchangeCatalog = exchangeCatalog,
