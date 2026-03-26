@@ -215,6 +215,7 @@ internal data class MarketDataServiceConfig(
     val researchFeaturesBackfillChunkHours: Long,
     val researchFeaturesFinalizationLagMinutes: Long,
     val researchFeaturesWindowTimeoutSeconds: Int,
+    val researchFeaturesBackgroundPhaseBudgetMs: Long?,
     val universeSettings: HyperliquidUniverseSettings,
     val enableOrderbook: Boolean,
     val splitCandlesFromExecution: Boolean,
@@ -290,6 +291,8 @@ internal fun loadMarketDataServiceConfig(): MarketDataServiceConfig {
         researchFeaturesWindowTimeoutSeconds =
             System.getenv("RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS")?.toIntOrNull()
                 ?: DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS,
+        researchFeaturesBackgroundPhaseBudgetMs =
+            System.getenv("RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS")?.toLongOrNull(),
         universeSettings = HyperliquidUniverseSettings(
             mode = universeMode,
             staticSymbols = hyperliquidPolicy.universe.staticSymbols,
@@ -903,7 +906,8 @@ private fun buildFeatureMaterializerDependencies(): FeatureMaterializerDependenc
             backfillChunkHours = config.researchFeaturesBackfillChunkHours,
             finalizationLagMinutes = config.researchFeaturesFinalizationLagMinutes,
             featureStateStore = featureStateStore,
-            windowTimeoutSeconds = config.researchFeaturesWindowTimeoutSeconds
+            windowTimeoutSeconds = config.researchFeaturesWindowTimeoutSeconds,
+            backgroundPhaseBudgetMs = config.researchFeaturesBackgroundPhaseBudgetMs
         )
     )
 }

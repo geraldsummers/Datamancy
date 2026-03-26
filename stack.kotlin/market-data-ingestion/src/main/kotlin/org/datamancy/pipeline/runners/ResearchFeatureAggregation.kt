@@ -330,7 +330,8 @@ internal class ResearchFeatureAggregator(
     private val backfillChunkHours: Long,
     private val finalizationLagMinutes: Long,
     private val featureStateStore: FeatureStateStore,
-    windowTimeoutSeconds: Int = DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS
+    windowTimeoutSeconds: Int = DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS,
+    backgroundPhaseBudgetMs: Long? = null
 ) {
     private val schemaLock = Any()
     @Volatile
@@ -346,6 +347,8 @@ internal class ResearchFeatureAggregator(
     private val effectiveWindowTimeoutSeconds = windowTimeoutSeconds.coerceAtLeast(
         MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS
     )
+    private val configuredBackgroundPhaseBudgetMs = backgroundPhaseBudgetMs
+        ?.coerceAtLeast(DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS)
 
     private val requiredColumns = listOf(
         "time",
@@ -765,7 +768,8 @@ internal class ResearchFeatureAggregator(
     }
 
     private fun backgroundPhaseBudgetMs(): Long =
-        (refreshIntervalMs / 2).coerceAtLeast(DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS)
+        configuredBackgroundPhaseBudgetMs
+            ?: (refreshIntervalMs / 2).coerceAtLeast(DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS)
 
     private fun ensureSchema(conn: Connection): Boolean {
         if (schemaValidated) {
