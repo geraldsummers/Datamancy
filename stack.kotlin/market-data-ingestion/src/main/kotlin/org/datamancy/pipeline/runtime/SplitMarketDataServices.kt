@@ -150,6 +150,16 @@ internal fun armSplitSyncContinuityWatchdog(
     continuityWatchdog.markInitialCandleRepairComplete(armedAt)
 }
 
+internal fun persistWorkerCountForChannel(
+    channel: String,
+    orderbookWorkers: Int,
+    assetContextWorkers: Int
+): Int = when (channel) {
+    "orderbook_l2" -> orderbookWorkers.coerceAtLeast(1)
+    "asset_context" -> assetContextWorkers.coerceAtLeast(1)
+    else -> 1
+}
+
 internal data class RawEventTransportConfig(
     val url: String,
     val stream: String,
@@ -184,6 +194,8 @@ internal data class MarketDataServiceConfig(
     val batchSize: Int,
     val orderbookBatchSize: Int,
     val assetContextBatchSize: Int,
+    val orderbookPersistWorkers: Int,
+    val assetContextPersistWorkers: Int,
     val flushIntervalSeconds: Long,
     val exchangeId: String,
     val mainnet: Boolean,
@@ -231,6 +243,8 @@ internal fun loadMarketDataServiceConfig(): MarketDataServiceConfig {
         batchSize = System.getenv("MARKET_DATA_BATCH_SIZE")?.toIntOrNull() ?: 250,
         orderbookBatchSize = System.getenv("MARKET_DATA_ORDERBOOK_BATCH_SIZE")?.toIntOrNull() ?: 5_000,
         assetContextBatchSize = System.getenv("MARKET_DATA_ASSET_CONTEXT_BATCH_SIZE")?.toIntOrNull() ?: 5_000,
+        orderbookPersistWorkers = System.getenv("ORDERBOOK_PERSIST_WORKERS")?.toIntOrNull() ?: 4,
+        assetContextPersistWorkers = System.getenv("ASSET_CONTEXT_PERSIST_WORKERS")?.toIntOrNull() ?: 2,
         flushIntervalSeconds = System.getenv("MARKET_DATA_FLUSH_SECONDS")?.toLongOrNull() ?: 10L,
         exchangeId = hyperliquidPolicy.exchangeId,
         mainnet = hyperliquidPolicy.mainnet,
@@ -1237,18 +1251,25 @@ class MarketDataPersistRunner internal constructor(
                 error("TimescaleDB did not become ready for market-data-persist")
             }
         }
-        liveConsumeJobs = persistLiveChannels.map { channel ->
-            scope.launch {
-                transport.consume(
-                    subjectFilter = config.rawEventTransport.persistSubject(
-                        exchangeId = config.exchangeId,
-                        channel = channel,
-                        lane = RawEventLane.LIVE
-                    ),
-                    durableName = "market-data-persist-live-v3-${sanitizeSubjectToken(config.exchangeId)}-${sanitizeSubjectToken(channel)}",
-                    deliverPolicy = persistDeliverPolicy(RawEventLane.LIVE)
-                ) { envelope ->
-                    sink.write(envelope.toMarketData())
+        liveConsumeJobs = persistLiveChannels.flatMap { channel ->
+            val workerCount = persistWorkerCountForChannel(
+                channel = channel,
+                orderbookWorkers = config.orderbookPersistWorkers,
+                assetContextWorkers = config.assetContextPersistWorkers
+            )
+            List(workerCount) {
+                scope.launch {
+                    transport.consume(
+                        subjectFilter = config.rawEventTransport.persistSubject(
+                            exchangeId = config.exchangeId,
+                            channel = channel,
+                            lane = RawEventLane.LIVE
+                        ),
+                        durableName = "market-data-persist-live-v3-${sanitizeSubjectToken(config.exchangeId)}-${sanitizeSubjectToken(channel)}",
+                        deliverPolicy = persistDeliverPolicy(RawEventLane.LIVE)
+                    ) { envelope ->
+                        sink.write(envelope.toMarketData())
+                    }
                 }
             }
         }
