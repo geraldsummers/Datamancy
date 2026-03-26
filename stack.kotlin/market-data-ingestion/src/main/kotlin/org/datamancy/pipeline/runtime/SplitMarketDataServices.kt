@@ -38,6 +38,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.datamancy.pipeline.runners.CandleHistoricalBackfillCandidate
@@ -324,7 +325,10 @@ internal suspend fun waitForDataSource(
 
 @Serializable
 internal enum class RawEventLane {
+    @SerialName("live")
     LIVE,
+
+    @SerialName("replay")
     REPLAY;
 
     val subjectToken: String

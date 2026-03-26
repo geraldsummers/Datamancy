@@ -7,9 +7,11 @@ import org.datamancy.pipeline.sources.HyperliquidOrderbook
 import org.datamancy.pipeline.sources.HyperliquidOrderbookLevel
 import org.datamancy.pipeline.sources.HyperliquidTrade
 import org.junit.jupiter.api.Test
+import kotlinx.serialization.json.Json
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class SplitMarketDataServicesTest {
 
@@ -128,6 +130,33 @@ class SplitMarketDataServicesTest {
         val decoded = assertIs<HyperliquidMarketData.Candle>(roundTrip)
         assertEquals(original.candle, decoded.candle)
         assertEquals(RawEventLane.REPLAY, envelope.lane)
+    }
+
+    @Test
+    fun `raw event lane serializes to lowercase tokens`() {
+        val payload = Json.encodeToString(
+            RawMarketDataEnvelope.serializer(),
+            RawMarketDataEnvelope.from(
+                exchangeId = "hyperliquid_mainnet",
+                source = "repair",
+                marketData = HyperliquidMarketData.Candle(
+                    HyperliquidCandle(
+                        time = Instant.parse("2026-03-26T00:00:00Z"),
+                        symbol = "ETH",
+                        interval = "1m",
+                        open = 2500.0,
+                        high = 2510.0,
+                        low = 2495.0,
+                        close = 2507.0,
+                        volume = 120.5,
+                        numTrades = 42
+                    )
+                ),
+                lane = RawEventLane.REPLAY
+            )
+        )
+
+        assertTrue(payload.contains("\"lane\":\"replay\""))
     }
 
     @Test

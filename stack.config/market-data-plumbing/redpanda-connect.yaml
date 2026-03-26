@@ -14,7 +14,7 @@ pipeline:
     - mapping: |
         meta exchange = this.exchange.string()
         meta channel = this.channel.string()
-        meta lane = this.lane.string()
+        meta lane = this.lane.string().lowercase()
         root = this
 
 output:
