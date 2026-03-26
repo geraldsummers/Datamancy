@@ -347,6 +347,28 @@ internal class FeatureStateStore(
     private val exchangeId: String,
     private val barSizeMinutes: Int = 1
 ) {
+    fun hasPersistedState(): Boolean {
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(
+                """
+                    SELECT EXISTS(
+                        SELECT 1
+                        FROM feature_materialization_state
+                        WHERE exchange = ?
+                          AND bar_size_minutes = ?
+                        LIMIT 1
+                    )
+                """.trimIndent()
+            ).use { stmt ->
+                stmt.setString(1, exchangeId)
+                stmt.setInt(2, barSizeMinutes)
+                stmt.executeQuery().use { rs ->
+                    return rs.next() && rs.getBoolean(1)
+                }
+            }
+        }
+    }
+
     suspend fun backfillAll() = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             conn.autoCommit = false

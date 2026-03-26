@@ -1408,7 +1408,7 @@ class MarketDataStateUpdaterRunner internal constructor(
             logger.info { "Hydrating raw_sync_state from canonical raw tables" }
             rawSyncStateStore.backfillAll()
         }
-        if (fullFeatureBackfill) {
+        if (fullFeatureBackfill && !featureStateStore.hasPersistedState()) {
             logger.info { "Hydrating feature state tables from research_features_1m" }
             featureStateStore.backfillAll()
             return
