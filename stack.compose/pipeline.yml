@@ -302,6 +302,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
       DATAMANCY_TRADING_POLICY_FILE: /app/config/trading-policy.json
       RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS: "300000"
+      RESEARCH_FEATURES_BACKGROUND_WINDOW_TIMEOUT_SECONDS: "10"
       RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS: "30"
     volumes:
       - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro

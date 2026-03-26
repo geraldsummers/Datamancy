@@ -31,6 +31,7 @@ internal const val DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES = 5L
 internal const val DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_HOURS = 48L
 internal const val DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 30
 internal const val MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 5
+internal const val DEFAULT_RESEARCH_FEATURES_BACKGROUND_WINDOW_TIMEOUT_SECONDS = 10
 internal const val DEFAULT_RESEARCH_FEATURES_MIN_WINDOW_MINUTES = 1L
 internal const val DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS = 30_000L
 internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOW_MINUTES = 15L
@@ -54,6 +55,19 @@ internal fun resolveResearchFeaturesRefreshOverlapMinutes(explicitMinutes: Long?
 internal fun resolveResearchFeaturesBackfillChunkHours(explicitHours: Long?): Long {
     val hours = explicitHours ?: DEFAULT_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS
     return hours.coerceAtLeast(MIN_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS)
+}
+
+internal fun resolveResearchFeaturesWindowTimeoutSeconds(explicitSeconds: Int?): Int {
+    val seconds = explicitSeconds ?: DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS
+    return seconds.coerceAtLeast(MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS)
+}
+
+internal fun resolveResearchFeaturesBackgroundWindowTimeoutSeconds(
+    explicitSeconds: Int?,
+    defaultSeconds: Int
+): Int {
+    val fallbackSeconds = minOf(defaultSeconds, DEFAULT_RESEARCH_FEATURES_BACKGROUND_WINDOW_TIMEOUT_SECONDS)
+    return (explicitSeconds ?: fallbackSeconds).coerceAtLeast(MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS)
 }
 
 internal data class AggregationWindow(
@@ -331,6 +345,7 @@ internal class ResearchFeatureAggregator(
     private val finalizationLagMinutes: Long,
     private val featureStateStore: FeatureStateStore,
     windowTimeoutSeconds: Int = DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS,
+    backgroundWindowTimeoutSeconds: Int? = null,
     backgroundPhaseBudgetMs: Long? = null
 ) {
     private val schemaLock = Any()
@@ -344,8 +359,10 @@ internal class ResearchFeatureAggregator(
     private var recentGapRepairPendingWindows: List<AggregationWindow> = emptyList()
     @Volatile
     private var recentGapRepairPendingNextCursorExclusive: Instant? = null
-    private val effectiveWindowTimeoutSeconds = windowTimeoutSeconds.coerceAtLeast(
-        MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS
+    private val effectiveWindowTimeoutSeconds = resolveResearchFeaturesWindowTimeoutSeconds(windowTimeoutSeconds)
+    private val effectiveBackgroundWindowTimeoutSeconds = resolveResearchFeaturesBackgroundWindowTimeoutSeconds(
+        explicitSeconds = backgroundWindowTimeoutSeconds,
+        defaultSeconds = effectiveWindowTimeoutSeconds
     )
     private val configuredBackgroundPhaseBudgetMs = backgroundPhaseBudgetMs
         ?.coerceAtLeast(DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS)
@@ -709,7 +726,13 @@ internal class ResearchFeatureAggregator(
             val window = queue.removeFirst()
             val savepoint = conn.setSavepoint()
             try {
-                val rows = upsertWindow(conn, window.startInclusive, window.endExclusive)
+                val timeoutSeconds = windowTimeoutSecondsForPhase(phase)
+                val rows = upsertWindow(
+                    conn = conn,
+                    startInclusive = window.startInclusive,
+                    endExclusive = window.endExclusive,
+                    timeoutSeconds = timeoutSeconds
+                )
                 val finalizedRows = if (finalizeRows) {
                     finalizeDueRows(conn, finalizedAt = Instant.now())
                 } else {
@@ -733,7 +756,7 @@ internal class ResearchFeatureAggregator(
                     val splitWindows = splitAggregationWindow(window)
                     researchFeatureLogger.warn(e) {
                         "research_features_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
-                            "timed out after ${effectiveWindowTimeoutSeconds}s; subdividing into " +
+                            "timed out after ${windowTimeoutSecondsForPhase(phase)}s; subdividing into " +
                             splitWindows.joinToString { "${it.startInclusive}..${it.endExclusive}" }
                     }
                     splitWindows.asReversed().forEach(queue::addFirst)
@@ -754,7 +777,7 @@ internal class ResearchFeatureAggregator(
                 if (isAggregationQueryTimeout(e)) {
                     researchFeatureLogger.error(e) {
                         "research_features_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
-                            "timed out after ${effectiveWindowTimeoutSeconds}s at minimum granularity; skipping window"
+                            "timed out after ${windowTimeoutSecondsForPhase(phase)}s at minimum granularity; skipping window"
                     }
                     conn.commit()
                     continue
@@ -770,6 +793,11 @@ internal class ResearchFeatureAggregator(
     private fun backgroundPhaseBudgetMs(): Long =
         configuredBackgroundPhaseBudgetMs
             ?: (refreshIntervalMs / 2).coerceAtLeast(DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS)
+
+    private fun windowTimeoutSecondsForPhase(phase: String): Int = when (phase) {
+        "gap_repair", "historical_catchup", "frontier_recovery" -> effectiveBackgroundWindowTimeoutSeconds
+        else -> effectiveWindowTimeoutSeconds
+    }
 
     private fun ensureSchema(conn: Connection): Boolean {
         if (schemaValidated) {
@@ -805,7 +833,12 @@ internal class ResearchFeatureAggregator(
         }
     }
 
-    private fun upsertWindow(conn: Connection, startInclusive: Instant, endExclusive: Instant): Int {
+    private fun upsertWindow(
+        conn: Connection,
+        startInclusive: Instant,
+        endExclusive: Instant,
+        timeoutSeconds: Int = effectiveWindowTimeoutSeconds
+    ): Int {
         val updatedAt = Instant.now()
         val finalizationCutoff = updatedAt.minus(finalizationLagMinutes, ChronoUnit.MINUTES)
         val sql = """
@@ -1052,7 +1085,7 @@ internal class ResearchFeatureAggregator(
         """.trimIndent()
 
         conn.prepareStatement(sql).use { stmt ->
-            stmt.queryTimeout = effectiveWindowTimeoutSeconds
+            stmt.queryTimeout = timeoutSeconds
             bindWindow(stmt, 1, exchangeId, startInclusive, endExclusive)
             bindWindow(stmt, 4, exchangeId, startInclusive, endExclusive)
             bindWindow(stmt, 7, exchangeId, startInclusive, endExclusive)

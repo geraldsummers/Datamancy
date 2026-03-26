@@ -75,6 +75,20 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `background window timeout defaults below frontier timeout`() {
+        assertEquals(10, resolveResearchFeaturesBackgroundWindowTimeoutSeconds(null, defaultSeconds = 30))
+        assertEquals(8, resolveResearchFeaturesBackgroundWindowTimeoutSeconds(null, defaultSeconds = 8))
+    }
+
+    @Test
+    fun `background window timeout clamps to minimum`() {
+        assertEquals(
+            MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS,
+            resolveResearchFeaturesBackgroundWindowTimeoutSeconds(1, defaultSeconds = 30)
+        )
+    }
+
+    @Test
     fun `historical catchup prioritizes newest missing windows near feature floor`() {
         val windows = planHistoricalCatchUpWindows(
             rawStartInclusive = Instant.parse("2026-03-10T00:00:00Z"),
