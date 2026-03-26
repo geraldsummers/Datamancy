@@ -2,6 +2,9 @@ cache_resources:
   - label: second_bucket_dedupe
     memory:
       default_ttl: 3s
+  - label: orderbook_interval_dedupe
+    memory:
+      default_ttl: ${RAW_EVENT_ORDERBOOK_DEDUPE_TTL:"5s"}
 
 input:
   nats_jetstream:
@@ -20,13 +23,16 @@ pipeline:
         let exch = this.exchange.or("").string().lowercase()
         let chan = this.channel.string().lowercase()
         let lane_value = this.lane.or("live").string().lowercase()
-        let should_dedupe = $chan == "orderbook_l2" || $chan == "asset_context"
+        let is_orderbook = $chan == "orderbook_l2"
+        let is_asset_context = $chan == "asset_context"
         let event_second = this.eventTime.string().slice(0, 19) + "Z"
         meta exchange = $exch
         meta channel = $chan
         meta lane = $lane_value
-        meta dedupe_key = if $should_dedupe {
+        meta dedupe_key = if $is_asset_context {
           $exch + "|" + $lane_value + "|" + $chan + "|" + this.symbol.string() + "|" + $event_second
+        } else if $is_orderbook {
+          $exch + "|" + $lane_value + "|" + $chan + "|" + this.symbol.string()
         } else {
           ""
         }
@@ -34,20 +40,27 @@ pipeline:
         root.exchange = $exch
         root.channel = $chan
         root.lane = $lane_value
-        root.eventTime = if $should_dedupe { $event_second } else { this.eventTime }
-        root.publishedAt = if $should_dedupe {
+        root.eventTime = if $is_asset_context { $event_second } else { this.eventTime }
+        root.publishedAt = if $is_orderbook || $is_asset_context {
           now().ts_format("2006-01-02T15:04:05.999999999Z07:00")
         } else {
           this.publishedAt
         }
-        if $should_dedupe && this.orderbook != null {
-          root.orderbook.time = $event_second
-        }
-        if $should_dedupe && this.assetContext != null {
+        if $is_asset_context && this.assetContext != null {
           root.assetContext.time = $event_second
         }
     - switch:
-        - check: meta("channel") == "orderbook_l2" || meta("channel") == "asset_context"
+        - check: meta("channel") == "orderbook_l2"
+          processors:
+            - cache:
+                resource: orderbook_interval_dedupe
+                operator: add
+                key: ${! meta("dedupe_key") }
+                value: "1"
+                ttl: ${RAW_EVENT_ORDERBOOK_DEDUPE_TTL:"5s"}
+            - mapping: |
+                root = if errored() { deleted() }
+        - check: meta("channel") == "asset_context"
           processors:
             - cache:
                 resource: second_bucket_dedupe

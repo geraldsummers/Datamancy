@@ -177,6 +177,7 @@ services:
       RAW_EVENT_INGEST_SUBJECT_PREFIX: raw.market.ingest
       RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist.coalesced
       RAW_EVENT_DLQ_SUBJECT: raw.market.dlq
+      RAW_EVENT_ORDERBOOK_DEDUPE_TTL: "5s"
       RAW_EVENT_MAX_ACK_PENDING: "2048"
     volumes:
       - ./configs/market-data-plumbing/redpanda-connect.yaml:/etc/redpanda-connect/redpanda-connect.yaml:ro
