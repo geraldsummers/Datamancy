@@ -178,6 +178,26 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `single minute aggregation window detection only accepts one minute or less`() {
+        assertTrue(
+            isSingleMinuteAggregationWindow(
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T00:01:00Z")
+                )
+            )
+        )
+        assertFalse(
+            isSingleMinuteAggregationWindow(
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T00:02:00Z")
+                )
+            )
+        )
+    }
+
+    @Test
     fun `split aggregation window halves work newest-first`() {
         val split = splitAggregationWindow(
             window = AggregationWindow(
@@ -210,6 +230,37 @@ class ResearchFeatureAggregationTest {
 
         assertFalse(canSubdivideAggregationWindow(window))
         assertEquals(listOf(window), splitAggregationWindow(window))
+    }
+
+    @Test
+    fun `blocking phases expand multi minute windows into minute slices`() {
+        val expanded = expandAggregationWindowsByMinute(
+            windows = listOf(
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T00:03:00Z")
+                )
+            ),
+            shouldExpand = true
+        )
+
+        assertEquals(
+            listOf(
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T00:01:00Z")
+                ),
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T00:01:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T00:02:00Z")
+                ),
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T00:02:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T00:03:00Z")
+                )
+            ),
+            expanded
+        )
     }
 
     @Test

@@ -154,6 +154,9 @@ internal fun recentGapRepairChunkMinutes(backfillChunkHours: Long): Long =
 internal fun aggregationWindowMinutes(window: AggregationWindow): Long =
     MINUTES.between(window.startInclusive, window.endExclusive)
 
+internal fun isSingleMinuteAggregationWindow(window: AggregationWindow): Boolean =
+    aggregationWindowMinutes(window) <= 1L
+
 internal fun canSubdivideAggregationWindow(
     window: AggregationWindow,
     minimumWindowMinutes: Long = DEFAULT_RESEARCH_FEATURES_MIN_WINDOW_MINUTES
@@ -339,6 +342,24 @@ internal data class FrontierRecoveryOutcome(
     val blockingDebt: Boolean,
     val completed: Boolean
 )
+
+internal fun expandAggregationWindowsByMinute(
+    windows: List<AggregationWindow>,
+    shouldExpand: Boolean
+): List<AggregationWindow> {
+    if (!shouldExpand) return windows
+    return windows.flatMap { window ->
+        if (isSingleMinuteAggregationWindow(window)) {
+            listOf(window)
+        } else {
+            chunkAggregationWindowsByMinutes(
+                startInclusive = window.startInclusive,
+                endExclusive = window.endExclusive,
+                chunkMinutes = 1L
+            )
+        }
+    }
+}
 
 internal class ResearchFeatureAggregator(
     private val dataSource: DataSource,
@@ -705,7 +726,12 @@ internal class ResearchFeatureAggregator(
             return WindowMaterializationResult(0, 0, completed = true)
         }
 
-        val queue = ArrayDeque(windows)
+        val queue = ArrayDeque(
+            expandAggregationWindowsByMinute(
+                windows = windows,
+                shouldExpand = phase == "gap_repair" || phase == "frontier_recovery"
+            )
+        )
         var totalRows = 0
         var totalFinalizedRows = 0
         val startNanos = System.nanoTime()
@@ -847,6 +873,68 @@ internal class ResearchFeatureAggregator(
     ): Int {
         val updatedAt = Instant.now()
         val finalizationCutoff = updatedAt.minus(finalizationLagMinutes, ChronoUnit.MINUTES)
+        val singleMinuteWindow = isSingleMinuteAggregationWindow(
+            AggregationWindow(startInclusive = startInclusive, endExclusive = endExclusive)
+        )
+        val minuteOrderbooksSql = if (singleMinuteWindow) {
+            """
+            minute_orderbooks AS (
+                SELECT DISTINCT ON (symbol, exchange)
+                    CAST(? AS TIMESTAMPTZ) AS bucket_time,
+                    symbol,
+                    exchange,
+                    best_bid,
+                    best_ask,
+                    spread,
+                    spread_pct,
+                    mid_price,
+                    bid_depth_10,
+                    ask_depth_10,
+                    COUNT(*) OVER (PARTITION BY symbol, exchange)::INTEGER AS orderbook_samples
+                FROM orderbook_data
+                WHERE exchange = ?
+                  AND time >= ?
+                  AND time < ?
+                ORDER BY symbol, exchange, time DESC
+            ),
+            """.trimIndent()
+        } else {
+            """
+            minute_orderbooks AS (
+                SELECT DISTINCT ON (bucket_time, symbol, exchange)
+                    bucket_time,
+                    symbol,
+                    exchange,
+                    best_bid,
+                    best_ask,
+                    spread,
+                    spread_pct,
+                    mid_price,
+                    bid_depth_10,
+                    ask_depth_10,
+                    1 AS orderbook_samples
+                FROM (
+                    SELECT
+                        time_bucket(INTERVAL '1 minute', time) AS bucket_time,
+                        symbol,
+                        exchange,
+                        best_bid,
+                        best_ask,
+                        spread,
+                        spread_pct,
+                        mid_price,
+                        bid_depth_10,
+                        ask_depth_10,
+                        time
+                    FROM orderbook_data
+                    WHERE exchange = ?
+                      AND time >= ?
+                      AND time < ?
+                ) ranked_orderbooks
+                ORDER BY bucket_time, symbol, exchange, time DESC
+            ),
+            """.trimIndent()
+        }
         val sql = """
             WITH minute_candles AS (
                 SELECT
@@ -882,39 +970,7 @@ internal class ResearchFeatureAggregator(
                   AND time < ?
                 GROUP BY 1, 2, 3
             ),
-            minute_orderbooks AS (
-                SELECT DISTINCT ON (bucket_time, symbol, exchange)
-                    bucket_time,
-                    symbol,
-                    exchange,
-                    best_bid,
-                    best_ask,
-                    spread,
-                    spread_pct,
-                    mid_price,
-                    bid_depth_10,
-                    ask_depth_10,
-                    1 AS orderbook_samples
-                FROM (
-                    SELECT
-                        time_bucket(INTERVAL '1 minute', time) AS bucket_time,
-                        symbol,
-                        exchange,
-                        best_bid,
-                        best_ask,
-                        spread,
-                        spread_pct,
-                        mid_price,
-                        bid_depth_10,
-                        ask_depth_10,
-                        time
-                    FROM orderbook_data
-                    WHERE exchange = ?
-                      AND time >= ?
-                      AND time < ?
-                ) ranked_orderbooks
-                ORDER BY bucket_time, symbol, exchange, time DESC
-            ),
+            $minuteOrderbooksSql
             minute_funding AS (
                 SELECT DISTINCT ON (bucket_time, symbol, exchange)
                     bucket_time,
@@ -1092,16 +1148,25 @@ internal class ResearchFeatureAggregator(
 
         conn.prepareStatement(sql).use { stmt ->
             stmt.queryTimeout = timeoutSeconds
-            bindWindow(stmt, 1, exchangeId, startInclusive, endExclusive)
-            bindWindow(stmt, 4, exchangeId, startInclusive, endExclusive)
-            bindWindow(stmt, 7, exchangeId, startInclusive, endExclusive)
-            bindWindow(stmt, 10, exchangeId, startInclusive, endExclusive)
-            bindWindow(stmt, 13, exchangeId, startInclusive, endExclusive)
-            stmt.setTimestamp(16, Timestamp.from(updatedAt))
-            stmt.setTimestamp(17, Timestamp.from(finalizationCutoff))
-            stmt.setTimestamp(18, Timestamp.from(finalizationCutoff))
-            stmt.setTimestamp(19, Timestamp.from(finalizationCutoff))
-            stmt.setTimestamp(20, Timestamp.from(updatedAt))
+            var parameterIndex = 1
+            bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)
+            parameterIndex += 3
+            bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)
+            parameterIndex += 3
+            if (singleMinuteWindow) {
+                stmt.setTimestamp(parameterIndex++, Timestamp.from(startInclusive))
+            }
+            bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)
+            parameterIndex += 3
+            bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)
+            parameterIndex += 3
+            bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)
+            parameterIndex += 3
+            stmt.setTimestamp(parameterIndex++, Timestamp.from(updatedAt))
+            stmt.setTimestamp(parameterIndex++, Timestamp.from(finalizationCutoff))
+            stmt.setTimestamp(parameterIndex++, Timestamp.from(finalizationCutoff))
+            stmt.setTimestamp(parameterIndex++, Timestamp.from(finalizationCutoff))
+            stmt.setTimestamp(parameterIndex, Timestamp.from(updatedAt))
             return stmt.executeUpdate()
         }
     }
