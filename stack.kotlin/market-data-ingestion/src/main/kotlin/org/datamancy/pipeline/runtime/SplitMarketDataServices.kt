@@ -201,6 +201,7 @@ internal data class MarketDataServiceConfig(
     val mainnet: Boolean,
     val wsUrl: String,
     val infoUrl: String,
+    val marketCatalogUrl: String?,
     val idleTimeoutMs: Long,
     val freshnessCheckIntervalMs: Long,
     val channelActivityTimeoutMs: Long,
@@ -258,6 +259,8 @@ internal fun loadMarketDataServiceConfig(): MarketDataServiceConfig {
             explicitUrl = hyperliquidPolicy.infoUrl,
             mainnet = hyperliquidPolicy.mainnet
         ),
+        marketCatalogUrl = System.getenv("HYPERLIQUID_MARKET_CATALOG_URL")
+            ?: "http://tx-gateway:8080/api/v1/exchanges/hyperliquid/markets",
         idleTimeoutMs = resolveHyperliquidIdleTimeoutMs(hyperliquidPolicy.rawSync.idleTimeoutMs),
         freshnessCheckIntervalMs = resolveHyperliquidFreshnessCheckIntervalMs(
             hyperliquidPolicy.rawSync.freshnessCheckIntervalMs
@@ -853,7 +856,10 @@ private fun buildSyncRunnerDependencies(): SyncRunnerDependencies {
             config = config.rawEventTransport,
             connectionName = "market-data-sync"
         ),
-        universeResolver = HyperliquidUniverseResolver(config.infoUrl)
+        universeResolver = HyperliquidUniverseResolver(
+            infoUrl = config.infoUrl,
+            marketCatalogUrl = config.marketCatalogUrl
+        )
     )
 }
 
@@ -957,7 +963,10 @@ private fun buildRepairRunnerDependencies(): RepairRunnerDependencies {
             maxBarsPerRequest = config.backfillMaxBars,
             overlapBars = config.backfillOverlapBars
         ),
-        universeResolver = HyperliquidUniverseResolver(config.infoUrl)
+        universeResolver = HyperliquidUniverseResolver(
+            infoUrl = config.infoUrl,
+            marketCatalogUrl = config.marketCatalogUrl
+        )
     )
 }
 

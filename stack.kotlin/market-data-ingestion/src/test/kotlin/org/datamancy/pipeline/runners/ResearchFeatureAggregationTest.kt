@@ -76,7 +76,7 @@ class ResearchFeatureAggregationTest {
 
     @Test
     fun `background window timeout defaults below frontier timeout`() {
-        assertEquals(10, resolveResearchFeaturesBackgroundWindowTimeoutSeconds(null, defaultSeconds = 30))
+        assertEquals(30, resolveResearchFeaturesBackgroundWindowTimeoutSeconds(null, defaultSeconds = 30))
         assertEquals(8, resolveResearchFeaturesBackgroundWindowTimeoutSeconds(null, defaultSeconds = 8))
     }
 

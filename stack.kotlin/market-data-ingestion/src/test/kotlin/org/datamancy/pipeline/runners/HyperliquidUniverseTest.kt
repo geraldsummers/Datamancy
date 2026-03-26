@@ -66,6 +66,52 @@ class HyperliquidUniverseTest {
     }
 
     @Test
+    fun `market catalog parser keeps tx gateway symbols as authoritative entries`() {
+        val entries = parseHyperliquidMarketCatalogEntries(
+            """
+            {
+              "exchange": "hyperliquid",
+              "count": 2,
+              "markets": [
+                {"symbol": "MATIC"},
+                {"symbol": "kPEPE"}
+              ]
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(
+            listOf(
+                HyperliquidUniverseEntry(symbol = "MATIC", delisted = false),
+                HyperliquidUniverseEntry(symbol = "kPEPE", delisted = false)
+            ),
+            entries
+        )
+    }
+
+    @Test
+    fun `meta parser still marks delisted symbols from exchange payload`() {
+        val entries = parseHyperliquidMetaEntries(
+            """
+            {
+              "universe": [
+                {"name": "BTC"},
+                {"name": "LUNA", "isDelisted": true}
+              ]
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(
+            listOf(
+                HyperliquidUniverseEntry(symbol = "BTC", delisted = false),
+                HyperliquidUniverseEntry(symbol = "LUNA", delisted = true)
+            ),
+            entries
+        )
+    }
+
+    @Test
     fun `universe refresh interval clamps to minimum`() {
         assertEquals(MIN_HYPERLIQUID_UNIVERSE_REFRESH_INTERVAL_MS, resolveHyperliquidUniverseRefreshIntervalMs(1L))
     }

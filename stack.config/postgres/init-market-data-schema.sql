@@ -811,10 +811,20 @@ CREATE INDEX IF NOT EXISTS idx_orderbook_data_symbol_exchange_time_covering
     INCLUDE (spread_pct, bid_depth_10, ask_depth_10, mid_price)
     WITH (timescaledb.transaction_per_chunk);
 
+CREATE INDEX IF NOT EXISTS idx_orderbook_data_symbol_exchange_time_full_covering
+    ON orderbook_data (symbol, exchange, time DESC)
+    INCLUDE (best_bid, best_ask, spread, spread_pct, bid_depth_10, ask_depth_10, mid_price)
+    WITH (timescaledb.transaction_per_chunk);
+
 -- Full-exchange orderbook scans drive minute feature aggregation and need an exchange-first index.
 CREATE INDEX IF NOT EXISTS idx_orderbook_data_exchange_time_symbol_covering
     ON orderbook_data (exchange, time DESC, symbol)
     INCLUDE (spread_pct, bid_depth_10, ask_depth_10, mid_price)
+    WITH (timescaledb.transaction_per_chunk);
+
+CREATE INDEX IF NOT EXISTS idx_orderbook_data_exchange_time_symbol_full_covering
+    ON orderbook_data (exchange, time DESC, symbol)
+    INCLUDE (best_bid, best_ask, spread, spread_pct, bid_depth_10, ask_depth_10, mid_price)
     WITH (timescaledb.transaction_per_chunk);
 
 -- research_features_1m is the primary research read path for universe scans and bar loading.

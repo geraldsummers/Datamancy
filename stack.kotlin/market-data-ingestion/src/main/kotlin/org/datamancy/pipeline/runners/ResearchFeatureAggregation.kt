@@ -31,7 +31,7 @@ internal const val DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES = 5L
 internal const val DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_HOURS = 48L
 internal const val DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 30
 internal const val MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 5
-internal const val DEFAULT_RESEARCH_FEATURES_BACKGROUND_WINDOW_TIMEOUT_SECONDS = 10
+internal const val DEFAULT_RESEARCH_FEATURES_BACKGROUND_WINDOW_TIMEOUT_SECONDS = 30
 internal const val DEFAULT_RESEARCH_FEATURES_MIN_WINDOW_MINUTES = 1L
 internal const val DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS = 30_000L
 internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOW_MINUTES = 15L
@@ -855,10 +855,16 @@ internal class ResearchFeatureAggregator(
                 if (isAggregationQueryTimeout(e)) {
                     researchFeatureLogger.error(e) {
                         "research_features_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
-                            "timed out after ${windowTimeoutSecondsForPhase(phase)}s at minimum granularity; skipping window"
+                            "timed out after ${windowTimeoutSecondsForPhase(phase)}s at minimum granularity; retaining window"
                     }
+                    queue.addFirst(window)
                     conn.commit()
-                    continue
+                    return WindowMaterializationResult(
+                        totalRows = totalRows,
+                        totalFinalizedRows = totalFinalizedRows,
+                        completed = false,
+                        remainingWindows = queue.toList()
+                    )
                 }
                 conn.rollback()
                 throw e
@@ -924,7 +930,18 @@ internal class ResearchFeatureAggregator(
         )
         val minuteOrderbooksSql = if (singleMinuteWindow) {
             """
-            minute_orderbooks AS (
+            minute_orderbook_counts AS (
+                SELECT
+                    symbol,
+                    exchange,
+                    COUNT(*)::INTEGER AS orderbook_samples
+                FROM orderbook_data
+                WHERE exchange = ?
+                  AND time >= ?
+                  AND time < ?
+                GROUP BY symbol, exchange
+            ),
+            minute_orderbook_latest AS (
                 SELECT DISTINCT ON (symbol, exchange)
                     CAST(? AS TIMESTAMPTZ) AS bucket_time,
                     symbol,
@@ -935,13 +952,30 @@ internal class ResearchFeatureAggregator(
                     spread_pct,
                     mid_price,
                     bid_depth_10,
-                    ask_depth_10,
-                    COUNT(*) OVER (PARTITION BY symbol, exchange)::INTEGER AS orderbook_samples
+                    ask_depth_10
                 FROM orderbook_data
                 WHERE exchange = ?
                   AND time >= ?
                   AND time < ?
                 ORDER BY symbol, exchange, time DESC
+            ),
+            minute_orderbooks AS (
+                SELECT
+                    latest.bucket_time,
+                    latest.symbol,
+                    latest.exchange,
+                    latest.best_bid,
+                    latest.best_ask,
+                    latest.spread,
+                    latest.spread_pct,
+                    latest.mid_price,
+                    latest.bid_depth_10,
+                    latest.ask_depth_10,
+                    counts.orderbook_samples
+                FROM minute_orderbook_latest latest
+                JOIN minute_orderbook_counts counts
+                  ON counts.symbol = latest.symbol
+                 AND counts.exchange = latest.exchange
             ),
             """.trimIndent()
         } else {
@@ -1200,6 +1234,8 @@ internal class ResearchFeatureAggregator(
             bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)
             parameterIndex += 3
             if (singleMinuteWindow) {
+                bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)
+                parameterIndex += 3
                 stmt.setTimestamp(parameterIndex++, Timestamp.from(startInclusive))
             }
             bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)

@@ -3,6 +3,7 @@ package org.datamancy.pipeline.runners
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -97,8 +98,55 @@ internal fun filterCatalogUniverse(
         .toList()
 }
 
+internal fun parseHyperliquidMarketCatalogEntries(
+    body: String,
+    json: Json = Json { ignoreUnknownKeys = true }
+): List<HyperliquidUniverseEntry> {
+    val parsed = json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject ?: run {
+        universeLogger.warn { "Hyperliquid market catalog payload was not a JSON object: ${body.take(200)}" }
+        return emptyList()
+    }
+    val markets = parsed["markets"] as? kotlinx.serialization.json.JsonArray ?: return emptyList()
+    return markets.mapNotNull { element ->
+        val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+        val symbol = obj["symbol"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+        val canonical = symbol.trim()
+        if (canonical.isEmpty()) {
+            return@mapNotNull null
+        }
+        HyperliquidUniverseEntry(symbol = canonical, delisted = false)
+    }
+}
+
+internal fun parseHyperliquidMetaEntries(
+    body: String,
+    json: Json = Json { ignoreUnknownKeys = true }
+): List<HyperliquidUniverseEntry> {
+    val parsed = json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject ?: run {
+        universeLogger.warn { "Hyperliquid meta payload was not a JSON object: ${body.take(200)}" }
+        return emptyList()
+    }
+    val universe = parsed["universe"] as? kotlinx.serialization.json.JsonArray ?: return emptyList()
+    return universe.mapNotNull { element ->
+        val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+        val symbol = obj["name"]?.jsonPrimitive?.contentOrNull
+            ?: obj["coin"]?.jsonPrimitive?.contentOrNull
+            ?: return@mapNotNull null
+        val canonical = symbol.trim()
+        if (canonical.isEmpty()) {
+            return@mapNotNull null
+        }
+        HyperliquidUniverseEntry(
+            symbol = canonical,
+            delisted = obj["isDelisted"]?.jsonPrimitive?.booleanOrNull == true ||
+                obj["delisted"]?.jsonPrimitive?.booleanOrNull == true
+        )
+    }
+}
+
 internal class HyperliquidUniverseResolver(
     private val infoUrl: String,
+    private val marketCatalogUrl: String? = null,
     private val client: HttpClient = HttpClient(CIO),
     private val json: Json = Json { ignoreUnknownKeys = true }
 ) {
@@ -118,7 +166,8 @@ internal class HyperliquidUniverseResolver(
             }
 
             HyperliquidUniverseMode.CATALOG -> {
-                val catalogSymbols = fetchCatalogEntries()
+                val catalogSymbols = fetchMarketCatalogEntries()
+                    .ifEmpty { fetchCatalogEntries() }
                 val symbols = filterCatalogUniverse(
                     entries = catalogSymbols,
                     includeSymbols = settings.includeSymbols,
@@ -143,6 +192,20 @@ internal class HyperliquidUniverseResolver(
         client.close()
     }
 
+    private suspend fun fetchMarketCatalogEntries(): List<HyperliquidUniverseEntry> {
+        val url = marketCatalogUrl?.trim().orEmpty()
+        if (url.isEmpty()) {
+            return emptyList()
+        }
+        val body = try {
+            client.get(url).bodyAsText()
+        } catch (ex: Exception) {
+            universeLogger.warn(ex) { "Failed to fetch Hyperliquid market catalog from $url" }
+            return emptyList()
+        }
+        return parseHyperliquidMarketCatalogEntries(body, json)
+    }
+
     private suspend fun fetchCatalogEntries(): List<HyperliquidUniverseEntry> {
         val payload = buildJsonObject {
             put("type", JsonPrimitive("meta"))
@@ -152,25 +215,6 @@ internal class HyperliquidUniverseResolver(
             setBody(payload.toString())
         }
         val body = response.bodyAsText()
-        val parsed = json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject ?: run {
-            universeLogger.warn { "Hyperliquid meta payload was not a JSON object: ${body.take(200)}" }
-            return emptyList()
-        }
-        val universe = parsed["universe"] as? kotlinx.serialization.json.JsonArray ?: return emptyList()
-        return universe.mapNotNull { element ->
-            val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-            val symbol = obj["name"]?.jsonPrimitive?.contentOrNull
-                ?: obj["coin"]?.jsonPrimitive?.contentOrNull
-                ?: return@mapNotNull null
-            val canonical = symbol.trim()
-            if (canonical.isEmpty()) {
-                return@mapNotNull null
-            }
-            HyperliquidUniverseEntry(
-                symbol = canonical,
-                delisted = obj["isDelisted"]?.jsonPrimitive?.booleanOrNull == true ||
-                    obj["delisted"]?.jsonPrimitive?.booleanOrNull == true
-            )
-        }
+        return parseHyperliquidMetaEntries(body, json)
     }
 }
