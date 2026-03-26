@@ -290,6 +290,23 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `merged aggregation window covers both current and finalized ranges`() {
+        val merged = mergeAggregationWindows(
+            primaryWindow = AggregationWindow(
+                startInclusive = Instant.parse("2026-03-20T00:05:00Z"),
+                endExclusive = Instant.parse("2026-03-20T00:06:00Z")
+            ),
+            secondaryWindow = AggregationWindow(
+                startInclusive = Instant.parse("2026-03-20T00:01:00Z"),
+                endExclusive = Instant.parse("2026-03-20T00:04:00Z")
+            )
+        )
+
+        assertEquals(Instant.parse("2026-03-20T00:01:00Z"), merged.startInclusive)
+        assertEquals(Instant.parse("2026-03-20T00:06:00Z"), merged.endExclusive)
+    }
+
+    @Test
     fun `aggregation timeout detection catches jdbc timeout and postgres cancel state`() {
         assertTrue(isAggregationQueryTimeout(SQLTimeoutException("timed out")))
         assertTrue(isAggregationQueryTimeout(SQLException("cancelled", "57014")))

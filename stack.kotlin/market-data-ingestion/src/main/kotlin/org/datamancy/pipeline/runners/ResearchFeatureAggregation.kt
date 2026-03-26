@@ -343,6 +343,11 @@ internal data class FrontierRecoveryOutcome(
     val completed: Boolean
 )
 
+internal data class FinalizationResult(
+    val rowCount: Int,
+    val affectedWindow: AggregationWindow?
+)
+
 internal fun expandAggregationWindowsByMinute(
     windows: List<AggregationWindow>,
     shouldExpand: Boolean
@@ -370,6 +375,17 @@ internal fun shouldExpandAggregationWindowsByMinute(
     val thresholdMinutes = expansionThresholdMinutes.coerceAtLeast(1L)
     return windows.all { aggregationWindowMinutes(it) <= thresholdMinutes }
 }
+
+internal fun mergeAggregationWindows(
+    primaryWindow: AggregationWindow,
+    secondaryWindow: AggregationWindow?
+): AggregationWindow =
+    secondaryWindow?.let {
+        AggregationWindow(
+            startInclusive = minOf(primaryWindow.startInclusive, it.startInclusive),
+            endExclusive = maxOf(primaryWindow.endExclusive, it.endExclusive)
+        )
+    } ?: primaryWindow
 
 internal class ResearchFeatureAggregator(
     private val dataSource: DataSource,
@@ -778,22 +794,19 @@ internal class ResearchFeatureAggregator(
                     endExclusive = window.endExclusive,
                     timeoutSeconds = timeoutSeconds
                 )
-                val finalizedRows = if (finalizeRows) {
+                val finalizationResult = if (finalizeRows) {
                     finalizeDueRows(conn, finalizedAt = Instant.now())
                 } else {
-                    0
+                    FinalizationResult(rowCount = 0, affectedWindow = null)
                 }
-                if (finalizedRows > 0) {
-                    featureStateStore.refresh(conn, null, null)
-                } else {
-                    featureStateStore.refresh(conn, window.startInclusive, window.endExclusive)
-                }
+                val refreshWindow = mergeAggregationWindows(window, finalizationResult.affectedWindow)
+                featureStateStore.refresh(conn, refreshWindow.startInclusive, refreshWindow.endExclusive)
                 conn.commit()
                 totalRows += rows
-                totalFinalizedRows += finalizedRows
+                totalFinalizedRows += finalizationResult.rowCount
                 researchFeatureLogger.info {
                     "research_features_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
-                        "minutes=${aggregationWindowMinutes(window)} rows=$rows finalized=$finalizedRows"
+                        "minutes=${aggregationWindowMinutes(window)} rows=$rows finalized=${finalizationResult.rowCount}"
                 }
             } catch (e: Exception) {
                 conn.rollback(savepoint)
@@ -1184,33 +1197,57 @@ internal class ResearchFeatureAggregator(
         }
     }
 
-    private fun finalizeDueRows(conn: Connection, finalizedAt: Instant): Int {
+    private fun finalizeDueRows(conn: Connection, finalizedAt: Instant): FinalizationResult {
         val finalizationCutoff = finalizedAt.minus(finalizationLagMinutes, ChronoUnit.MINUTES)
         val sql = """
-            UPDATE research_features_1m
-            SET
-                is_provisional = FALSE,
-                is_finalized = TRUE,
-                finalization_due_at = COALESCE(
-                    finalization_due_at,
-                    time + INTERVAL '${finalizationLagMinutes} minutes'
-                ),
-                finalized_at = COALESCE(finalized_at, CAST(? AS TIMESTAMPTZ))
-            WHERE exchange = ?
-              AND finalization_due_at IS NOT NULL
-              AND finalization_due_at <= CAST(? AS TIMESTAMPTZ)
-              AND (
-                    NOT is_finalized
-                    OR is_provisional
-                    OR finalized_at IS NULL
-                  )
+            WITH finalized AS (
+                UPDATE research_features_1m
+                SET
+                    is_provisional = FALSE,
+                    is_finalized = TRUE,
+                    finalization_due_at = COALESCE(
+                        finalization_due_at,
+                        time + INTERVAL '${finalizationLagMinutes} minutes'
+                    ),
+                    finalized_at = COALESCE(finalized_at, CAST(? AS TIMESTAMPTZ))
+                WHERE exchange = ?
+                  AND finalization_due_at IS NOT NULL
+                  AND finalization_due_at <= CAST(? AS TIMESTAMPTZ)
+                  AND (
+                        NOT is_finalized
+                        OR is_provisional
+                        OR finalized_at IS NULL
+                      )
+                RETURNING time
+            )
+            SELECT
+                COUNT(*)::INTEGER AS row_count,
+                MIN(time) AS earliest_time,
+                MAX(time) AS latest_time
+            FROM finalized
         """.trimIndent()
 
         conn.prepareStatement(sql).use { stmt ->
             stmt.setTimestamp(1, Timestamp.from(finalizedAt))
             stmt.setString(2, exchangeId)
             stmt.setTimestamp(3, Timestamp.from(finalizationCutoff))
-            return stmt.executeUpdate()
+            stmt.executeQuery().use { rs ->
+                if (!rs.next()) {
+                    return FinalizationResult(rowCount = 0, affectedWindow = null)
+                }
+                val rowCount = rs.getInt("row_count")
+                val earliestTime = rs.getTimestamp("earliest_time")?.toInstant()
+                val latestTime = rs.getTimestamp("latest_time")?.toInstant()
+                val affectedWindow = if (rowCount > 0 && earliestTime != null && latestTime != null) {
+                    AggregationWindow(
+                        startInclusive = earliestTime,
+                        endExclusive = latestTime.plus(1, ChronoUnit.MINUTES)
+                    )
+                } else {
+                    null
+                }
+                return FinalizationResult(rowCount = rowCount, affectedWindow = affectedWindow)
+            }
         }
     }
 
