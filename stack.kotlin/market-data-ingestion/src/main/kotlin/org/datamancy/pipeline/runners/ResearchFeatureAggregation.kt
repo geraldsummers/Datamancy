@@ -843,32 +843,8 @@ internal class ResearchFeatureAggregator(
                   AND time < ?
                 GROUP BY 1, 2, 3
             ),
-            minute_orderbooks_ranked AS (
-                SELECT
-                    time_bucket(INTERVAL '1 minute', time) AS bucket_time,
-                    symbol,
-                    exchange,
-                    best_bid,
-                    best_ask,
-                    spread,
-                    spread_pct,
-                    mid_price,
-                    bid_depth_10,
-                    ask_depth_10,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY symbol, exchange, time_bucket(INTERVAL '1 minute', time)
-                        ORDER BY time DESC
-                    ) AS row_num,
-                    COUNT(*) OVER (
-                        PARTITION BY symbol, exchange, time_bucket(INTERVAL '1 minute', time)
-                    )::INTEGER AS sample_count
-                FROM orderbook_data
-                WHERE exchange = ?
-                  AND time >= ?
-                  AND time < ?
-            ),
             minute_orderbooks AS (
-                SELECT
+                SELECT DISTINCT ON (symbol, exchange, time_bucket(INTERVAL '1 minute', time))
                     bucket_time,
                     symbol,
                     exchange,
@@ -879,51 +855,68 @@ internal class ResearchFeatureAggregator(
                     mid_price,
                     bid_depth_10,
                     ask_depth_10,
-                    sample_count AS orderbook_samples
-                FROM minute_orderbooks_ranked
-                WHERE row_num = 1
-            ),
-            minute_funding_ranked AS (
-                SELECT
-                    time_bucket(INTERVAL '1 minute', time) AS bucket_time,
-                    symbol,
-                    exchange,
-                    funding_rate,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY symbol, exchange, time_bucket(INTERVAL '1 minute', time)
-                        ORDER BY time DESC
-                    ) AS row_num
-                FROM market_data
-                WHERE exchange = ?
-                  AND data_type = 'funding'
-                  AND time >= ?
-                  AND time < ?
+                    1 AS orderbook_samples
+                FROM (
+                    SELECT
+                        time_bucket(INTERVAL '1 minute', time) AS bucket_time,
+                        symbol,
+                        exchange,
+                        best_bid,
+                        best_ask,
+                        spread,
+                        spread_pct,
+                        mid_price,
+                        bid_depth_10,
+                        ask_depth_10,
+                        time
+                    FROM orderbook_data
+                    WHERE exchange = ?
+                      AND time >= ?
+                      AND time < ?
+                ) ranked_orderbooks
+                ORDER BY symbol, exchange, bucket_time, time DESC
             ),
             minute_funding AS (
-                SELECT bucket_time, symbol, exchange, funding_rate
-                FROM minute_funding_ranked
-                WHERE row_num = 1
-            ),
-            minute_open_interest_ranked AS (
-                SELECT
-                    time_bucket(INTERVAL '1 minute', time) AS bucket_time,
+                SELECT DISTINCT ON (symbol, exchange, bucket_time)
+                    bucket_time,
                     symbol,
                     exchange,
-                    open_interest,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY symbol, exchange, time_bucket(INTERVAL '1 minute', time)
-                        ORDER BY time DESC
-                    ) AS row_num
-                FROM market_data
-                WHERE exchange = ?
-                  AND data_type = 'open_interest'
-                  AND time >= ?
-                  AND time < ?
+                    funding_rate
+                FROM (
+                    SELECT
+                        time_bucket(INTERVAL '1 minute', time) AS bucket_time,
+                        symbol,
+                        exchange,
+                        funding_rate,
+                        time
+                    FROM market_data
+                    WHERE exchange = ?
+                      AND data_type = 'funding'
+                      AND time >= ?
+                      AND time < ?
+                ) ranked_funding
+                ORDER BY symbol, exchange, bucket_time, time DESC
             ),
             minute_open_interest AS (
-                SELECT bucket_time, symbol, exchange, open_interest
-                FROM minute_open_interest_ranked
-                WHERE row_num = 1
+                SELECT DISTINCT ON (symbol, exchange, bucket_time)
+                    bucket_time,
+                    symbol,
+                    exchange,
+                    open_interest
+                FROM (
+                    SELECT
+                        time_bucket(INTERVAL '1 minute', time) AS bucket_time,
+                        symbol,
+                        exchange,
+                        open_interest,
+                        time
+                    FROM market_data
+                    WHERE exchange = ?
+                      AND data_type = 'open_interest'
+                      AND time >= ?
+                      AND time < ?
+                ) ranked_open_interest
+                ORDER BY symbol, exchange, bucket_time, time DESC
             )
             INSERT INTO research_features_1m (
                 time,
