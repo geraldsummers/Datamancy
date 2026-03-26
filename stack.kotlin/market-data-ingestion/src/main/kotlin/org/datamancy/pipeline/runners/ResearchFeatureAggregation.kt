@@ -597,7 +597,9 @@ internal class ResearchFeatureAggregator(
             if (!ensureSchema(conn)) {
                 return@withContext WindowMaterializationResult(0, 0, completed = false)
             }
-            val end = Instant.now().truncatedTo(ChronoUnit.MINUTES).plus(1, ChronoUnit.MINUTES)
+            // Avoid the still-open minute because it competes directly with live ingest writes and
+            // has proven much more likely to hit the per-window timeout under load.
+            val end = Instant.now().truncatedTo(ChronoUnit.MINUTES)
             val start = end.minus(windowMinutes, ChronoUnit.MINUTES)
             materializeWindows(
                 conn = conn,
