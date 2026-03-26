@@ -30,6 +30,16 @@ internal data class CandleFlushKey(
     val interval: String
 )
 
+internal fun normalizeTradeFlushBatch(trades: List<HyperliquidTrade>): List<HyperliquidTrade> {
+    if (trades.size <= 1) {
+        return trades
+    }
+
+    return trades.sortedWith(
+        compareBy<HyperliquidTrade>({ it.time }, { it.symbol }, { it.tradeId })
+    )
+}
+
 internal fun normalizeCandleFlushBatch(candles: List<HyperliquidCandle>): List<HyperliquidCandle> {
     if (candles.size <= 1) {
         return candles
@@ -283,7 +293,7 @@ class MarketDataSink(
     private suspend fun flushTrades() = withContext(Dispatchers.IO) {
         val trades = synchronized(batchLock) {
             if (tradeBatch.isEmpty()) emptyList()
-            else tradeBatch.toList().also { tradeBatch.clear() }
+            else normalizeTradeFlushBatch(tradeBatch.toList()).also { tradeBatch.clear() }
         }
         if (trades.isEmpty()) return@withContext
 

@@ -4,6 +4,7 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import org.datamancy.pipeline.runners.RawSyncObservation
 import org.datamancy.pipeline.sources.HyperliquidCandle
+import org.datamancy.pipeline.sources.HyperliquidTrade
 import java.time.Instant
 import javax.sql.DataSource
 import kotlin.test.*
@@ -136,6 +137,23 @@ class MarketDataSinkTest {
     }
 
     @Test
+    fun `trade flush normalization sorts by time symbol and trade id`() {
+        val normalized = normalizeTradeFlushBatch(
+            listOf(
+                trade(time = "2026-03-24T10:01:00Z", symbol = "SOL", tradeId = "t3"),
+                trade(time = "2026-03-24T10:00:00Z", symbol = "ETH", tradeId = "t2"),
+                trade(time = "2026-03-24T10:00:00Z", symbol = "BTC", tradeId = "t9"),
+                trade(time = "2026-03-24T10:00:00Z", symbol = "BTC", tradeId = "t1")
+            )
+        )
+
+        assertEquals(
+            listOf("BTC:t1", "BTC:t9", "ETH:t2", "SOL:t3"),
+            normalized.map { "${it.symbol}:${it.tradeId}" }
+        )
+    }
+
+    @Test
     fun `raw sync observation merge preserves bounds and accumulates rows`() {
         val merged = mergeRawSyncObservations(
             existing = RawSyncObservation(
@@ -174,5 +192,18 @@ class MarketDataSinkTest {
         close = close,
         volume = 1.0,
         numTrades = 1
+    )
+
+    private fun trade(
+        time: String,
+        symbol: String,
+        tradeId: String
+    ) = HyperliquidTrade(
+        time = Instant.parse(time),
+        symbol = symbol,
+        price = 1.0,
+        size = 1.0,
+        side = "buy",
+        tradeId = tradeId
     )
 }
