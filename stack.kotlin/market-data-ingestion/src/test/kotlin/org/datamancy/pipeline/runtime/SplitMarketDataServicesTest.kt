@@ -431,10 +431,22 @@ class SplitMarketDataServicesTest {
 
     @Test
     fun `persist worker counts only fan out hot live channels`() {
-        assertEquals(4, persistWorkerCountForChannel("orderbook_l2", orderbookWorkers = 4, assetContextWorkers = 2))
-        assertEquals(2, persistWorkerCountForChannel("asset_context", orderbookWorkers = 4, assetContextWorkers = 2))
-        assertEquals(1, persistWorkerCountForChannel("trade", orderbookWorkers = 4, assetContextWorkers = 2))
-        assertEquals(1, persistWorkerCountForChannel("candle_1m", orderbookWorkers = 4, assetContextWorkers = 2))
+        assertEquals(
+            4,
+            persistWorkerCountForChannel("trade", tradeWorkers = 4, orderbookWorkers = 3, assetContextWorkers = 2)
+        )
+        assertEquals(
+            3,
+            persistWorkerCountForChannel("orderbook_l2", tradeWorkers = 4, orderbookWorkers = 3, assetContextWorkers = 2)
+        )
+        assertEquals(
+            2,
+            persistWorkerCountForChannel("asset_context", tradeWorkers = 4, orderbookWorkers = 3, assetContextWorkers = 2)
+        )
+        assertEquals(
+            1,
+            persistWorkerCountForChannel("candle_1m", tradeWorkers = 4, orderbookWorkers = 3, assetContextWorkers = 2)
+        )
     }
 
     @Test

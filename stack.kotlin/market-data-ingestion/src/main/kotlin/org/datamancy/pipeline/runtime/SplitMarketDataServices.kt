@@ -331,9 +331,11 @@ internal fun adaptiveSymbolsPerConnection(
 
 internal fun persistWorkerCountForChannel(
     channel: String,
+    tradeWorkers: Int,
     orderbookWorkers: Int,
     assetContextWorkers: Int
 ): Int = when (channel) {
+    "trade" -> tradeWorkers.coerceAtLeast(1)
     "orderbook_l2" -> orderbookWorkers.coerceAtLeast(1)
     "asset_context" -> assetContextWorkers.coerceAtLeast(1)
     else -> 1
@@ -373,6 +375,7 @@ internal data class MarketDataServiceConfig(
     val batchSize: Int,
     val orderbookBatchSize: Int,
     val assetContextBatchSize: Int,
+    val tradePersistWorkers: Int,
     val orderbookPersistWorkers: Int,
     val assetContextPersistWorkers: Int,
     val flushIntervalSeconds: Long,
@@ -425,6 +428,7 @@ internal fun loadMarketDataServiceConfig(): MarketDataServiceConfig {
         batchSize = System.getenv("MARKET_DATA_BATCH_SIZE")?.toIntOrNull() ?: 250,
         orderbookBatchSize = System.getenv("MARKET_DATA_ORDERBOOK_BATCH_SIZE")?.toIntOrNull() ?: 5_000,
         assetContextBatchSize = System.getenv("MARKET_DATA_ASSET_CONTEXT_BATCH_SIZE")?.toIntOrNull() ?: 5_000,
+        tradePersistWorkers = System.getenv("TRADE_PERSIST_WORKERS")?.toIntOrNull() ?: 1,
         orderbookPersistWorkers = System.getenv("ORDERBOOK_PERSIST_WORKERS")?.toIntOrNull() ?: 1,
         assetContextPersistWorkers = System.getenv("ASSET_CONTEXT_PERSIST_WORKERS")?.toIntOrNull() ?: 2,
         flushIntervalSeconds = System.getenv("MARKET_DATA_FLUSH_SECONDS")?.toLongOrNull() ?: 10L,
@@ -1464,6 +1468,7 @@ class MarketDataPersistRunner internal constructor(
         liveConsumeJobs = persistLiveChannels.flatMap { channel ->
             val workerCount = persistWorkerCountForChannel(
                 channel = channel,
+                tradeWorkers = config.tradePersistWorkers,
                 orderbookWorkers = config.orderbookPersistWorkers,
                 assetContextWorkers = config.assetContextPersistWorkers
             )
