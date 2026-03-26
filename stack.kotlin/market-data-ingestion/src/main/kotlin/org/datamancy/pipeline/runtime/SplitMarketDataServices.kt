@@ -133,13 +133,13 @@ internal data class RawEventTransportConfig(
     val fetchExpiresMs: Long,
     val maxAckPending: Long
 ) {
-    fun ingestSubject(exchangeId: String, channel: String): String =
-        "${ingestSubjectPrefix}.${sanitizeSubjectToken(exchangeId)}.${sanitizeSubjectToken(channel)}"
+    fun ingestSubject(exchangeId: String, channel: String, lane: RawEventLane): String =
+        "${ingestSubjectPrefix}.${lane.subjectToken}.${sanitizeSubjectToken(exchangeId)}.${sanitizeSubjectToken(channel)}"
 
-    fun persistWildcard(): String = "${persistSubjectPrefix}.>"
+    fun persistWildcard(lane: RawEventLane): String = "${persistSubjectPrefix}.${lane.subjectToken}.>"
 
-    fun persistSubject(exchangeId: String, channel: String): String =
-        "${persistSubjectPrefix}.${sanitizeSubjectToken(exchangeId)}.${sanitizeSubjectToken(channel)}"
+    fun persistSubject(exchangeId: String, channel: String, lane: RawEventLane): String =
+        "${persistSubjectPrefix}.${lane.subjectToken}.${sanitizeSubjectToken(exchangeId)}.${sanitizeSubjectToken(channel)}"
 }
 
 internal data class StateUpdaterConfig(
@@ -323,11 +323,21 @@ internal suspend fun waitForDataSource(
 }
 
 @Serializable
+internal enum class RawEventLane {
+    LIVE,
+    REPLAY;
+
+    val subjectToken: String
+        get() = name.lowercase()
+}
+
+@Serializable
 internal data class RawMarketDataEnvelope(
     val eventId: String,
     val exchange: String,
     val symbol: String,
     val channel: String,
+    val lane: RawEventLane = RawEventLane.LIVE,
     val source: String,
     val eventTime: String,
     val publishedAt: String,
@@ -397,6 +407,7 @@ internal data class RawMarketDataEnvelope(
             exchangeId: String,
             source: String,
             marketData: HyperliquidMarketData,
+            lane: RawEventLane = RawEventLane.LIVE,
             publishedAt: Instant = Instant.now()
         ): RawMarketDataEnvelope {
             return when (marketData) {
@@ -408,6 +419,7 @@ internal data class RawMarketDataEnvelope(
                         exchange = exchangeId,
                         symbol = first.symbol,
                         channel = "trade",
+                        lane = lane,
                         source = source,
                         eventTime = marketData.trades.maxOf { it.time }.toString(),
                         publishedAt = publishedAt.toString(),
@@ -429,6 +441,7 @@ internal data class RawMarketDataEnvelope(
                     exchange = exchangeId,
                     symbol = marketData.candle.symbol,
                     channel = "candle_${marketData.candle.interval}",
+                    lane = lane,
                     source = source,
                     eventTime = marketData.candle.time.toString(),
                     publishedAt = publishedAt.toString(),
@@ -450,6 +463,7 @@ internal data class RawMarketDataEnvelope(
                     exchange = exchangeId,
                     symbol = marketData.orderbook.symbol,
                     channel = "orderbook_l2",
+                    lane = lane,
                     source = source,
                     eventTime = marketData.orderbook.time.toString(),
                     publishedAt = publishedAt.toString(),
@@ -466,6 +480,7 @@ internal data class RawMarketDataEnvelope(
                     exchange = exchangeId,
                     symbol = marketData.assetContext.symbol,
                     channel = "asset_context",
+                    lane = lane,
                     source = source,
                     eventTime = marketData.assetContext.time.toString(),
                     publishedAt = publishedAt.toString(),
@@ -1019,7 +1034,11 @@ class MarketDataSyncRunner internal constructor(
             marketData = data
         )
         transport.publish(
-            subject = config.rawEventTransport.ingestSubject(config.exchangeId, envelope.channel),
+            subject = config.rawEventTransport.ingestSubject(
+                exchangeId = config.exchangeId,
+                channel = envelope.channel,
+                lane = envelope.lane
+            ),
             envelope = envelope
         )
     }
@@ -1132,7 +1151,8 @@ class MarketDataPersistRunner internal constructor(
 ) {
     private val logger = KotlinLogging.logger {}
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private var consumeJob: Job? = null
+    private var liveConsumeJob: Job? = null
+    private var replayConsumeJob: Job? = null
     private var flushJob: Job? = null
     private var statsJob: Job? = null
 
@@ -1151,10 +1171,18 @@ class MarketDataPersistRunner internal constructor(
                 error("TimescaleDB did not become ready for market-data-persist")
             }
         }
-        consumeJob = scope.launch {
+        liveConsumeJob = scope.launch {
             transport.consume(
-                subjectFilter = config.rawEventTransport.persistWildcard(),
-                durableName = "market-data-persist-${sanitizeSubjectToken(config.exchangeId)}"
+                subjectFilter = config.rawEventTransport.persistWildcard(RawEventLane.LIVE),
+                durableName = "market-data-persist-live-${sanitizeSubjectToken(config.exchangeId)}"
+            ) { envelope ->
+                sink.write(envelope.toMarketData())
+            }
+        }
+        replayConsumeJob = scope.launch {
+            transport.consume(
+                subjectFilter = config.rawEventTransport.persistWildcard(RawEventLane.REPLAY),
+                durableName = "market-data-persist-replay-${sanitizeSubjectToken(config.exchangeId)}"
             ) { envelope ->
                 sink.write(envelope.toMarketData())
             }
@@ -1177,7 +1205,8 @@ class MarketDataPersistRunner internal constructor(
         runBlocking {
             statsJob?.cancelAndJoin()
             flushJob?.cancelAndJoin()
-            consumeJob?.cancelAndJoin()
+            replayConsumeJob?.cancelAndJoin()
+            liveConsumeJob?.cancelAndJoin()
             runCatching { sink.flush() }
             runCatching { transport.close() }
             scope.cancel()
@@ -1672,10 +1701,15 @@ class MarketDataRepairRunner internal constructor(
         val envelope = RawMarketDataEnvelope.from(
             exchangeId = config.exchangeId,
             source = sourceLabel,
-            marketData = HyperliquidMarketData.Candle(candle)
+            marketData = HyperliquidMarketData.Candle(candle),
+            lane = RawEventLane.REPLAY
         )
         transport.publish(
-            subject = config.rawEventTransport.ingestSubject(config.exchangeId, envelope.channel),
+            subject = config.rawEventTransport.ingestSubject(
+                exchangeId = config.exchangeId,
+                channel = envelope.channel,
+                lane = envelope.lane
+            ),
             envelope = envelope
         )
     }

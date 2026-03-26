@@ -14,6 +14,7 @@ pipeline:
     - mapping: |
         meta exchange = this.exchange.string()
         meta channel = this.channel.string()
+        meta lane = this.lane.string()
         root = this
 
 output:
@@ -29,4 +30,4 @@ output:
           nats_jetstream:
             urls:
               - ${RAW_EVENT_BUS_URL:"nats://nats:4222"}
-            subject: ${RAW_EVENT_PERSIST_SUBJECT_PREFIX:"raw.market.persist"}.${!meta("exchange")}.${!meta("channel")}
+            subject: ${RAW_EVENT_PERSIST_SUBJECT_PREFIX:"raw.market.persist"}.${!meta("lane")}.${!meta("exchange")}.${!meta("channel")}

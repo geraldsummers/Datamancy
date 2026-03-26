@@ -14,6 +14,32 @@ import kotlin.test.assertIs
 class SplitMarketDataServicesTest {
 
     @Test
+    fun `raw event transport subjects separate live and replay lanes`() {
+        val config = RawEventTransportConfig(
+            url = "nats://nats:4222",
+            stream = "MARKET_DATA_RAW",
+            ingestSubjectPrefix = "raw.market.ingest",
+            persistSubjectPrefix = "raw.market.persist",
+            dlqSubject = "raw.market.dlq",
+            maxAgeHours = 168,
+            fetchBatch = 128,
+            fetchExpiresMs = 5_000,
+            maxAckPending = 2_048
+        )
+
+        assertEquals(
+            "raw.market.ingest.live.hyperliquid_mainnet.trade",
+            config.ingestSubject("hyperliquid_mainnet", "trade", RawEventLane.LIVE)
+        )
+        assertEquals(
+            "raw.market.ingest.replay.hyperliquid_mainnet.candle_1m",
+            config.ingestSubject("hyperliquid_mainnet", "candle_1m", RawEventLane.REPLAY)
+        )
+        assertEquals("raw.market.persist.live.>", config.persistWildcard(RawEventLane.LIVE))
+        assertEquals("raw.market.persist.replay.>", config.persistWildcard(RawEventLane.REPLAY))
+    }
+
+    @Test
     fun `combined source plans keep trades candles orderbooks and asset context together`() {
         val plans = buildHyperliquidSourcePlans(
             symbols = listOf("BTC", "ETH", "SOL"),
@@ -91,12 +117,17 @@ class SplitMarketDataServicesTest {
             )
         )
 
-        val roundTrip = RawMarketDataEnvelope
-            .from(exchangeId = "hyperliquid_mainnet", source = "repair", marketData = original)
-            .toMarketData()
+        val envelope = RawMarketDataEnvelope.from(
+            exchangeId = "hyperliquid_mainnet",
+            source = "repair",
+            marketData = original,
+            lane = RawEventLane.REPLAY
+        )
+        val roundTrip = envelope.toMarketData()
 
         val decoded = assertIs<HyperliquidMarketData.Candle>(roundTrip)
         assertEquals(original.candle, decoded.candle)
+        assertEquals(RawEventLane.REPLAY, envelope.lane)
     }
 
     @Test
