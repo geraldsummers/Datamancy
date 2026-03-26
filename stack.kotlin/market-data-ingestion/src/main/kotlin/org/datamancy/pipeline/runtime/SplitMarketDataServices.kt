@@ -37,10 +37,12 @@ import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNames
 import org.datamancy.pipeline.runners.CandleHistoricalBackfillCandidate
 import org.datamancy.pipeline.runners.FeatureStateStore
 import org.datamancy.pipeline.runners.HYPERLIQUID_MAINNET_WS_URL
@@ -324,10 +326,13 @@ internal suspend fun waitForDataSource(
 }
 
 @Serializable
+@OptIn(ExperimentalSerializationApi::class)
 internal enum class RawEventLane {
+    @JsonNames("LIVE")
     @SerialName("live")
     LIVE,
 
+    @JsonNames("REPLAY")
     @SerialName("replay")
     REPLAY;
 
@@ -560,6 +565,7 @@ internal interface RawMarketDataTransport : AutoCloseable {
     suspend fun consume(
         subjectFilter: String,
         durableName: String,
+        deliverPolicy: DeliverPolicy = DeliverPolicy.All,
         handler: suspend (RawMarketDataEnvelope) -> Unit
     )
 }
@@ -592,11 +598,12 @@ internal class NatsJetStreamRawMarketDataTransport(
     override suspend fun consume(
         subjectFilter: String,
         durableName: String,
+        deliverPolicy: DeliverPolicy,
         handler: suspend (RawMarketDataEnvelope) -> Unit
     ) {
         val consumerConfiguration = ConsumerConfiguration.builder()
             .durable(durableName)
-            .deliverPolicy(DeliverPolicy.All)
+            .deliverPolicy(deliverPolicy)
             .ackPolicy(AckPolicy.Explicit)
             .filterSubject(subjectFilter)
             .ackWait(Duration.ofMinutes(2))
@@ -679,6 +686,11 @@ internal class NatsJetStreamRawMarketDataTransport(
             error("Failed to provision JetStream stream ${config.stream}: ${ex.message}")
         }
     }
+}
+
+internal fun persistDeliverPolicy(lane: RawEventLane): DeliverPolicy = when (lane) {
+    RawEventLane.LIVE -> DeliverPolicy.New
+    RawEventLane.REPLAY -> DeliverPolicy.All
 }
 
 internal data class HyperliquidSourcePlan(
@@ -1178,7 +1190,8 @@ class MarketDataPersistRunner internal constructor(
         liveConsumeJob = scope.launch {
             transport.consume(
                 subjectFilter = config.rawEventTransport.persistWildcard(RawEventLane.LIVE),
-                durableName = "market-data-persist-live-${sanitizeSubjectToken(config.exchangeId)}"
+                durableName = "market-data-persist-live-v2-${sanitizeSubjectToken(config.exchangeId)}",
+                deliverPolicy = persistDeliverPolicy(RawEventLane.LIVE)
             ) { envelope ->
                 sink.write(envelope.toMarketData())
             }
@@ -1186,7 +1199,8 @@ class MarketDataPersistRunner internal constructor(
         replayConsumeJob = scope.launch {
             transport.consume(
                 subjectFilter = config.rawEventTransport.persistWildcard(RawEventLane.REPLAY),
-                durableName = "market-data-persist-replay-${sanitizeSubjectToken(config.exchangeId)}"
+                durableName = "market-data-persist-replay-v2-${sanitizeSubjectToken(config.exchangeId)}",
+                deliverPolicy = persistDeliverPolicy(RawEventLane.REPLAY)
             ) { envelope ->
                 sink.write(envelope.toMarketData())
             }

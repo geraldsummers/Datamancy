@@ -1,5 +1,6 @@
 package org.datamancy.pipeline.runtime
 
+import io.nats.client.api.DeliverPolicy
 import org.datamancy.pipeline.sources.HyperliquidAssetContext
 import org.datamancy.pipeline.sources.HyperliquidCandle
 import org.datamancy.pipeline.sources.HyperliquidMarketData
@@ -157,6 +158,44 @@ class SplitMarketDataServicesTest {
         )
 
         assertTrue(payload.contains("\"lane\":\"replay\""))
+    }
+
+    @Test
+    fun `raw event lane accepts legacy uppercase tokens during decode`() {
+        val decoded = Json.decodeFromString(
+            RawMarketDataEnvelope.serializer(),
+            """
+                {
+                  "eventId":"evt-1",
+                  "exchange":"hyperliquid_mainnet",
+                  "symbol":"BTC",
+                  "channel":"candle_1m",
+                  "lane":"REPLAY",
+                  "source":"repair",
+                  "eventTime":"2026-03-26T00:00:00Z",
+                  "publishedAt":"2026-03-26T00:00:01Z",
+                  "candle":{
+                    "time":"2026-03-26T00:00:00Z",
+                    "symbol":"BTC",
+                    "interval":"1m",
+                    "open":1.0,
+                    "high":2.0,
+                    "low":0.5,
+                    "close":1.5,
+                    "volume":10.0,
+                    "numTrades":2
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(RawEventLane.REPLAY, decoded.lane)
+    }
+
+    @Test
+    fun `persist deliver policy starts live from the frontier and replay from history`() {
+        assertEquals(DeliverPolicy.New, persistDeliverPolicy(RawEventLane.LIVE))
+        assertEquals(DeliverPolicy.All, persistDeliverPolicy(RawEventLane.REPLAY))
     }
 
     @Test
