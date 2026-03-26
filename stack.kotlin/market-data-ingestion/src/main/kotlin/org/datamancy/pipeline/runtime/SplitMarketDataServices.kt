@@ -1428,7 +1428,7 @@ class MarketDataStateUpdaterRunner internal constructor(
             dataSource.connection.use { connection ->
                 connection.autoCommit = false
                 try {
-                    featureStateStore.refresh(connection, startInclusive, endExclusive)
+                    featureStateStore.refreshCoverage(connection, startInclusive, endExclusive)
                     connection.commit()
                 } catch (ex: Exception) {
                     connection.rollback()

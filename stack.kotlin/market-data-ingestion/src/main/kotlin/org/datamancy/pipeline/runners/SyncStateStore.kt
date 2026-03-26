@@ -347,6 +347,11 @@ internal class FeatureStateStore(
     private val exchangeId: String,
     private val barSizeMinutes: Int = 1
 ) {
+    private enum class RefreshLockPurpose(val discriminator: Int) {
+        MATERIALIZATION(1),
+        COVERAGE(2)
+    }
+
     fun hasPersistedState(): Boolean {
         dataSource.connection.use { conn ->
             conn.prepareStatement(
@@ -383,25 +388,28 @@ internal class FeatureStateStore(
     }
 
     fun refresh(conn: Connection, startInclusive: Instant?, endExclusive: Instant?) {
-        acquireRefreshLock(conn)
         refreshMaterialization(conn, startInclusive, endExclusive)
         refreshCoverage(conn, startInclusive, endExclusive)
     }
 
     fun refreshMaterialization(conn: Connection, startInclusive: Instant?, endExclusive: Instant?) {
-        acquireRefreshLock(conn)
-        upsertMaterializationState(conn, startInclusive, endExclusive)
+        acquireRefreshLock(conn, RefreshLockPurpose.MATERIALIZATION)
+        if (startInclusive != null && endExclusive != null) {
+            upsertIncrementalMaterializationState(conn, startInclusive, endExclusive)
+        } else {
+            upsertMaterializationState(conn, startInclusive, endExclusive)
+        }
     }
 
     fun refreshCoverage(conn: Connection, startInclusive: Instant?, endExclusive: Instant?) {
-        acquireRefreshLock(conn)
+        acquireRefreshLock(conn, RefreshLockPurpose.COVERAGE)
         upsertCoverageState(conn, startInclusive, endExclusive)
     }
 
-    private fun acquireRefreshLock(conn: Connection) {
+    private fun acquireRefreshLock(conn: Connection, purpose: RefreshLockPurpose) {
         conn.prepareStatement("SELECT pg_advisory_xact_lock(?, ?)").use { stmt ->
             stmt.setInt(1, exchangeId.hashCode())
-            stmt.setInt(2, barSizeMinutes)
+            stmt.setInt(2, purpose.discriminator * 10_000 + barSizeMinutes)
             stmt.execute()
         }
     }
@@ -462,6 +470,76 @@ internal class FeatureStateStore(
             var next = bindWindow(stmt, startInclusive, endExclusive)
             stmt.setString(next++, exchangeId)
             stmt.setString(next, exchangeId)
+            stmt.executeUpdate()
+        }
+    }
+
+    private fun upsertIncrementalMaterializationState(
+        conn: Connection,
+        startInclusive: Instant,
+        endExclusive: Instant
+    ) {
+        val sql = """
+            WITH summary AS (
+                SELECT
+                    symbol,
+                    MIN(time) AS earliest_feature_time,
+                    MAX(time) AS latest_feature_time,
+                    MAX(CASE WHEN is_finalized THEN time END) AS finalized_through,
+                    COUNT(*)::BIGINT AS feature_rows
+                FROM research_features_1m
+                WHERE exchange = ?
+                  AND time >= ?
+                  AND time < ?
+                GROUP BY symbol
+            )
+            INSERT INTO feature_materialization_state (
+                exchange,
+                symbol,
+                bar_size_minutes,
+                earliest_feature_time,
+                latest_feature_time,
+                finalized_through,
+                feature_rows,
+                last_materialized_at
+            )
+            SELECT
+                ?,
+                symbol,
+                $barSizeMinutes,
+                earliest_feature_time,
+                latest_feature_time,
+                finalized_through,
+                feature_rows,
+                NOW()
+            FROM summary
+            ON CONFLICT (exchange, symbol, bar_size_minutes) DO UPDATE SET
+                earliest_feature_time = CASE
+                    WHEN feature_materialization_state.earliest_feature_time IS NULL THEN EXCLUDED.earliest_feature_time
+                    WHEN EXCLUDED.earliest_feature_time IS NULL THEN feature_materialization_state.earliest_feature_time
+                    ELSE LEAST(feature_materialization_state.earliest_feature_time, EXCLUDED.earliest_feature_time)
+                END,
+                latest_feature_time = CASE
+                    WHEN feature_materialization_state.latest_feature_time IS NULL THEN EXCLUDED.latest_feature_time
+                    WHEN EXCLUDED.latest_feature_time IS NULL THEN feature_materialization_state.latest_feature_time
+                    ELSE GREATEST(feature_materialization_state.latest_feature_time, EXCLUDED.latest_feature_time)
+                END,
+                finalized_through = CASE
+                    WHEN feature_materialization_state.finalized_through IS NULL THEN EXCLUDED.finalized_through
+                    WHEN EXCLUDED.finalized_through IS NULL THEN feature_materialization_state.finalized_through
+                    ELSE GREATEST(feature_materialization_state.finalized_through, EXCLUDED.finalized_through)
+                END,
+                feature_rows = CASE
+                    WHEN feature_materialization_state.feature_rows > 0 THEN feature_materialization_state.feature_rows
+                    ELSE EXCLUDED.feature_rows
+                END,
+                last_materialized_at = NOW()
+        """.trimIndent()
+        conn.prepareStatement(sql).use { stmt ->
+            stmt.setString(1, exchangeId)
+            stmt.setTimestamp(2, Timestamp.from(startInclusive))
+            stmt.setTimestamp(3, Timestamp.from(endExclusive))
+            stmt.setString(4, exchangeId)
             stmt.executeUpdate()
         }
     }
