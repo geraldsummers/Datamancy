@@ -152,8 +152,11 @@ internal class HyperliquidUniverseResolver(
             setBody(payload.toString())
         }
         val body = response.bodyAsText()
-        val parsed = json.parseToJsonElement(body).jsonObject
-        val universe = parsed["universe"]?.jsonArray ?: return emptyList()
+        val parsed = json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject ?: run {
+            universeLogger.warn { "Hyperliquid meta payload was not a JSON object: ${body.take(200)}" }
+            return emptyList()
+        }
+        val universe = parsed["universe"] as? kotlinx.serialization.json.JsonArray ?: return emptyList()
         return universe.mapNotNull { element ->
             val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
             val symbol = obj["name"]?.jsonPrimitive?.contentOrNull
