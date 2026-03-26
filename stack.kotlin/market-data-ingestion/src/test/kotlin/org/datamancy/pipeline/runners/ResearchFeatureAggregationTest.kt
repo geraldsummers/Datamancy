@@ -162,6 +162,12 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `recent gap repair starts from five minute chunks`() {
+        assertEquals(5L, recentGapRepairChunkMinutes(1L))
+        assertEquals(5L, recentGapRepairChunkMinutes(6L))
+    }
+
+    @Test
     fun `aggregation window minutes measure inclusive range width in minutes`() {
         val window = AggregationWindow(
             startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
@@ -221,7 +227,7 @@ class ResearchFeatureAggregationTest {
         val (first, firstCursor) = planRollingRecentGapRepairWindows(
             startInclusive = start,
             endExclusive = end,
-            chunkHours = 1,
+            chunkMinutes = 60,
             maxWindowsPerCycle = 3
         )
         assertEquals(
@@ -237,7 +243,7 @@ class ResearchFeatureAggregationTest {
         val (second, secondCursor) = planRollingRecentGapRepairWindows(
             startInclusive = start,
             endExclusive = end,
-            chunkHours = 1,
+            chunkMinutes = 60,
             maxWindowsPerCycle = 3,
             cursorExclusive = firstCursor
         )
@@ -254,7 +260,7 @@ class ResearchFeatureAggregationTest {
         val (finalSweep, finalCursor) = planRollingRecentGapRepairWindows(
             startInclusive = start,
             endExclusive = end,
-            chunkHours = 1,
+            chunkMinutes = 60,
             maxWindowsPerCycle = 6,
             cursorExclusive = Instant.parse("2026-03-20T06:00:00Z")
         )
@@ -288,7 +294,7 @@ class ResearchFeatureAggregationTest {
         val batch = selectRecentGapRepairBatch(
             startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
             endExclusive = Instant.parse("2026-03-21T00:00:00Z"),
-            chunkHours = 1,
+            chunkMinutes = 60,
             cursorExclusive = Instant.parse("2026-03-20T23:00:00Z"),
             pendingWindows = pending,
             pendingNextCursorExclusive = Instant.parse("2026-03-20T22:00:00Z")

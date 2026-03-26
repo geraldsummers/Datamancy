@@ -145,6 +145,12 @@ internal fun startupRefreshWindowMinutes(refreshOverlapMinutes: Long): Long {
 internal fun recentGapRepairHours(bootstrapHours: Long): Long =
     bootstrapHours.coerceAtMost(DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_HOURS).coerceAtLeast(6L)
 
+internal fun recentGapRepairChunkMinutes(backfillChunkHours: Long): Long =
+    minOf(
+        resolveResearchFeaturesBackfillChunkHours(backfillChunkHours) * 60L,
+        DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES
+    ).coerceAtLeast(1L)
+
 internal fun aggregationWindowMinutes(window: AggregationWindow): Long =
     MINUTES.between(window.startInclusive, window.endExclusive)
 
@@ -202,7 +208,7 @@ internal data class WindowMaterializationResult(
 internal fun planRollingRecentGapRepairWindows(
     startInclusive: Instant,
     endExclusive: Instant,
-    chunkHours: Long,
+    chunkMinutes: Long,
     maxWindowsPerCycle: Int = DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_WINDOWS_PER_CYCLE,
     cursorExclusive: Instant? = null
 ): Pair<List<AggregationWindow>, Instant?> {
@@ -211,7 +217,7 @@ internal fun planRollingRecentGapRepairWindows(
     }
 
     val prioritized = prioritizeRecentAggregationWindows(
-        chunkAggregationWindows(startInclusive, endExclusive, chunkHours)
+        chunkAggregationWindowsByMinutes(startInclusive, endExclusive, chunkMinutes)
     )
     if (prioritized.isEmpty()) {
         return emptyList<AggregationWindow>() to cursorExclusive
@@ -284,7 +290,7 @@ internal data class RecentGapRepairState(
 internal fun selectRecentGapRepairBatch(
     startInclusive: Instant,
     endExclusive: Instant,
-    chunkHours: Long,
+    chunkMinutes: Long,
     cursorExclusive: Instant?,
     pendingWindows: List<AggregationWindow>,
     pendingNextCursorExclusive: Instant?
@@ -299,7 +305,7 @@ internal fun selectRecentGapRepairBatch(
     val (windows, nextCursor) = planRollingRecentGapRepairWindows(
         startInclusive = startInclusive,
         endExclusive = endExclusive,
-        chunkHours = chunkHours,
+        chunkMinutes = chunkMinutes,
         cursorExclusive = cursorExclusive
     )
     return RecentGapRepairBatch(
@@ -652,7 +658,7 @@ internal class ResearchFeatureAggregator(
             val batch = selectRecentGapRepairBatch(
                 startInclusive = startInclusive,
                 endExclusive = endExclusive,
-                chunkHours = backfillChunkHours,
+                chunkMinutes = recentGapRepairChunkMinutes(backfillChunkHours),
                 cursorExclusive = recentGapRepairCursorExclusive,
                 pendingWindows = recentGapRepairPendingWindows,
                 pendingNextCursorExclusive = recentGapRepairPendingNextCursorExclusive
