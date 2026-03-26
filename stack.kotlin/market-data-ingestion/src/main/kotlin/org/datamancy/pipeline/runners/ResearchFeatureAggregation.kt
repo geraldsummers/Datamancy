@@ -844,7 +844,7 @@ internal class ResearchFeatureAggregator(
                 GROUP BY 1, 2, 3
             ),
             minute_orderbooks AS (
-                SELECT DISTINCT ON (symbol, exchange, time_bucket(INTERVAL '1 minute', time))
+                SELECT DISTINCT ON (bucket_time, symbol, exchange)
                     bucket_time,
                     symbol,
                     exchange,
@@ -874,10 +874,10 @@ internal class ResearchFeatureAggregator(
                       AND time >= ?
                       AND time < ?
                 ) ranked_orderbooks
-                ORDER BY symbol, exchange, bucket_time, time DESC
+                ORDER BY bucket_time, symbol, exchange, time DESC
             ),
             minute_funding AS (
-                SELECT DISTINCT ON (symbol, exchange, bucket_time)
+                SELECT DISTINCT ON (bucket_time, symbol, exchange)
                     bucket_time,
                     symbol,
                     exchange,
@@ -895,10 +895,10 @@ internal class ResearchFeatureAggregator(
                       AND time >= ?
                       AND time < ?
                 ) ranked_funding
-                ORDER BY symbol, exchange, bucket_time, time DESC
+                ORDER BY bucket_time, symbol, exchange, time DESC
             ),
             minute_open_interest AS (
-                SELECT DISTINCT ON (symbol, exchange, bucket_time)
+                SELECT DISTINCT ON (bucket_time, symbol, exchange)
                     bucket_time,
                     symbol,
                     exchange,
@@ -916,7 +916,7 @@ internal class ResearchFeatureAggregator(
                       AND time >= ?
                       AND time < ?
                 ) ranked_open_interest
-                ORDER BY symbol, exchange, bucket_time, time DESC
+                ORDER BY bucket_time, symbol, exchange, time DESC
             )
             INSERT INTO research_features_1m (
                 time,
