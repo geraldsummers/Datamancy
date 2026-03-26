@@ -142,6 +142,20 @@ internal fun startupRefreshWindowMinutes(refreshOverlapMinutes: Long): Long {
     return refreshOverlapMinutes.coerceAtMost(DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES).coerceAtLeast(1L)
 }
 
+internal fun bootstrapPlanningChunkMinutes(
+    startInclusive: Instant,
+    endExclusive: Instant,
+    backfillChunkHours: Long,
+    shortHorizonMinutes: Long = DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES * 12L
+): Long? {
+    val durationMinutes = MINUTES.between(startInclusive, endExclusive)
+    return if (durationMinutes <= shortHorizonMinutes.coerceAtLeast(1L)) {
+        startupRefreshWindowMinutes(resolveResearchFeaturesBackfillChunkHours(backfillChunkHours) * 60L)
+    } else {
+        null
+    }
+}
+
 internal fun recentGapRepairHours(bootstrapHours: Long): Long =
     bootstrapHours.coerceAtMost(DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_HOURS).coerceAtLeast(6L)
 
@@ -553,7 +567,13 @@ internal class ResearchFeatureAggregator(
                 return@withContext true
             }
             val windows = prioritizeRecentAggregationWindows(
-                chunkAggregationWindows(start, now, backfillChunkHours)
+                bootstrapPlanningChunkMinutes(
+                    startInclusive = start,
+                    endExclusive = now,
+                    backfillChunkHours = backfillChunkHours
+                )?.let { chunkMinutes ->
+                    chunkAggregationWindowsByMinutes(start, now, chunkMinutes)
+                } ?: chunkAggregationWindows(start, now, backfillChunkHours)
             )
             val result = materializeWindows(
                 conn = conn,

@@ -155,6 +155,26 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `bootstrap planning uses short chunks near the frontier`() {
+        assertEquals(
+            5L,
+            bootstrapPlanningChunkMinutes(
+                startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+                endExclusive = Instant.parse("2026-03-20T00:28:00Z"),
+                backfillChunkHours = 1L
+            )
+        )
+        assertEquals(
+            null,
+            bootstrapPlanningChunkMinutes(
+                startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+                endExclusive = Instant.parse("2026-03-20T03:00:00Z"),
+                backfillChunkHours = 1L
+            )
+        )
+    }
+
+    @Test
     fun `recent gap repair lookback is at least six hours and capped by default window`() {
         assertEquals(6L, recentGapRepairHours(1L))
         assertEquals(12L, recentGapRepairHours(12L))
