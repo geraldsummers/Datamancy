@@ -1056,7 +1056,7 @@ private data class PersistRunnerDependencies(
     val config: MarketDataServiceConfig,
     val dataSource: PGSimpleDataSource,
     val transport: RawMarketDataTransport,
-    val sink: MarketDataSink
+    val sinkFactory: () -> MarketDataSink
 )
 
 private fun buildPersistRunnerDependencies(): PersistRunnerDependencies {
@@ -1069,13 +1069,15 @@ private fun buildPersistRunnerDependencies(): PersistRunnerDependencies {
             config = config.rawEventTransport,
             connectionName = "market-data-persist"
         ),
-        sink = MarketDataSink(
-            dataSource = dataSource,
-            batchSize = config.batchSize,
-            orderbookBatchSize = config.orderbookBatchSize,
-            assetContextBatchSize = config.assetContextBatchSize,
-            exchangeId = config.exchangeId
-        )
+        sinkFactory = {
+            MarketDataSink(
+                dataSource = dataSource,
+                batchSize = config.batchSize,
+                orderbookBatchSize = config.orderbookBatchSize,
+                assetContextBatchSize = config.assetContextBatchSize,
+                exchangeId = config.exchangeId
+            )
+        }
     )
 }
 
@@ -1433,13 +1435,15 @@ class MarketDataPersistRunner internal constructor(
     private val config: MarketDataServiceConfig,
     private val dataSource: PGSimpleDataSource,
     private val transport: RawMarketDataTransport,
-    private val sink: MarketDataSink
+    private val sinkFactory: () -> MarketDataSink
 ) {
     private val logger = KotlinLogging.logger {}
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val activeSinks = mutableListOf<MarketDataSink>()
+    private val activeSinksLock = Any()
     private var liveConsumeJobs: List<Job> = emptyList()
     private var replayConsumeJob: Job? = null
-    private var flushJob: Job? = null
+    private var flushJobs: List<Job> = emptyList()
     private var statsJob: Job? = null
 
     constructor() : this(buildPersistRunnerDependencies())
@@ -1448,7 +1452,7 @@ class MarketDataPersistRunner internal constructor(
         config = deps.config,
         dataSource = deps.dataSource,
         transport = deps.transport,
-        sink = deps.sink
+        sinkFactory = deps.sinkFactory
     )
 
     fun start() {
@@ -1464,6 +1468,7 @@ class MarketDataPersistRunner internal constructor(
                 assetContextWorkers = config.assetContextPersistWorkers
             )
             List(workerCount) {
+                val sink = registerSink(sinkFactory())
                 scope.launch {
                     transport.consume(
                         subjectFilter = config.rawEventTransport.persistSubject(
@@ -1479,25 +1484,28 @@ class MarketDataPersistRunner internal constructor(
                 }
             }
         }
+        val replaySink = registerSink(sinkFactory())
         replayConsumeJob = scope.launch {
             transport.consume(
                 subjectFilter = config.rawEventTransport.persistWildcard(RawEventLane.REPLAY),
                 durableName = "market-data-persist-replay-v2-${sanitizeSubjectToken(config.exchangeId)}",
                 deliverPolicy = persistDeliverPolicy(RawEventLane.REPLAY)
             ) { envelope ->
-                sink.write(envelope.toMarketData())
+                replaySink.write(envelope.toMarketData())
             }
         }
-        flushJob = scope.launch {
-            while (isActive) {
-                delay(config.flushIntervalSeconds * 1_000L)
-                sink.flush()
+        flushJobs = currentSinks().map { sink ->
+            scope.launch {
+                while (isActive) {
+                    delay(config.flushIntervalSeconds * 1_000L)
+                    sink.flush()
+                }
             }
         }
         statsJob = scope.launch {
             while (isActive) {
                 delay(DEFAULT_PERSIST_STATS_INTERVAL_MS)
-                logStats(sink.getStats())
+                logStats(currentSinks().fold(IngestionStats.zero()) { acc, sink -> acc + sink.getStats() })
             }
         }
     }
@@ -1505,13 +1513,26 @@ class MarketDataPersistRunner internal constructor(
     fun stop() {
         runBlocking {
             statsJob?.cancelAndJoin()
-            flushJob?.cancelAndJoin()
+            flushJobs.forEach { it.cancelAndJoin() }
             replayConsumeJob?.cancelAndJoin()
             liveConsumeJobs.forEach { it.cancelAndJoin() }
-            runCatching { sink.flush() }
+            currentSinks().forEach { sink ->
+                runCatching { sink.flush() }
+            }
             runCatching { transport.close() }
             scope.cancel()
         }
+    }
+
+    private fun registerSink(sink: MarketDataSink): MarketDataSink {
+        synchronized(activeSinksLock) {
+            activeSinks += sink
+        }
+        return sink
+    }
+
+    private fun currentSinks(): List<MarketDataSink> = synchronized(activeSinksLock) {
+        activeSinks.toList()
     }
 
     private fun logStats(stats: IngestionStats) {

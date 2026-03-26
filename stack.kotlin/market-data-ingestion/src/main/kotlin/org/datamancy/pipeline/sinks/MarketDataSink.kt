@@ -792,4 +792,32 @@ data class IngestionStats(
     val totalIngested: Long =
         tradesIngested + candlesIngested + orderbooksIngested + fundingRowsIngested + openInterestRowsIngested
     val totalPending: Int = pendingTrades + pendingCandles + pendingOrderbooks + pendingAssetContexts
+
+    operator fun plus(other: IngestionStats): IngestionStats =
+        IngestionStats(
+            tradesIngested = tradesIngested + other.tradesIngested,
+            candlesIngested = candlesIngested + other.candlesIngested,
+            orderbooksIngested = orderbooksIngested + other.orderbooksIngested,
+            fundingRowsIngested = fundingRowsIngested + other.fundingRowsIngested,
+            openInterestRowsIngested = openInterestRowsIngested + other.openInterestRowsIngested,
+            pendingTrades = pendingTrades + other.pendingTrades,
+            pendingCandles = pendingCandles + other.pendingCandles,
+            pendingOrderbooks = pendingOrderbooks + other.pendingOrderbooks,
+            pendingAssetContexts = pendingAssetContexts + other.pendingAssetContexts
+        )
+
+    companion object {
+        fun zero(): IngestionStats =
+            IngestionStats(
+                tradesIngested = 0,
+                candlesIngested = 0,
+                orderbooksIngested = 0,
+                fundingRowsIngested = 0,
+                openInterestRowsIngested = 0,
+                pendingTrades = 0,
+                pendingCandles = 0,
+                pendingOrderbooks = 0,
+                pendingAssetContexts = 0
+            )
+    }
 }
