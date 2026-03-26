@@ -361,8 +361,17 @@ internal class FeatureStateStore(
     }
 
     fun refresh(conn: Connection, startInclusive: Instant?, endExclusive: Instant?) {
+        acquireRefreshLock(conn)
         upsertMaterializationState(conn, startInclusive, endExclusive)
         upsertCoverageState(conn, startInclusive, endExclusive)
+    }
+
+    private fun acquireRefreshLock(conn: Connection) {
+        conn.prepareStatement("SELECT pg_advisory_xact_lock(?, ?)").use { stmt ->
+            stmt.setInt(1, exchangeId.hashCode())
+            stmt.setInt(2, barSizeMinutes)
+            stmt.execute()
+        }
     }
 
     private fun upsertMaterializationState(conn: Connection, startInclusive: Instant?, endExclusive: Instant?) {
