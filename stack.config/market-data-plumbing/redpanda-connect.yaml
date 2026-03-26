@@ -29,10 +29,8 @@ pipeline:
         meta exchange = $exch
         meta channel = $chan
         meta lane = $lane_value
-        meta dedupe_key = if $is_asset_context {
+        meta dedupe_key = if $is_asset_context || $is_orderbook {
           $exch + "|" + $lane_value + "|" + $chan + "|" + this.symbol.string() + "|" + $event_second
-        } else if $is_orderbook {
-          $exch + "|" + $lane_value + "|" + $chan + "|" + this.symbol.string()
         } else {
           ""
         }
