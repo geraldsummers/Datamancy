@@ -1618,7 +1618,7 @@ class MarketDataRepairRunner internal constructor(
 
     private suspend fun loadPersistedCandleRepairStreams(
         sessionSymbols: List<String>,
-        limit: Int = 48
+        limit: Int = 16
     ): List<Pair<String, String>> = withContext(Dispatchers.IO) {
         val normalized = sessionSymbols.map(String::trim).filter(String::isNotEmpty).distinct()
         if (normalized.isEmpty()) return@withContext emptyList()
