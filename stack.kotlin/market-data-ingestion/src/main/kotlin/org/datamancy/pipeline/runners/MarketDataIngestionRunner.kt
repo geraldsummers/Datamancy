@@ -114,6 +114,7 @@ internal fun prioritizeHistoricalBackfillCandidates(
     if (maxCandidates <= 0) return emptyList()
     return coverageStates
         .distinctBy { it.symbol }
+        .filter { it.latestRawTime != null || it.earliestRawTime != null }
         .mapNotNull { state ->
             determineHistoricalCandleBackfillRange(
                 interval = interval,

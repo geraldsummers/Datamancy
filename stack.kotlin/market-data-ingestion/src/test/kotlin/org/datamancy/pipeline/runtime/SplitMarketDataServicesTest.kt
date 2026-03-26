@@ -88,6 +88,34 @@ class SplitMarketDataServicesTest {
     }
 
     @Test
+    fun `adaptive symbols per connection caps Hyperliquid websocket shard fanout`() {
+        assertEquals(35, adaptiveSymbolsPerConnection(207, configuredSymbolsPerConnection = 16, maxShardCount = 6))
+        assertEquals(52, adaptiveSymbolsPerConnection(207, configuredSymbolsPerConnection = 24, maxShardCount = 4))
+    }
+
+    @Test
+    fun `split source plans widen shard sizes when the universe would exceed websocket caps`() {
+        val symbols = (1..207).map { "S$it" }
+
+        val plans = buildHyperliquidSourcePlans(
+            symbols = symbols,
+            splitCandlesFromExecution = true,
+            symbolsPerConnection = 32,
+            candleSymbolsPerConnection = 16,
+            executionSymbolsPerConnection = 24,
+            enableOrderbook = true
+        )
+
+        val candlePlans = plans.filter { it.family == "candle" }
+        val executionPlans = plans.filter { it.family == "execution" }
+
+        assertEquals(6, candlePlans.size)
+        assertEquals(4, executionPlans.size)
+        assertTrue(candlePlans.all { it.symbols.size <= 35 })
+        assertTrue(executionPlans.all { it.symbols.size <= 52 })
+    }
+
+    @Test
     fun `trade envelopes round trip to market data`() {
         val tradeTime = Instant.parse("2026-03-26T00:01:02Z")
         val original = HyperliquidMarketData.Trades(
@@ -280,6 +308,19 @@ class SplitMarketDataServicesTest {
     }
 
     @Test
+    fun `recent gap candidate ignores symbols with no candle-backed observations`() {
+        val candidate = detectRecentGapCandidate(
+            symbol = "AI",
+            observedTimes = emptyList(),
+            lookbackStart = Instant.parse("2026-03-26T04:00:00Z"),
+            latestStableBoundary = Instant.parse("2026-03-26T05:59:00Z"),
+            gapBucketMs = 30L * 60L * 1_000L
+        )
+
+        assertEquals(null, candidate)
+    }
+
+    @Test
     fun `recent gap scan preserves stale priority input order`() {
         val (selected, nextCursor) = selectRecentGapScanSymbols(
             sessionSymbols = listOf("BOME", "XRP", "YGG", "0G", "2Z"),
@@ -364,7 +405,7 @@ class SplitMarketDataServicesTest {
     }
 
     @Test
-    fun `split sync continuity watchdog is armed for stale live candle detection`() {
+    fun `split sync continuity watchdog stays inert until repair service proves candle readiness`() {
         val now = Instant.parse("2026-03-26T00:02:10Z")
         val watchdog = HyperliquidContinuityWatchdog(
             symbols = listOf("BTC"),
@@ -385,7 +426,7 @@ class SplitMarketDataServicesTest {
 
         armSplitSyncContinuityWatchdog(watchdog, armedAt = Instant.parse("2026-03-26T00:00:41Z"))
 
-        assertEquals(1, watchdog.staleCandleStreams().size)
+        assertTrue(watchdog.staleCandleStreams().isEmpty())
     }
 
     @Test

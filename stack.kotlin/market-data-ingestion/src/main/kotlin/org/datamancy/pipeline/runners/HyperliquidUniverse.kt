@@ -114,7 +114,12 @@ internal fun parseHyperliquidMarketCatalogEntries(
         if (canonical.isEmpty()) {
             return@mapNotNull null
         }
-        HyperliquidUniverseEntry(symbol = canonical, delisted = false)
+        val attributes = obj["attributes"]?.jsonObject
+        val delisted = obj["isDelisted"]?.jsonPrimitive?.booleanOrNull == true ||
+            obj["delisted"]?.jsonPrimitive?.booleanOrNull == true ||
+            attributes?.get("isDelisted")?.jsonPrimitive?.booleanOrNull == true ||
+            attributes?.get("delisted")?.jsonPrimitive?.booleanOrNull == true
+        HyperliquidUniverseEntry(symbol = canonical, delisted = delisted)
     }
 }
 

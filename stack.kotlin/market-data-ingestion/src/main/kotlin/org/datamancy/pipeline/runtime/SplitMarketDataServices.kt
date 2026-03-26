@@ -110,6 +110,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import javax.sql.DataSource
+import kotlin.math.ceil
 
 private val splitLogger = KotlinLogging.logger {}
 private const val DEFAULT_RAW_EVENT_BUS_URL = "nats://nats:4222"
@@ -132,6 +133,8 @@ private const val DEFAULT_TARGETED_CANDLE_REPAIR_ACTIVE_WINDOW_MS = 6L * 60L * 6
 private const val DEFAULT_RECENT_GAP_QUERY_TIMEOUT_SECONDS = 10
 private const val DEFAULT_RECENT_GAP_PRIORITY_SYMBOL_BATCH = 16
 private const val DEFAULT_RECENT_GAP_SCAN_SYMBOL_BATCH = 4
+private const val DEFAULT_HYPERLIQUID_MAX_CANDLE_WS_SHARDS = 6
+private const val DEFAULT_HYPERLIQUID_MAX_EXECUTION_WS_SHARDS = 4
 
 internal fun latestCandleRepairActivityTime(vararg observedAt: Instant?): Instant? =
     observedAt.filterNotNull().maxOrNull()
@@ -215,6 +218,9 @@ internal fun detectRecentGapCandidate(
         .asSequence()
         .map { alignDownToIntervalBoundary(it, gapBucketMs) }
         .toSet()
+    if (observedBuckets.isEmpty()) {
+        return null
+    }
     var bucket = alignDownToIntervalBoundary(lookbackStart, gapBucketMs)
     var earliestMissingBucket: Instant? = null
     var latestMissingBucket: Instant? = null
@@ -306,7 +312,21 @@ internal fun armSplitSyncContinuityWatchdog(
     continuityWatchdog: HyperliquidContinuityWatchdog,
     armedAt: Instant = Instant.now()
 ) {
-    continuityWatchdog.markInitialCandleRepairComplete(armedAt)
+    // Split sync no longer owns recent candle repair. Arming the watchdog locally creates
+    // a false contract because only raw-candle-repair can prove initial candle readiness.
+    // Leave continuity enforcement to the repair service and keep sync focused on live transport.
+}
+
+internal fun adaptiveSymbolsPerConnection(
+    symbolCount: Int,
+    configuredSymbolsPerConnection: Int,
+    maxShardCount: Int
+): Int {
+    val normalizedSymbols = symbolCount.coerceAtLeast(1)
+    val configured = configuredSymbolsPerConnection.coerceAtLeast(1)
+    val shardCap = maxShardCount.coerceAtLeast(1)
+    val minimumForShardCap = ceil(normalizedSymbols.toDouble() / shardCap.toDouble()).toInt().coerceAtLeast(1)
+    return maxOf(configured, minimumForShardCap)
 }
 
 internal fun persistWorkerCountForChannel(
@@ -954,8 +974,18 @@ internal fun buildHyperliquidSourcePlans(
         }
     }
 
-    val candleShards = normalized.chunked(candleSymbolsPerConnection.coerceAtLeast(1))
-    val executionShards = normalized.chunked(executionSymbolsPerConnection.coerceAtLeast(1))
+    val candleShardSize = adaptiveSymbolsPerConnection(
+        symbolCount = normalized.size,
+        configuredSymbolsPerConnection = candleSymbolsPerConnection,
+        maxShardCount = DEFAULT_HYPERLIQUID_MAX_CANDLE_WS_SHARDS
+    )
+    val executionShardSize = adaptiveSymbolsPerConnection(
+        symbolCount = normalized.size,
+        configuredSymbolsPerConnection = executionSymbolsPerConnection,
+        maxShardCount = DEFAULT_HYPERLIQUID_MAX_EXECUTION_WS_SHARDS
+    )
+    val candleShards = normalized.chunked(candleShardSize)
+    val executionShards = normalized.chunked(executionShardSize)
     return buildList {
         addAll(
             candleShards.mapIndexed { shardIndex, shardSymbols ->
@@ -1575,6 +1605,14 @@ class MarketDataStateUpdaterRunner internal constructor(
         if (!rawSyncStateStore.hasPersistedState()) {
             logger.info { "Hydrating raw_sync_state from canonical raw tables" }
             rawSyncStateStore.backfillAll()
+        } else {
+            val endExclusive = Instant.now().truncatedTo(ChronoUnit.MINUTES)
+            val startInclusive = endExclusive.minus(config.stateUpdater.refreshLookbackHours, ChronoUnit.HOURS)
+            logger.info {
+                "Refreshing raw_sync_state recent window from canonical raw tables " +
+                    "lookbackHours=${config.stateUpdater.refreshLookbackHours}"
+            }
+            rawSyncStateStore.refreshRecent(startInclusive, endExclusive)
         }
         if (fullFeatureBackfill && !featureStateStore.hasPersistedState()) {
             logger.info { "Hydrating feature state tables from research_features_1m" }
@@ -1946,6 +1984,7 @@ class MarketDataRepairRunner internal constructor(
                     FROM research_features_1m
                     WHERE exchange = ?
                       AND symbol = ?
+                      AND close IS NOT NULL
                       AND time >= ?
                       AND time <= ?
                     ORDER BY time ASC

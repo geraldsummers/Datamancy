@@ -73,7 +73,7 @@ class HyperliquidUniverseTest {
               "exchange": "hyperliquid",
               "count": 2,
               "markets": [
-                {"symbol": "MATIC"},
+                {"symbol": "MATIC", "attributes": {"isDelisted": "true"}},
                 {"symbol": "kPEPE"}
               ]
             }
@@ -82,7 +82,7 @@ class HyperliquidUniverseTest {
 
         assertEquals(
             listOf(
-                HyperliquidUniverseEntry(symbol = "MATIC", delisted = false),
+                HyperliquidUniverseEntry(symbol = "MATIC", delisted = true),
                 HyperliquidUniverseEntry(symbol = "kPEPE", delisted = false)
             ),
             entries

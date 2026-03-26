@@ -438,4 +438,28 @@ class MarketDataIngestionRunnerConfigTest {
         assertEquals(Instant.parse("2026-03-25T20:01:00Z"), candidates.first().range.startTime)
         assertEquals(Instant.parse("2026-03-25T23:59:00Z"), candidates.first().range.endTime)
     }
+
+    @Test
+    fun `historical backfill prioritization skips symbols with no candle frontier`() {
+        val candidates = prioritizeHistoricalBackfillCandidates(
+            interval = "1m",
+            now = Instant.parse("2026-03-26T00:00:00Z"),
+            lookbackHours = 24L,
+            coverageStates = listOf(
+                RawCandleCoverageState(
+                    symbol = "FTM",
+                    earliestRawTime = null,
+                    latestRawTime = null
+                ),
+                RawCandleCoverageState(
+                    symbol = "BOME",
+                    earliestRawTime = Instant.parse("2026-03-25T12:00:00Z"),
+                    latestRawTime = Instant.parse("2026-03-25T20:00:00Z")
+                )
+            ),
+            maxCandidates = 2
+        )
+
+        assertEquals(listOf("BOME"), candidates.map { it.symbol })
+    }
 }
