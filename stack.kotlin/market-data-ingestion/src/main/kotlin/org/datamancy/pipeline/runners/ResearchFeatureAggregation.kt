@@ -361,6 +361,16 @@ internal fun expandAggregationWindowsByMinute(
     }
 }
 
+internal fun shouldExpandAggregationWindowsByMinute(
+    phase: String,
+    windows: List<AggregationWindow>,
+    expansionThresholdMinutes: Long = DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOW_MINUTES
+): Boolean {
+    if (windows.isEmpty() || phase == "historical_catchup") return false
+    val thresholdMinutes = expansionThresholdMinutes.coerceAtLeast(1L)
+    return windows.all { aggregationWindowMinutes(it) <= thresholdMinutes }
+}
+
 internal class ResearchFeatureAggregator(
     private val dataSource: DataSource,
     private val exchangeId: String,
@@ -729,7 +739,10 @@ internal class ResearchFeatureAggregator(
         val queue = ArrayDeque(
             expandAggregationWindowsByMinute(
                 windows = windows,
-                shouldExpand = phase == "gap_repair" || phase == "frontier_recovery"
+                shouldExpand = shouldExpandAggregationWindowsByMinute(
+                    phase = phase,
+                    windows = windows
+                )
             )
         )
         var totalRows = 0

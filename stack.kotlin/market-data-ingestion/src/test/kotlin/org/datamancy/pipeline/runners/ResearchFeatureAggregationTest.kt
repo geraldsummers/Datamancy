@@ -264,6 +264,32 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `short non historical phases also expand into minute slices`() {
+        assertTrue(
+            shouldExpandAggregationWindowsByMinute(
+                phase = "startup_refresh",
+                windows = listOf(
+                    AggregationWindow(
+                        startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+                        endExclusive = Instant.parse("2026-03-20T00:05:00Z")
+                    )
+                )
+            )
+        )
+        assertFalse(
+            shouldExpandAggregationWindowsByMinute(
+                phase = "historical_catchup",
+                windows = listOf(
+                    AggregationWindow(
+                        startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+                        endExclusive = Instant.parse("2026-03-20T00:05:00Z")
+                    )
+                )
+            )
+        )
+    }
+
+    @Test
     fun `aggregation timeout detection catches jdbc timeout and postgres cancel state`() {
         assertTrue(isAggregationQueryTimeout(SQLTimeoutException("timed out")))
         assertTrue(isAggregationQueryTimeout(SQLException("cancelled", "57014")))
