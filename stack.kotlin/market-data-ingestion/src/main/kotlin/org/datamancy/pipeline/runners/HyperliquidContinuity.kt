@@ -39,6 +39,7 @@ internal const val DEFAULT_HYPERLIQUID_BACKFILL_REQUEST_TIMEOUT_MS = 15_000L
 internal const val DEFAULT_HYPERLIQUID_BACKFILL_RETRY_BASE_DELAY_MS = 1_000L
 internal const val MAX_HYPERLIQUID_BACKFILL_RETRY_DELAY_MS = 12_000L
 internal const val DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS = 4
+internal const val DEFAULT_HYPERLIQUID_BACKFILL_TERMINAL_COOLDOWN_MS = 60_000L
 
 internal fun resolveHyperliquidInfoUrl(explicitUrl: String?, mainnet: Boolean): String {
     val url = explicitUrl?.trim()
@@ -121,6 +122,17 @@ internal data class CandleBackfillWindow(
     val requestedBars: Int,
     val startTime: Instant,
     val endTime: Instant
+)
+
+internal class HyperliquidBackfillDeferredException(
+    val symbol: String,
+    val interval: String,
+    val retryAfterMs: Long,
+    reason: String,
+    cause: Throwable? = null
+) : IllegalStateException(
+    "Hyperliquid candle backfill deferred for $symbol/$interval: $reason; retryAfterMs=${retryAfterMs}ms",
+    cause
 )
 
 internal fun planCandleBackfillWindow(
@@ -537,9 +549,13 @@ internal class HyperliquidCandleBackfillClient(
             if (responseWithBody == null) {
                 val retryDelayMs = backfillRetryDelayMs(window, attempt)
                 if (attempt == DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS - 1) {
-                    throw IllegalStateException(
-                        "Hyperliquid candle backfill timed out for ${window.symbol}/${window.interval} " +
-                            "after ${DEFAULT_HYPERLIQUID_BACKFILL_REQUEST_TIMEOUT_MS}ms"
+                    val cooldownMs = terminalBackfillCooldownMs(retryDelayMs)
+                    pushBackfillCooldown(cooldownMs)
+                    throw HyperliquidBackfillDeferredException(
+                        symbol = window.symbol,
+                        interval = window.interval,
+                        retryAfterMs = cooldownMs,
+                        reason = "request timeout after ${DEFAULT_HYPERLIQUID_BACKFILL_REQUEST_TIMEOUT_MS}ms"
                     )
                 }
                 continuityLogger.warn {
@@ -569,7 +585,17 @@ internal class HyperliquidCandleBackfillClient(
             }
 
             val retryable = response.status.value == 429 || response.status.value in 500..599
-            if (!retryable || attempt == DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS - 1) {
+            if (retryable && attempt == DEFAULT_HYPERLIQUID_BACKFILL_MAX_ATTEMPTS - 1) {
+                val cooldownMs = terminalBackfillCooldownMs(backfillRetryDelayMs(window, attempt))
+                pushBackfillCooldown(cooldownMs)
+                throw HyperliquidBackfillDeferredException(
+                    symbol = window.symbol,
+                    interval = window.interval,
+                    retryAfterMs = cooldownMs,
+                    reason = "HTTP ${response.status.value} ${response.status.description} ${responseText.take(200)}"
+                )
+            }
+            if (!retryable) {
                 throw IllegalStateException(
                     "Hyperliquid candle backfill failed for ${window.symbol}/${window.interval}: " +
                         "HTTP ${response.status.value} ${response.status.description} ${responseText.take(200)}"
@@ -616,6 +642,9 @@ internal class HyperliquidCandleBackfillClient(
         val jitter = abs((window.symbol.hashCode() * 31) + (attempt * 17)).toLong() % 250L
         return baseDelay + jitter
     }
+
+    private fun terminalBackfillCooldownMs(retryDelayMs: Long): Long =
+        maxOf(DEFAULT_HYPERLIQUID_BACKFILL_TERMINAL_COOLDOWN_MS, retryDelayMs * 3)
 
     private fun parseCandleSnapshot(element: JsonElement): HyperliquidCandle? {
         val obj = element.jsonObject

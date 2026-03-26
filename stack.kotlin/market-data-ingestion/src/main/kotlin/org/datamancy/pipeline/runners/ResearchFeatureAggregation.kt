@@ -33,6 +33,8 @@ internal const val DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 30
 internal const val MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 5
 internal const val DEFAULT_RESEARCH_FEATURES_MIN_WINDOW_MINUTES = 1L
 internal const val DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS = 30_000L
+internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOW_MINUTES = 15L
+internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOWS_PER_CYCLE = 8
 
 internal fun resolveResearchFeaturesBootstrapHours(explicitHours: Long?): Long {
     val hours = explicitHours ?: DEFAULT_RESEARCH_FEATURES_BOOTSTRAP_HOURS
@@ -68,12 +70,24 @@ internal fun chunkAggregationWindows(
     endExclusive: Instant,
     chunkHours: Long
 ): List<AggregationWindow> {
+    return chunkAggregationWindowsByMinutes(
+        startInclusive = startInclusive,
+        endExclusive = endExclusive,
+        chunkMinutes = resolveResearchFeaturesBackfillChunkHours(chunkHours) * 60L
+    )
+}
+
+internal fun chunkAggregationWindowsByMinutes(
+    startInclusive: Instant,
+    endExclusive: Instant,
+    chunkMinutes: Long
+): List<AggregationWindow> {
     if (!startInclusive.isBefore(endExclusive)) return emptyList()
-    val normalizedChunkHours = resolveResearchFeaturesBackfillChunkHours(chunkHours)
+    val normalizedChunkMinutes = chunkMinutes.coerceAtLeast(1L)
     val windows = mutableListOf<AggregationWindow>()
     var cursor = startInclusive
     while (cursor.isBefore(endExclusive)) {
-        val chunkEnd = minOf(cursor.plus(normalizedChunkHours, ChronoUnit.HOURS), endExclusive)
+        val chunkEnd = minOf(cursor.plus(normalizedChunkMinutes, ChronoUnit.MINUTES), endExclusive)
         windows += AggregationWindow(startInclusive = cursor, endExclusive = chunkEnd)
         cursor = chunkEnd
     }
@@ -204,6 +218,38 @@ internal fun planRollingRecentGapRepairWindows(
     return selected to nextCursor
 }
 
+internal fun planFrontierRecoveryWindows(
+    latestFinalizedTime: Instant?,
+    now: Instant,
+    refreshOverlapMinutes: Long,
+    finalizationLagMinutes: Long,
+    maxWindowMinutes: Long = DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOW_MINUTES,
+    maxWindowsPerCycle: Int = DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOWS_PER_CYCLE
+): List<AggregationWindow> {
+    if (maxWindowsPerCycle <= 0) return emptyList()
+
+    val finalizationCutoff = now.minus(finalizationLagMinutes.coerceAtLeast(0L), ChronoUnit.MINUTES)
+    val frontierStartInclusive = latestFinalizedTime
+        ?.plus(1, ChronoUnit.MINUTES)
+        ?.truncatedTo(ChronoUnit.MINUTES)
+        ?: finalizationCutoff.minus(refreshOverlapMinutes.coerceAtLeast(1L), ChronoUnit.MINUTES)
+    if (!frontierStartInclusive.isBefore(finalizationCutoff)) {
+        return emptyList()
+    }
+
+    val chunkMinutes = minOf(
+        maxWindowMinutes.coerceAtLeast(1L),
+        refreshOverlapMinutes.coerceAtLeast(1L)
+    )
+    return prioritizeRecentAggregationWindows(
+        chunkAggregationWindowsByMinutes(
+            startInclusive = frontierStartInclusive,
+            endExclusive = finalizationCutoff,
+            chunkMinutes = chunkMinutes
+        )
+    ).take(maxWindowsPerCycle)
+}
+
 internal class ResearchFeatureAggregator(
     private val dataSource: DataSource,
     private val exchangeId: String,
@@ -307,6 +353,10 @@ internal class ResearchFeatureAggregator(
             }
         }
 
+        if (recoverFinalizedFrontierIfStale()) {
+            return
+        }
+
         val repairedRecentGaps = repairRecentGapWindows()
         if (!repairedRecentGaps) {
             catchUpHistoricalWindows()
@@ -374,11 +424,11 @@ internal class ResearchFeatureAggregator(
     private suspend fun refreshRecentWindow(
         windowMinutes: Long = refreshOverlapMinutes,
         phase: String = "refresh"
-    ) = withContext(Dispatchers.IO) {
+    ): WindowMaterializationResult = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             conn.autoCommit = false
             if (!ensureSchema(conn)) {
-                return@withContext
+                return@withContext WindowMaterializationResult(0, 0, completed = false)
             }
             val end = Instant.now().truncatedTo(ChronoUnit.MINUTES).plus(1, ChronoUnit.MINUTES)
             val start = end.minus(windowMinutes, ChronoUnit.MINUTES)
@@ -388,6 +438,48 @@ internal class ResearchFeatureAggregator(
                 windows = listOf(AggregationWindow(startInclusive = start, endExclusive = end)),
                 finalizeRows = true
             )
+        }
+    }
+
+    private suspend fun recoverFinalizedFrontierIfStale(): Boolean = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            conn.autoCommit = false
+            if (!ensureSchema(conn)) {
+                return@withContext false
+            }
+            val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
+            val latestFinalizedTime = queryBoundary(
+                conn = conn,
+                sql = """
+                    SELECT MAX(time)
+                    FROM research_features_1m
+                    WHERE exchange = ?
+                      AND is_finalized = TRUE
+                """.trimIndent()
+            )
+            val windows = planFrontierRecoveryWindows(
+                latestFinalizedTime = latestFinalizedTime,
+                now = now,
+                refreshOverlapMinutes = refreshOverlapMinutes,
+                finalizationLagMinutes = finalizationLagMinutes
+            )
+            if (windows.isEmpty()) {
+                return@withContext false
+            }
+
+            val result = materializeWindows(
+                conn = conn,
+                phase = "frontier_recovery",
+                windows = windows,
+                finalizeRows = true,
+                maxRuntimeMs = backgroundPhaseBudgetMs()
+            )
+            researchFeatureLogger.info {
+                "research_features_1m frontier_recovery exchange=$exchangeId latestFinalized=$latestFinalizedTime " +
+                    "windows=${windows.size} totalRows=${result.totalRows} finalized=${result.totalFinalizedRows} " +
+                    "completed=${result.completed}"
+            }
+            return@withContext true
         }
     }
 

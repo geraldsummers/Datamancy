@@ -155,7 +155,7 @@ internal class HyperliquidUniverseResolver(
         val parsed = json.parseToJsonElement(body).jsonObject
         val universe = parsed["universe"]?.jsonArray ?: return emptyList()
         return universe.mapNotNull { element ->
-            val obj = element.jsonObject
+            val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
             val symbol = obj["name"]?.jsonPrimitive?.contentOrNull
                 ?: obj["coin"]?.jsonPrimitive?.contentOrNull
                 ?: return@mapNotNull null

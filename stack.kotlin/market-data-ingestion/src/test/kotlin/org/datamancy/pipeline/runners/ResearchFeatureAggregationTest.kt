@@ -28,6 +28,33 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `chunk aggregation windows by minutes partitions range into minute slices`() {
+        val windows = chunkAggregationWindowsByMinutes(
+            startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+            endExclusive = Instant.parse("2026-03-20T00:40:00Z"),
+            chunkMinutes = 15
+        )
+
+        assertEquals(
+            listOf(
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T00:15:00Z")
+                ),
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T00:15:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T00:30:00Z")
+                ),
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T00:30:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T00:40:00Z")
+                )
+            ),
+            windows
+        )
+    }
+
+    @Test
     fun `recent aggregation prioritization processes newest windows first`() {
         val windows = chunkAggregationWindows(
             startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
@@ -229,5 +256,39 @@ class ResearchFeatureAggregationTest {
             finalSweep.map { it.startInclusive }
         )
         assertEquals(end, finalCursor)
+    }
+
+    @Test
+    fun `frontier recovery plans newest stale windows before older repairs`() {
+        val windows = planFrontierRecoveryWindows(
+            latestFinalizedTime = Instant.parse("2026-03-25T22:33:00Z"),
+            now = Instant.parse("2026-03-26T00:24:00Z"),
+            refreshOverlapMinutes = 5,
+            finalizationLagMinutes = 3,
+            maxWindowsPerCycle = 4
+        )
+
+        assertEquals(
+            listOf(
+                Instant.parse("2026-03-26T00:19:00Z"),
+                Instant.parse("2026-03-26T00:14:00Z"),
+                Instant.parse("2026-03-26T00:09:00Z"),
+                Instant.parse("2026-03-26T00:04:00Z")
+            ),
+            windows.map { it.startInclusive }
+        )
+        assertEquals(Instant.parse("2026-03-26T00:21:00Z"), windows.first().endExclusive)
+    }
+
+    @Test
+    fun `frontier recovery is idle when finalized frontier is already current enough`() {
+        val windows = planFrontierRecoveryWindows(
+            latestFinalizedTime = Instant.parse("2026-03-26T00:20:00Z"),
+            now = Instant.parse("2026-03-26T00:24:00Z"),
+            refreshOverlapMinutes = 5,
+            finalizationLagMinutes = 3
+        )
+
+        assertTrue(windows.isEmpty())
     }
 }

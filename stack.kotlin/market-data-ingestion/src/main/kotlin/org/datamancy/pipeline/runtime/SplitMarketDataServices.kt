@@ -44,6 +44,7 @@ import org.datamancy.pipeline.runners.CandleHistoricalBackfillCandidate
 import org.datamancy.pipeline.runners.FeatureStateStore
 import org.datamancy.pipeline.runners.HYPERLIQUID_MAINNET_WS_URL
 import org.datamancy.pipeline.runners.HYPERLIQUID_TESTNET_WS_URL
+import org.datamancy.pipeline.runners.HyperliquidBackfillDeferredException
 import org.datamancy.pipeline.runners.HyperliquidCandleBackfillClient
 import org.datamancy.pipeline.runners.HyperliquidContinuityWatchdog
 import org.datamancy.pipeline.runners.HyperliquidUniverseMode
@@ -1400,6 +1401,12 @@ class MarketDataRepairRunner internal constructor(
                     }
                     is RawCandleRecoveryAction.Idle -> delay(repairIntervalMs)
                 }
+            } catch (deferred: HyperliquidBackfillDeferredException) {
+                logger.warn {
+                    "market-data-repair deferred ${deferred.symbol}/${deferred.interval} " +
+                        "retryAfterMs=${deferred.retryAfterMs} reason=${deferred.message}"
+                }
+                delay(repairIntervalMs)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (ex: Exception) {
@@ -1602,22 +1609,35 @@ class MarketDataRepairRunner internal constructor(
         logger.info {
             "$label streams=${distinctStreams.size} lookbackHours=$lookbackHours permits=$permits"
         }
-        supervisorScope {
+        val results = supervisorScope {
             distinctStreams.map { (symbol, interval) ->
                 async {
                     semaphore.withPermit {
-                        val candles = candleBackfillClient.fetchRecentCandles(
-                            symbol = symbol,
-                            interval = interval,
-                            now = Instant.now(),
-                            lookbackHoursOverride = lookbackHours
-                        )
-                        candles.forEach { candle ->
-                            publishBackfilledCandle(label, candle)
+                        try {
+                            val candles = candleBackfillClient.fetchRecentCandles(
+                                symbol = symbol,
+                                interval = interval,
+                                now = Instant.now(),
+                                lookbackHoursOverride = lookbackHours
+                            )
+                            candles.forEach { candle ->
+                                publishBackfilledCandle(label, candle)
+                            }
+                            RepairStreamResult(publishedCandles = candles.size, deferred = false)
+                        } catch (deferred: HyperliquidBackfillDeferredException) {
+                            logger.warn {
+                                "$label deferred stream $symbol/$interval retryAfterMs=${deferred.retryAfterMs} " +
+                                    "reason=${deferred.message}"
+                            }
+                            RepairStreamResult(publishedCandles = 0, deferred = true)
                         }
                     }
                 }
             }.awaitAll()
+        }
+        logger.info {
+            "$label complete streams=${distinctStreams.size} lookbackHours=$lookbackHours " +
+                "publishedCandles=${results.sumOf { it.publishedCandles }} deferredStreams=${results.count { it.deferred }}"
         }
     }
 
@@ -1632,7 +1652,16 @@ class MarketDataRepairRunner internal constructor(
         )
         for (window in windows) {
             currentCoroutineContext().ensureActive()
-            val candles = candleBackfillClient.fetchWindowCandles(window)
+            val candles = try {
+                candleBackfillClient.fetchWindowCandles(window)
+            } catch (deferred: HyperliquidBackfillDeferredException) {
+                logger.warn {
+                    "historical_candle_backfill deferred ${candidate.symbol}/${candidate.interval} " +
+                        "window=${window.startTime}..${window.endTime} retryAfterMs=${deferred.retryAfterMs} " +
+                        "reason=${deferred.message}"
+                }
+                return
+            }
             candles.forEach { candle ->
                 publishBackfilledCandle("historical_candle_backfill", candle)
             }
@@ -1663,6 +1692,11 @@ private fun resolveHyperliquidWsUrl(explicitUrl: String?, mainnet: Boolean): Str
 
 private fun IngestionStats.totalPending(): Int =
     pendingTrades + pendingCandles + pendingOrderbooks + pendingAssetContexts
+
+private data class RepairStreamResult(
+    val publishedCandles: Int,
+    val deferred: Boolean
+)
 
 private val IngestionStats.totalPending: Int
     get() = pendingTrades + pendingCandles + pendingOrderbooks + pendingAssetContexts
