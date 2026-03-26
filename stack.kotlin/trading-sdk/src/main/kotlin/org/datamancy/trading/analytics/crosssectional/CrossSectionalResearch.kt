@@ -1098,7 +1098,6 @@ private fun queryDiscoveredSymbolLiquidityFromFeatures(
               AND time >= ?
               AND time < ?
               AND symbol IN ($symbolSql)
-              AND candle_observed
             ORDER BY
                 symbol,
                 time,
@@ -1191,7 +1190,6 @@ private fun discoverSymbolsByAggregateFromFeatures(
             WHERE exchange IN ($aliasSql)
               AND time >= ?
               AND time < ?
-              AND candle_observed
             ORDER BY
                 symbol,
                 time,
@@ -1636,7 +1634,6 @@ private fun queryBarsFromFeatures(
               AND time >= ?
               AND time < ?
               AND symbol IN ($symbolSql)
-              AND candle_observed
             ORDER BY
                 symbol,
                 time,
@@ -4764,7 +4761,6 @@ private fun computeResearchCoverageSnapshots(
               AND time >= ?
               AND time < ?
               AND symbol IN ($symbolSql)
-              AND candle_observed
             ORDER BY
                 symbol,
                 time,
@@ -4795,7 +4791,6 @@ private fun computeResearchCoverageSnapshots(
             FROM research_features_1m
             WHERE exchange IN ($aliasSql)
               AND symbol IN ($symbolSql)
-              AND candle_observed
             GROUP BY symbol
         )
         SELECT
