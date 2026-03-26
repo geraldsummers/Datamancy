@@ -49,6 +49,18 @@ CREATE INDEX IF NOT EXISTS idx_market_data_candle_exchange_type_time_symbol
     ON market_data (exchange, data_type, time DESC, symbol)
     INCLUDE (close, volume)
     WHERE data_type LIKE 'candle_%';
+CREATE INDEX IF NOT EXISTS idx_market_data_trade_exchange_time_symbol_covering
+    ON market_data (exchange, time DESC, symbol)
+    INCLUDE (price, size, side)
+    WHERE data_type = 'trade';
+CREATE INDEX IF NOT EXISTS idx_market_data_funding_exchange_time_symbol_covering
+    ON market_data (exchange, time DESC, symbol)
+    INCLUDE (funding_rate)
+    WHERE data_type = 'funding';
+CREATE INDEX IF NOT EXISTS idx_market_data_open_interest_exchange_time_symbol_covering
+    ON market_data (exchange, time DESC, symbol)
+    INCLUDE (open_interest)
+    WHERE data_type = 'open_interest';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_trade_unique
     ON market_data (time, symbol, exchange, data_type, trade_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_market_data_candle_unique

@@ -785,6 +785,25 @@ CREATE INDEX IF NOT EXISTS idx_market_data_candle_exchange_type_time_symbol
     WITH (timescaledb.transaction_per_chunk)
     WHERE data_type LIKE 'candle_%';
 
+-- Minute feature aggregation also scans trade and carry rows exchange-first by time range.
+CREATE INDEX IF NOT EXISTS idx_market_data_trade_exchange_time_symbol_covering
+    ON market_data (exchange, time DESC, symbol)
+    INCLUDE (price, size, side)
+    WITH (timescaledb.transaction_per_chunk)
+    WHERE data_type = 'trade';
+
+CREATE INDEX IF NOT EXISTS idx_market_data_funding_exchange_time_symbol_covering
+    ON market_data (exchange, time DESC, symbol)
+    INCLUDE (funding_rate)
+    WITH (timescaledb.transaction_per_chunk)
+    WHERE data_type = 'funding';
+
+CREATE INDEX IF NOT EXISTS idx_market_data_open_interest_exchange_time_symbol_covering
+    ON market_data (exchange, time DESC, symbol)
+    INCLUDE (open_interest)
+    WITH (timescaledb.transaction_per_chunk)
+    WHERE data_type = 'open_interest';
+
 -- Create a covering orderbook index for bar-bucket joins so depth/spread reads
 -- can stay inside the index during research scans.
 CREATE INDEX IF NOT EXISTS idx_orderbook_data_symbol_exchange_time_covering
