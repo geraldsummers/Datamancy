@@ -246,12 +246,10 @@ class MarketDataSink(
             }
         }
 
-        val flushedNow = flushTradesNow || flushCandlesNow || flushOrderbooksNow || flushAssetContextNow
         if (flushTradesNow) flushTrades()
         if (flushCandlesNow) flushCandles()
         if (flushOrderbooksNow) flushOrderbooks()
         if (flushAssetContextNow) flushAssetContexts()
-        if (flushedNow) flushRawSyncStateBestEffort("immediate batch flush")
     }
 
     override suspend fun writeBatch(items: List<HyperliquidMarketData>) {
