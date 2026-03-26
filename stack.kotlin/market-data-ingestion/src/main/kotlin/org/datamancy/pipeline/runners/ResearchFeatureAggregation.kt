@@ -780,7 +780,7 @@ internal class ResearchFeatureAggregator(
             if (missing.isNotEmpty()) {
                 researchFeatureLogger.error {
                     "research_features_1m schema missing columns ${missing.joinToString(",")}. " +
-                        "Apply stack.config/postgres/init-market-data-schema.sql via postgres-datamancy-reconcile."
+                        "Apply stack.config/postgres/init-market-data-schema.sql via datamancy-schema-reconcile."
                 }
                 return false
             }

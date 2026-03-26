@@ -17,8 +17,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      postgres-datamancy-reconcile:
-        condition: service_completed_successfully
       ldap:
         condition: service_healthy
       ldap-ensure-suffixes:

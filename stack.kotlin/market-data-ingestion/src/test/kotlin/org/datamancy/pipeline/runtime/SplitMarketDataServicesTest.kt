@@ -1,6 +1,7 @@
 package org.datamancy.pipeline.runtime
 
 import io.nats.client.api.DeliverPolicy
+import org.datamancy.pipeline.runners.HyperliquidContinuityWatchdog
 import org.datamancy.pipeline.sources.HyperliquidAssetContext
 import org.datamancy.pipeline.sources.HyperliquidCandle
 import org.datamancy.pipeline.sources.HyperliquidMarketData
@@ -204,6 +205,58 @@ class SplitMarketDataServicesTest {
             listOf("trade", "candle_1m", "orderbook_l2", "asset_context"),
             persistLiveChannels
         )
+    }
+
+    @Test
+    fun `candle repair activity uses non trade channels when trades are quiet`() {
+        val tradeTime = Instant.parse("2026-03-26T03:31:00Z")
+        val orderbookTime = Instant.parse("2026-03-26T07:28:00Z")
+        val fundingTime = Instant.parse("2026-03-26T07:27:00Z")
+
+        assertEquals(
+            orderbookTime,
+            latestCandleRepairActivityTime(tradeTime, orderbookTime, fundingTime, null)
+        )
+    }
+
+    @Test
+    fun `recent candle repair stays eligible when orderbooks are current but candles lag`() {
+        val recentActivityCutoff = Instant.parse("2026-03-26T07:20:00Z")
+        val staleCandleCutoff = Instant.parse("2026-03-26T07:25:00Z")
+
+        assertTrue(
+            shouldRepairRecentCandleStream(
+                latestActivityTime = Instant.parse("2026-03-26T07:28:22Z"),
+                latestCandleTime = Instant.parse("2026-03-26T04:07:00Z"),
+                recentActivityCutoff = recentActivityCutoff,
+                staleCandleCutoff = staleCandleCutoff
+            )
+        )
+    }
+
+    @Test
+    fun `split sync continuity watchdog is armed for stale live candle detection`() {
+        val now = Instant.parse("2026-03-26T00:02:10Z")
+        val watchdog = HyperliquidContinuityWatchdog(
+            symbols = listOf("BTC"),
+            candleIntervals = listOf("1m"),
+            activityTimeoutMs = 1_000L,
+            candleStaleMultiplier = 1.0,
+            nowProvider = { now }
+        )
+
+        watchdog.record(
+            HyperliquidMarketData.Trades(
+                listOf(HyperliquidTrade(Instant.parse("2026-03-26T00:00:40Z"), "BTC", 1.0, 1.0, "buy", "t1"))
+            ),
+            receivedAt = Instant.parse("2026-03-26T00:00:40Z")
+        )
+
+        assertTrue(watchdog.staleCandleStreams().isEmpty())
+
+        armSplitSyncContinuityWatchdog(watchdog, armedAt = Instant.parse("2026-03-26T00:00:41Z"))
+
+        assertEquals(1, watchdog.staleCandleStreams().size)
     }
 
     @Test

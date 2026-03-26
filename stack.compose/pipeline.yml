@@ -175,7 +175,7 @@ services:
       RAW_EVENT_BUS_URL: nats://nats:4222
       RAW_EVENT_STREAM: MARKET_DATA_RAW
       RAW_EVENT_INGEST_SUBJECT_PREFIX: raw.market.ingest
-      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist
+      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist.coalesced
       RAW_EVENT_DLQ_SUBJECT: raw.market.dlq
       RAW_EVENT_MAX_ACK_PENDING: "2048"
     volumes:
@@ -201,17 +201,17 @@ services:
       RAW_EVENT_BUS_URL: nats://nats:4222
       RAW_EVENT_STREAM: MARKET_DATA_RAW
       RAW_EVENT_INGEST_SUBJECT_PREFIX: raw.market.ingest
-      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist
+      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist.coalesced
       RAW_EVENT_DLQ_SUBJECT: raw.market.dlq
     volumes:
       - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro
 
-  market-data-repair:
+  raw-candle-repair:
     image: datamancy/market-data-repair:local-build
     build:
       context: .
       dockerfile: ./stack.containers/market-data-repair/Dockerfile
-    container_name: market-data-repair
+    container_name: raw-candle-repair
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
@@ -221,8 +221,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      postgres-datamancy-reconcile:
-        condition: service_completed_successfully
       nats:
         condition: service_started
     environment:
@@ -235,7 +233,7 @@ services:
       RAW_EVENT_BUS_URL: nats://nats:4222
       RAW_EVENT_STREAM: MARKET_DATA_RAW
       RAW_EVENT_INGEST_SUBJECT_PREFIX: raw.market.ingest
-      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist
+      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist.coalesced
       RAW_EVENT_DLQ_SUBJECT: raw.market.dlq
     volumes:
       - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro
@@ -254,8 +252,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      postgres-datamancy-reconcile:
-        condition: service_completed_successfully
       nats:
         condition: service_started
       market-data-plumbing:
@@ -267,22 +263,24 @@ services:
       POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
       DATAMANCY_TRADING_POLICY_FILE: /app/config/trading-policy.json
-      MARKET_DATA_BATCH_SIZE: "250"
+      MARKET_DATA_BATCH_SIZE: "1000"
       MARKET_DATA_FLUSH_SECONDS: "10"
+      RAW_EVENT_FETCH_BATCH: "1024"
+      RAW_EVENT_MAX_ACK_PENDING: "8192"
       RAW_EVENT_BUS_URL: nats://nats:4222
       RAW_EVENT_STREAM: MARKET_DATA_RAW
       RAW_EVENT_INGEST_SUBJECT_PREFIX: raw.market.ingest
-      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist
+      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist.coalesced
       RAW_EVENT_DLQ_SUBJECT: raw.market.dlq
     volumes:
       - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro
 
-  feature-materializer:
+  research-feature-materializer:
     image: datamancy/feature-materializer:local-build
     build:
       context: .
       dockerfile: ./stack.containers/feature-materializer/Dockerfile
-    container_name: feature-materializer
+    container_name: research-feature-materializer
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
@@ -291,8 +289,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      postgres-datamancy-reconcile:
-        condition: service_completed_successfully
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
@@ -303,12 +299,12 @@ services:
     volumes:
       - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro
 
-  market-data-state-updater:
+  market-data-health-updater:
     image: datamancy/market-data-state-updater:local-build
     build:
       context: .
       dockerfile: ./stack.containers/market-data-state-updater/Dockerfile
-    container_name: market-data-state-updater
+    container_name: market-data-health-updater
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
@@ -317,8 +313,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      postgres-datamancy-reconcile:
-        condition: service_completed_successfully
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"

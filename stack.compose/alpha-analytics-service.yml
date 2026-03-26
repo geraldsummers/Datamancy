@@ -16,8 +16,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      postgres-datamancy-reconcile:
-        condition: service_completed_successfully
       tx-gateway:
         condition: service_started
     environment:

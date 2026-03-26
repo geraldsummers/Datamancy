@@ -1,7 +1,7 @@
 services:
-  postgres-datamancy-reconcile:
+  datamancy-schema-reconcile:
     image: timescale/timescaledb@sha256:0af03ecf697825f6ddae76fd275d16bf46007bed6d00eb3d754779cb7db96fa6
-    container_name: postgres-datamancy-reconcile
+    container_name: datamancy-schema-reconcile
     restart: "no"
     labels:
       - "com.centurylinklabs.watchtower.enable=false"

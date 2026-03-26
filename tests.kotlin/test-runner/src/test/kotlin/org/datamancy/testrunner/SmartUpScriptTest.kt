@@ -36,7 +36,7 @@ class SmartUpScriptTest {
             "smart-up should explicitly warn when the deploy ledger is configured inside the synced tree"
         )
         assertTrue(
-            text.contains("FORCE_REFRESH_SERVICES=\"\${FORCE_REFRESH_SERVICES:-postgres-datamancy-reconcile,ldap-ensure-suffixes,test-all,test-playwright-e2e,test-trading-staged}\""),
+            text.contains("FORCE_REFRESH_SERVICES=\"\${FORCE_REFRESH_SERVICES:-datamancy-schema-reconcile,ldap-ensure-suffixes,test-all,test-playwright-e2e,test-trading-staged}\""),
             "smart-up should force refresh schema reconcilers and staged trading probes so deploy-time credentials stay consistent"
         )
         assertTrue(

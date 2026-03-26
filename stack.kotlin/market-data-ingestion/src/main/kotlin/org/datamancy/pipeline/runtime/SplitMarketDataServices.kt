@@ -125,6 +125,30 @@ private const val DEFAULT_DB_WAIT_ATTEMPTS = 90
 private const val DEFAULT_DB_WAIT_DELAY_MS = 2_000L
 private const val DEFAULT_HYPERLIQUID_INITIAL_RECENT_REPAIR_BATCH_STREAMS = 24
 
+internal fun latestCandleRepairActivityTime(vararg observedAt: Instant?): Instant? =
+    observedAt.filterNotNull().maxOrNull()
+
+internal fun shouldRepairRecentCandleStream(
+    latestActivityTime: Instant?,
+    latestCandleTime: Instant?,
+    recentActivityCutoff: Instant,
+    staleCandleCutoff: Instant
+): Boolean {
+    if (latestActivityTime == null || latestActivityTime.isBefore(recentActivityCutoff)) {
+        return false
+    }
+    val candleFrontier = latestCandleTime ?: return true
+    return candleFrontier.isBefore(latestActivityTime.truncatedTo(ChronoUnit.MINUTES)) ||
+        candleFrontier.isBefore(staleCandleCutoff)
+}
+
+internal fun armSplitSyncContinuityWatchdog(
+    continuityWatchdog: HyperliquidContinuityWatchdog,
+    armedAt: Instant = Instant.now()
+) {
+    continuityWatchdog.markInitialCandleRepairComplete(armedAt)
+}
+
 internal data class RawEventTransportConfig(
     val url: String,
     val stream: String,
@@ -887,7 +911,7 @@ private fun buildRepairRunnerDependencies(): RepairRunnerDependencies {
         dataSource = createMarketDataDataSource(config),
         transport = NatsJetStreamRawMarketDataTransport(
             config = config.rawEventTransport,
-            connectionName = "market-data-repair"
+            connectionName = "raw-candle-repair"
         ),
         candleBackfillClient = HyperliquidCandleBackfillClient(
             infoUrl = config.infoUrl,
@@ -970,6 +994,9 @@ class MarketDataSyncRunner internal constructor(
                     activityTimeoutMs = config.channelActivityTimeoutMs,
                     candleStaleMultiplier = config.candleStaleMultiplier
                 )
+                // Split sync relies on the separate raw-candle-repair service, so the watchdog
+                // still needs to be armed here or stale live candle shards never trigger restarts.
+                armSplitSyncContinuityWatchdog(continuityWatchdog)
                 logger.info {
                     "market-data-sync connecting symbols=${universe.symbols.size} shards=${sourcePlans.size} source=${universe.source}"
                 }
@@ -1273,10 +1300,10 @@ class FeatureMaterializerRunner internal constructor(
     fun start() {
         runBlocking {
             if (!waitForDataSource(dataSource, "TimescaleDB")) {
-                error("TimescaleDB did not become ready for feature-materializer")
+                error("TimescaleDB did not become ready for research-feature-materializer")
             }
         }
-        logger.info { "Starting feature-materializer exchange=${config.exchangeId}" }
+        logger.info { "Starting research-feature-materializer exchange=${config.exchangeId}" }
         runJob = scope.launch {
             aggregator.runLoop()
         }
@@ -1312,7 +1339,7 @@ class MarketDataStateUpdaterRunner internal constructor(
     fun start() {
         runBlocking {
             if (!waitForDataSource(dataSource, "TimescaleDB")) {
-                error("TimescaleDB did not become ready for market-data-state-updater")
+                error("TimescaleDB did not become ready for market-data-health-updater")
             }
         }
         runJob = scope.launch {
@@ -1385,7 +1412,7 @@ class MarketDataRepairRunner internal constructor(
     fun start() {
         runBlocking {
             if (!waitForDataSource(dataSource, "TimescaleDB")) {
-                error("TimescaleDB did not become ready for market-data-repair")
+                error("TimescaleDB did not become ready for raw-candle-repair")
             }
         }
         runJob = scope.launch { runRepairLoop() }
@@ -1463,14 +1490,14 @@ class MarketDataRepairRunner internal constructor(
                 }
             } catch (deferred: HyperliquidBackfillDeferredException) {
                 logger.warn {
-                    "market-data-repair deferred ${deferred.symbol}/${deferred.interval} " +
+                    "raw-candle-repair deferred ${deferred.symbol}/${deferred.interval} " +
                         "retryAfterMs=${deferred.retryAfterMs} reason=${deferred.message}"
                 }
                 delay(repairIntervalMs)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (ex: Exception) {
-                logger.error(ex) { "market-data-repair cycle failed: ${ex.message}" }
+                logger.error(ex) { "raw-candle-repair cycle failed: ${ex.message}" }
                 delay(repairIntervalMs)
             }
         }
@@ -1495,7 +1522,7 @@ class MarketDataRepairRunner internal constructor(
             } else {
                 RawCandleRecoveryPlannerState(initialRecentRepairPending = true)
             }
-            logger.info { "market-data-repair loaded ${currentUniverseSymbols.size} symbols source=${snapshot.source}" }
+            logger.info { "raw-candle-repair loaded ${currentUniverseSymbols.size} symbols source=${snapshot.source}" }
         }
     }
 
@@ -1571,24 +1598,39 @@ class MarketDataRepairRunner internal constructor(
                 SELECT
                     symbol,
                     MAX(latest_raw_time) FILTER (WHERE channel = 'trade') AS latest_trade_time,
+                    MAX(latest_raw_time) FILTER (WHERE channel = 'orderbook_l2') AS latest_orderbook_time,
+                    MAX(latest_raw_time) FILTER (WHERE channel = 'funding') AS latest_funding_time,
+                    MAX(latest_raw_time) FILTER (WHERE channel = 'open_interest') AS latest_open_interest_time,
                     MAX(latest_raw_time) FILTER (WHERE channel = 'candle_1m') AS latest_candle_time
                 FROM raw_sync_state
                 WHERE exchange = ?
                   AND symbol = ANY (?)
                 GROUP BY symbol
+            ),
+            eligible_streams AS (
+                SELECT
+                    symbol,
+                    GREATEST(
+                        COALESCE(latest_trade_time, '-infinity'::timestamptz),
+                        COALESCE(latest_orderbook_time, '-infinity'::timestamptz),
+                        COALESCE(latest_funding_time, '-infinity'::timestamptz),
+                        COALESCE(latest_open_interest_time, '-infinity'::timestamptz)
+                    ) AS latest_activity_time,
+                    latest_candle_time
+                FROM channel_state
             )
             SELECT symbol
-            FROM channel_state
-            WHERE latest_trade_time IS NOT NULL
-              AND latest_trade_time >= ?
+            FROM eligible_streams
+            WHERE latest_activity_time > '-infinity'::timestamptz
+              AND latest_activity_time >= ?
               AND (
                     latest_candle_time IS NULL OR
-                    latest_candle_time < date_trunc('minute', latest_trade_time) OR
+                    latest_candle_time < date_trunc('minute', latest_activity_time) OR
                     latest_candle_time < ?
                 )
             ORDER BY
                 latest_candle_time ASC NULLS FIRST,
-                latest_trade_time DESC,
+                latest_activity_time DESC,
                 symbol ASC
             LIMIT ?
         """.trimIndent()
