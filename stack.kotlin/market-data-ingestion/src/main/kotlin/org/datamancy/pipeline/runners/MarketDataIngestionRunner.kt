@@ -1039,12 +1039,12 @@ class MarketDataIngestionRunner {
             SELECT symbol
             FROM raw_ranked
             ORDER BY
-                candle_latest_raw_time ASC NULLS FIRST,
                 GREATEST(
                     COALESCE(trade_latest_raw_time, '-infinity'::timestamptz),
                     COALESCE(orderbook_latest_raw_time, '-infinity'::timestamptz),
                     COALESCE(funding_latest_raw_time, '-infinity'::timestamptz)
                 ) DESC NULLS LAST,
+                candle_latest_raw_time ASC NULLS FIRST,
                 symbol ASC
         """.trimIndent()
 
@@ -1298,8 +1298,8 @@ class MarketDataIngestionRunner {
                     latest_candle_time < ?
                 )
             ORDER BY
-                latest_candle_time ASC NULLS FIRST,
                 latest_trade_time DESC,
+                latest_candle_time ASC NULLS FIRST,
                 symbol ASC
             LIMIT ?
         """.trimIndent()

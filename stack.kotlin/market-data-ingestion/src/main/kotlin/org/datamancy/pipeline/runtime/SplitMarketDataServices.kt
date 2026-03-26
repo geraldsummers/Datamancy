@@ -1590,12 +1590,12 @@ class MarketDataRepairRunner internal constructor(
             SELECT symbol
             FROM raw_ranked
             ORDER BY
-                candle_latest_raw_time ASC NULLS FIRST,
                 GREATEST(
                     COALESCE(trade_latest_raw_time, '-infinity'::timestamptz),
                     COALESCE(orderbook_latest_raw_time, '-infinity'::timestamptz),
                     COALESCE(funding_latest_raw_time, '-infinity'::timestamptz)
                 ) DESC NULLS LAST,
+                candle_latest_raw_time ASC NULLS FIRST,
                 symbol ASC
         """.trimIndent()
         val ordered = dataSource.connection.use { connection ->
@@ -1674,8 +1674,8 @@ class MarketDataRepairRunner internal constructor(
                     latest_candle_time < ?
                 )
             ORDER BY
-                latest_candle_time ASC NULLS FIRST,
                 latest_activity_time DESC,
+                latest_candle_time ASC NULLS FIRST,
                 symbol ASC
             LIMIT ?
         """.trimIndent()
