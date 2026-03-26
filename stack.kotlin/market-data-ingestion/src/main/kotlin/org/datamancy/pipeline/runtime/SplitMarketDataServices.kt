@@ -122,6 +122,7 @@ private const val DEFAULT_RAW_EVENT_MAX_AGE_HOURS = 168L
 private const val DEFAULT_RAW_EVENT_FETCH_BATCH = 128
 private const val DEFAULT_RAW_EVENT_FETCH_EXPIRES_MS = 5_000L
 private const val DEFAULT_RAW_EVENT_MAX_ACK_PENDING = 2_048L
+private const val DEFAULT_RAW_EVENT_ACK_WAIT_MINUTES = 10L
 private const val DEFAULT_STATE_REFRESH_INTERVAL_MS = 300_000L
 private const val DEFAULT_STATE_REFRESH_LOOKBACK_HOURS = 48L
 private const val DEFAULT_SYNC_STATS_INTERVAL_MS = 60_000L
@@ -845,7 +846,7 @@ internal class NatsJetStreamRawMarketDataTransport(
             .deliverPolicy(deliverPolicy)
             .ackPolicy(AckPolicy.Explicit)
             .filterSubject(subjectFilter)
-            .ackWait(Duration.ofMinutes(2))
+            .ackWait(Duration.ofMinutes(DEFAULT_RAW_EVENT_ACK_WAIT_MINUTES))
             .maxAckPending(config.maxAckPending)
             .build()
         runCatching {

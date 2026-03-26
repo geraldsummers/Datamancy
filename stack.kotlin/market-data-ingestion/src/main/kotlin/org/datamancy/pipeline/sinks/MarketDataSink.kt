@@ -6,9 +6,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.datamancy.pipeline.core.Sink
-import org.datamancy.pipeline.runners.RawSyncObservation
-import org.datamancy.pipeline.runners.RawSyncStateStore
-import org.datamancy.pipeline.runners.normalizeRawSyncObservations
 import org.datamancy.pipeline.sources.HyperliquidAssetContext
 import org.datamancy.pipeline.sources.HyperliquidCandle
 import org.datamancy.pipeline.sources.HyperliquidMarketData
@@ -55,89 +52,6 @@ internal fun normalizeCandleFlushBatch(candles: List<HyperliquidCandle>): List<H
     )
 }
 
-internal fun mergeRawSyncObservations(
-    existing: RawSyncObservation?,
-    incoming: RawSyncObservation
-): RawSyncObservation {
-    return if (existing == null) {
-        incoming
-    } else {
-        RawSyncObservation(
-            symbol = existing.symbol,
-            channel = existing.channel,
-            earliestTime = minOf(existing.earliestTime, incoming.earliestTime),
-            latestTime = maxOf(existing.latestTime, incoming.latestTime),
-            rowCount = existing.rowCount + incoming.rowCount
-        )
-    }
-}
-
-internal class BufferedRawSyncStateWriter(
-    dataSource: DataSource,
-    exchangeId: String
-) {
-    private val rawSyncStateStore = RawSyncStateStore(dataSource = dataSource, exchangeId = exchangeId)
-    private val pendingLock = Any()
-    private val flushLock = Mutex()
-    private val pending = linkedMapOf<Pair<String, String>, RawSyncObservation>()
-
-    fun recordTrades(trades: List<HyperliquidTrade>) {
-        record(trades.map { RawSyncObservation(it.symbol, "trade", it.time, it.time, 1L) })
-    }
-
-    fun recordCandles(candles: List<HyperliquidCandle>) {
-        record(candles.map { RawSyncObservation(it.symbol, "candle_${it.interval}", it.time, it.time, 1L) })
-    }
-
-    fun recordOrderbooks(orderbooks: List<HyperliquidOrderbook>) {
-        record(orderbooks.map { RawSyncObservation(it.symbol, "orderbook_l2", it.time, it.time, 1L) })
-    }
-
-    fun recordAssetContexts(assetContexts: List<HyperliquidAssetContext>) {
-        record(
-            assetContexts.flatMap { context ->
-                listOf(
-                    RawSyncObservation(context.symbol, "funding", context.time, context.time, 1L),
-                    RawSyncObservation(context.symbol, "open_interest", context.time, context.time, 1L)
-                )
-            }
-        )
-    }
-
-    suspend fun flush() = flushLock.withLock {
-        val snapshot = synchronized(pendingLock) {
-            if (pending.isEmpty()) {
-                emptyList()
-            } else {
-                pending.values.toList().also { pending.clear() }
-            }
-        }
-        if (snapshot.isEmpty()) return@withLock
-        try {
-            rawSyncStateStore.recordObservations(snapshot)
-        } catch (e: Exception) {
-            synchronized(pendingLock) {
-                snapshot.forEach { observation ->
-                    val key = observation.symbol to observation.channel
-                    pending[key] = mergeRawSyncObservations(pending[key], observation)
-                }
-            }
-            throw e
-        }
-    }
-
-    private fun record(observations: List<RawSyncObservation>) {
-        if (observations.isEmpty()) return
-        val normalized = normalizeRawSyncObservations(observations)
-        synchronized(pendingLock) {
-            normalized.forEach { observation ->
-                val key = observation.symbol to observation.channel
-                pending[key] = mergeRawSyncObservations(pending[key], observation)
-            }
-        }
-    }
-}
-
 /**
  * Sink implementation for writing market data to TimescaleDB.
  *
@@ -179,7 +93,6 @@ class MarketDataSink(
 
     override val name = "MarketDataSink"
     private val exchange = exchangeId.trim().lowercase().ifBlank { "hyperliquid" }
-    private val rawSyncStateWriter = BufferedRawSyncStateWriter(dataSource = dataSource, exchangeId = exchange)
 
     // Batch accumulators
     private val tradeBatch = mutableListOf<HyperliquidTrade>()
@@ -284,7 +197,6 @@ class MarketDataSink(
         if (hasCandles) flushCandles()
         if (hasOrderbooks) flushOrderbooks()
         if (hasAssetContexts) flushAssetContexts()
-        flushRawSyncStateBestEffort("periodic flush")
     }
 
     /**
@@ -322,7 +234,6 @@ class MarketDataSink(
                         stmt.executeBatch()
                     }
                     conn.commit()
-                    rawSyncStateWriter.recordTrades(trades)
                     tradeCount += trades.size
                     logger.debug { "Flushed ${trades.size} trades to market_data (total: $tradeCount)" }
                 } catch (e: Exception) {
@@ -385,7 +296,6 @@ class MarketDataSink(
                         stmt.executeBatch()
                     }
                     conn.commit()
-                    rawSyncStateWriter.recordCandles(normalizedCandles)
                     candleCount += normalizedCandles.size
                     logger.debug {
                             "Flushed ${normalizedCandles.size} candles to market_data (total: $candleCount)"
@@ -454,7 +364,6 @@ class MarketDataSink(
                         openInterestStmt.executeBatch()
                     }
                     conn.commit()
-                    rawSyncStateWriter.recordAssetContexts(assetContexts)
                     fundingCount += assetContexts.size
                     openInterestCount += assetContexts.size
                     logger.debug {
@@ -509,7 +418,6 @@ class MarketDataSink(
                         }
 
                         conn.commit()
-                        rawSyncStateWriter.recordOrderbooks(orderbooks)
                         orderbookCount += orderbooks.size
                         logger.debug { "Flushed ${orderbooks.size} orderbooks to orderbook_data (total: $orderbookCount)" }
                     } catch (e: Exception) {
@@ -548,13 +456,6 @@ class MarketDataSink(
             }
             scalarMarketDataSchemaValidated = true
         }
-    }
-
-    private suspend fun flushRawSyncStateBestEffort(reason: String) {
-        runCatching { rawSyncStateWriter.flush() }
-            .onFailure { e ->
-                logger.error(e) { "Failed to flush buffered raw_sync_state during $reason: ${e.message}" }
-            }
     }
 
     private fun detectOrderbookWriteMode(conn: Connection): OrderbookWriteMode {

@@ -2,7 +2,6 @@ package org.datamancy.pipeline.sinks
 
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
-import org.datamancy.pipeline.runners.RawSyncObservation
 import org.datamancy.pipeline.sources.HyperliquidCandle
 import org.datamancy.pipeline.sources.HyperliquidTrade
 import java.time.Instant
@@ -151,30 +150,6 @@ class MarketDataSinkTest {
             listOf("BTC:t1", "BTC:t9", "ETH:t2", "SOL:t3"),
             normalized.map { "${it.symbol}:${it.tradeId}" }
         )
-    }
-
-    @Test
-    fun `raw sync observation merge preserves bounds and accumulates rows`() {
-        val merged = mergeRawSyncObservations(
-            existing = RawSyncObservation(
-                symbol = "BTC",
-                channel = "trade",
-                earliestTime = Instant.parse("2026-03-25T03:00:00Z"),
-                latestTime = Instant.parse("2026-03-25T03:01:00Z"),
-                rowCount = 2L
-            ),
-            incoming = RawSyncObservation(
-                symbol = "BTC",
-                channel = "trade",
-                earliestTime = Instant.parse("2026-03-25T02:59:00Z"),
-                latestTime = Instant.parse("2026-03-25T03:02:00Z"),
-                rowCount = 3L
-            )
-        )
-
-        assertEquals(Instant.parse("2026-03-25T02:59:00Z"), merged.earliestTime)
-        assertEquals(Instant.parse("2026-03-25T03:02:00Z"), merged.latestTime)
-        assertEquals(5L, merged.rowCount)
     }
 
     private fun candle(
