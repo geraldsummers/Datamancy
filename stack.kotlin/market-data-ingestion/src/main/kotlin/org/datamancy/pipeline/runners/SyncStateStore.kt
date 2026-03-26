@@ -362,7 +362,17 @@ internal class FeatureStateStore(
 
     fun refresh(conn: Connection, startInclusive: Instant?, endExclusive: Instant?) {
         acquireRefreshLock(conn)
+        refreshMaterialization(conn, startInclusive, endExclusive)
+        refreshCoverage(conn, startInclusive, endExclusive)
+    }
+
+    fun refreshMaterialization(conn: Connection, startInclusive: Instant?, endExclusive: Instant?) {
+        acquireRefreshLock(conn)
         upsertMaterializationState(conn, startInclusive, endExclusive)
+    }
+
+    fun refreshCoverage(conn: Connection, startInclusive: Instant?, endExclusive: Instant?) {
+        acquireRefreshLock(conn)
         upsertCoverageState(conn, startInclusive, endExclusive)
     }
 

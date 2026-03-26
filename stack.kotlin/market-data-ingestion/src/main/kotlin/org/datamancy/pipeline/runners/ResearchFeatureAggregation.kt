@@ -820,7 +820,7 @@ internal class ResearchFeatureAggregator(
                     FinalizationResult(rowCount = 0, affectedWindow = null)
                 }
                 val refreshWindow = mergeAggregationWindows(window, finalizationResult.affectedWindow)
-                featureStateStore.refresh(conn, refreshWindow.startInclusive, refreshWindow.endExclusive)
+                featureStateStore.refreshMaterialization(conn, refreshWindow.startInclusive, refreshWindow.endExclusive)
                 conn.commit()
                 totalRows += rows
                 totalFinalizedRows += finalizationResult.rowCount
