@@ -250,6 +250,16 @@ internal fun planFrontierRecoveryWindows(
     ).take(maxWindowsPerCycle)
 }
 
+internal fun frontierRecoveryBlocksBackgroundPhases(
+    windows: List<AggregationWindow>
+): Boolean = windows.size > 1
+
+internal data class FrontierRecoveryOutcome(
+    val attempted: Boolean,
+    val blockingDebt: Boolean,
+    val completed: Boolean
+)
+
 internal class ResearchFeatureAggregator(
     private val dataSource: DataSource,
     private val exchangeId: String,
@@ -336,26 +346,26 @@ internal class ResearchFeatureAggregator(
     }
 
     private suspend fun runMaintenanceCycle() {
-        val refreshWindowMinutes = if (bootstrapCompleted) {
-            refreshOverlapMinutes
-        } else {
-            startupRefreshWindowMinutes(refreshOverlapMinutes)
-        }
-        refreshRecentWindow(
-            windowMinutes = refreshWindowMinutes,
-            phase = if (bootstrapCompleted) "refresh" else "startup_refresh"
-        )
-
         if (!bootstrapCompleted) {
+            refreshRecentWindow(
+                windowMinutes = startupRefreshWindowMinutes(refreshOverlapMinutes),
+                phase = "startup_refresh"
+            )
             bootstrapCompleted = bootstrap()
             if (!bootstrapCompleted) {
                 return
             }
         }
 
-        if (recoverFinalizedFrontierIfStale()) {
+        val frontierRecovery = recoverFinalizedFrontierIfStale()
+        if (frontierRecovery.blockingDebt) {
             return
         }
+
+        refreshRecentWindow(
+            windowMinutes = refreshOverlapMinutes,
+            phase = "refresh"
+        )
 
         val repairedRecentGaps = repairRecentGapWindows()
         if (!repairedRecentGaps) {
@@ -441,11 +451,15 @@ internal class ResearchFeatureAggregator(
         }
     }
 
-    private suspend fun recoverFinalizedFrontierIfStale(): Boolean = withContext(Dispatchers.IO) {
+    private suspend fun recoverFinalizedFrontierIfStale(): FrontierRecoveryOutcome = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             conn.autoCommit = false
             if (!ensureSchema(conn)) {
-                return@withContext false
+                return@withContext FrontierRecoveryOutcome(
+                    attempted = false,
+                    blockingDebt = false,
+                    completed = false
+                )
             }
             val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
             val latestFinalizedTime = queryBoundary(
@@ -464,8 +478,13 @@ internal class ResearchFeatureAggregator(
                 finalizationLagMinutes = finalizationLagMinutes
             )
             if (windows.isEmpty()) {
-                return@withContext false
+                return@withContext FrontierRecoveryOutcome(
+                    attempted = false,
+                    blockingDebt = false,
+                    completed = true
+                )
             }
+            val blockingDebt = frontierRecoveryBlocksBackgroundPhases(windows)
 
             val result = materializeWindows(
                 conn = conn,
@@ -477,9 +496,13 @@ internal class ResearchFeatureAggregator(
             researchFeatureLogger.info {
                 "research_features_1m frontier_recovery exchange=$exchangeId latestFinalized=$latestFinalizedTime " +
                     "windows=${windows.size} totalRows=${result.totalRows} finalized=${result.totalFinalizedRows} " +
-                    "completed=${result.completed}"
+                    "completed=${result.completed} blockingDebt=$blockingDebt"
             }
-            return@withContext true
+            return@withContext FrontierRecoveryOutcome(
+                attempted = true,
+                blockingDebt = blockingDebt && !result.completed,
+                completed = result.completed
+            )
         }
     }
 

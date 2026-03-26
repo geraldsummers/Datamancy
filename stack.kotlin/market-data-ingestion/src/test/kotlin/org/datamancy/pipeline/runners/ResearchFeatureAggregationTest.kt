@@ -291,4 +291,26 @@ class ResearchFeatureAggregationTest {
 
         assertTrue(windows.isEmpty())
     }
+
+    @Test
+    fun `frontier recovery only blocks background phases when debt spans multiple windows`() {
+        val multiWindowDebt = planFrontierRecoveryWindows(
+            latestFinalizedTime = Instant.parse("2026-03-25T22:33:00Z"),
+            now = Instant.parse("2026-03-26T00:24:00Z"),
+            refreshOverlapMinutes = 5,
+            finalizationLagMinutes = 3,
+            maxWindowsPerCycle = 4
+        )
+        val smallTailDebt = planFrontierRecoveryWindows(
+            latestFinalizedTime = Instant.parse("2026-03-26T00:16:00Z"),
+            now = Instant.parse("2026-03-26T00:24:00Z"),
+            refreshOverlapMinutes = 5,
+            finalizationLagMinutes = 3,
+            maxWindowsPerCycle = 4
+        )
+
+        assertTrue(frontierRecoveryBlocksBackgroundPhases(multiWindowDebt))
+        assertFalse(frontierRecoveryBlocksBackgroundPhases(smallTailDebt))
+        assertFalse(frontierRecoveryBlocksBackgroundPhases(emptyList()))
+    }
 }
