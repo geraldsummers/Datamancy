@@ -917,6 +917,13 @@ internal class ResearchFeatureAggregator(
                       AND time < ?
                 ) ranked_open_interest
                 ORDER BY bucket_time, symbol, exchange, time DESC
+            ),
+            minute_feature_buckets AS (
+                SELECT bucket_time, symbol, exchange FROM minute_candles
+                UNION
+                SELECT bucket_time, symbol, exchange FROM minute_trades
+                UNION
+                SELECT bucket_time, symbol, exchange FROM minute_orderbooks
             )
             INSERT INTO research_features_1m (
                 time,
@@ -954,15 +961,15 @@ internal class ResearchFeatureAggregator(
                 finalized_at
             )
             SELECT
-                c.bucket_time,
-                c.symbol,
-                c.exchange,
-                c.open,
-                c.high,
-                c.low,
-                c.close,
-                c.volume,
-                c.num_trades,
+                buckets.bucket_time,
+                buckets.symbol,
+                buckets.exchange,
+                COALESCE(c.open, t.trade_vwap, NULLIF(o.mid_price, 0), o.best_bid, o.best_ask),
+                COALESCE(c.high, t.trade_vwap, NULLIF(o.mid_price, 0), o.best_bid, o.best_ask),
+                COALESCE(c.low, t.trade_vwap, NULLIF(o.mid_price, 0), o.best_bid, o.best_ask),
+                COALESCE(c.close, t.trade_vwap, NULLIF(o.mid_price, 0), o.best_bid, o.best_ask),
+                COALESCE(c.volume, t.trade_volume, 0),
+                COALESCE(c.num_trades, t.trade_count, 0),
                 COALESCE(t.trade_volume, 0),
                 COALESCE(t.buy_volume, 0),
                 COALESCE(t.sell_volume, 0),
@@ -978,32 +985,36 @@ internal class ResearchFeatureAggregator(
                 COALESCE(o.orderbook_samples, 0),
                 f.funding_rate,
                 oi.open_interest,
-                TRUE,
+                c.bucket_time IS NOT NULL,
                 t.bucket_time IS NOT NULL,
                 o.bucket_time IS NOT NULL,
                 f.bucket_time IS NOT NULL OR oi.bucket_time IS NOT NULL,
                 ?,
-                CASE WHEN c.bucket_time <= CAST(? AS TIMESTAMPTZ) THEN FALSE ELSE TRUE END,
-                CASE WHEN c.bucket_time <= CAST(? AS TIMESTAMPTZ) THEN TRUE ELSE FALSE END,
-                c.bucket_time + INTERVAL '${finalizationLagMinutes} minutes',
-                ${finalizedAtProjectionSql("c.bucket_time")}
-            FROM minute_candles c
+                CASE WHEN buckets.bucket_time <= CAST(? AS TIMESTAMPTZ) THEN FALSE ELSE TRUE END,
+                CASE WHEN buckets.bucket_time <= CAST(? AS TIMESTAMPTZ) THEN TRUE ELSE FALSE END,
+                buckets.bucket_time + INTERVAL '${finalizationLagMinutes} minutes',
+                ${finalizedAtProjectionSql("buckets.bucket_time")}
+            FROM minute_feature_buckets buckets
+            LEFT JOIN minute_candles c
+              ON c.bucket_time = buckets.bucket_time
+             AND c.symbol = buckets.symbol
+             AND c.exchange = buckets.exchange
             LEFT JOIN minute_trades t
-              ON t.bucket_time = c.bucket_time
-             AND t.symbol = c.symbol
-             AND t.exchange = c.exchange
+              ON t.bucket_time = buckets.bucket_time
+             AND t.symbol = buckets.symbol
+             AND t.exchange = buckets.exchange
             LEFT JOIN minute_orderbooks o
-              ON o.bucket_time = c.bucket_time
-             AND o.symbol = c.symbol
-             AND o.exchange = c.exchange
+              ON o.bucket_time = buckets.bucket_time
+             AND o.symbol = buckets.symbol
+             AND o.exchange = buckets.exchange
             LEFT JOIN minute_funding f
-              ON f.bucket_time = c.bucket_time
-             AND f.symbol = c.symbol
-             AND f.exchange = c.exchange
+              ON f.bucket_time = buckets.bucket_time
+             AND f.symbol = buckets.symbol
+             AND f.exchange = buckets.exchange
             LEFT JOIN minute_open_interest oi
-              ON oi.bucket_time = c.bucket_time
-             AND oi.symbol = c.symbol
-             AND oi.exchange = c.exchange
+              ON oi.bucket_time = buckets.bucket_time
+             AND oi.symbol = buckets.symbol
+             AND oi.exchange = buckets.exchange
             ON CONFLICT (time, symbol, exchange) DO UPDATE SET
                 open = EXCLUDED.open,
                 high = EXCLUDED.high,
