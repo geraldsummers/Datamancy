@@ -178,6 +178,7 @@ class MarketDataSink(
     private val assetContextBatch = mutableListOf<HyperliquidAssetContext>()
     private val batchLock = Any()
     private val candleFlushLock = Mutex()
+    private val orderbookFlushLock = Mutex()
 
     private var tradeCount = 0L
     private var candleCount = 0L
@@ -469,50 +470,52 @@ class MarketDataSink(
     /**
      * Write accumulated orderbooks to orderbook_data table
      */
-    private suspend fun flushOrderbooks() = withContext(Dispatchers.IO) {
+    private suspend fun flushOrderbooks() = orderbookFlushLock.withLock {
         val orderbooks = synchronized(batchLock) {
             if (orderbookBatch.isEmpty()) emptyList()
             else orderbookBatch.toList().also { orderbookBatch.clear() }
         }
-        if (orderbooks.isEmpty()) return@withContext
+        if (orderbooks.isEmpty()) return@withLock
 
-        try {
-            dataSource.connection.use { conn ->
-                conn.autoCommit = false
-                try {
-                    val writeMode = orderbookWriteMode ?: detectOrderbookWriteMode(conn).also {
-                        orderbookWriteMode = it
-                        logger.info { "Detected orderbook_data write mode: $it" }
-                        if (it != OrderbookWriteMode.JSON_DEPTH_CANONICAL) {
-                            logger.warn {
-                                "orderbook_data schema is $it; runtime DDL is disabled, so canonical depth " +
-                                    "columns must be added by init-market-data-schema.sql or " +
-                                    "reconcile-datamancy-schema.sh"
+        withContext(Dispatchers.IO) {
+            try {
+                dataSource.connection.use { conn ->
+                    conn.autoCommit = false
+                    try {
+                        val writeMode = orderbookWriteMode ?: detectOrderbookWriteMode(conn).also {
+                            orderbookWriteMode = it
+                            logger.info { "Detected orderbook_data write mode: $it" }
+                            if (it != OrderbookWriteMode.JSON_DEPTH_CANONICAL) {
+                                logger.warn {
+                                    "orderbook_data schema is $it; runtime DDL is disabled, so canonical depth " +
+                                        "columns must be added by init-market-data-schema.sql or " +
+                                        "reconcile-datamancy-schema.sh"
+                                }
                             }
                         }
-                    }
 
-                    when (writeMode) {
-                        OrderbookWriteMode.TOP_OF_BOOK_LEGACY -> flushOrderbooksTopOfBook(conn, orderbooks)
-                        OrderbookWriteMode.JSON_DEPTH_LEGACY -> flushOrderbooksJsonLegacy(conn, orderbooks)
-                        OrderbookWriteMode.JSON_DEPTH_CANONICAL -> flushOrderbooksJsonCanonical(conn, orderbooks)
-                    }
+                        when (writeMode) {
+                            OrderbookWriteMode.TOP_OF_BOOK_LEGACY -> flushOrderbooksTopOfBook(conn, orderbooks)
+                            OrderbookWriteMode.JSON_DEPTH_LEGACY -> flushOrderbooksJsonLegacy(conn, orderbooks)
+                            OrderbookWriteMode.JSON_DEPTH_CANONICAL -> flushOrderbooksJsonCanonical(conn, orderbooks)
+                        }
 
-                    conn.commit()
-                    rawSyncStateWriter.recordOrderbooks(orderbooks)
-                    orderbookCount += orderbooks.size
-                    logger.debug { "Flushed ${orderbooks.size} orderbooks to orderbook_data (total: $orderbookCount)" }
-                } catch (e: Exception) {
-                    conn.rollback()
-                    logger.error(e) { "Failed to flush orderbooks batch: ${e.message}" }
-                    throw e
+                        conn.commit()
+                        rawSyncStateWriter.recordOrderbooks(orderbooks)
+                        orderbookCount += orderbooks.size
+                        logger.debug { "Flushed ${orderbooks.size} orderbooks to orderbook_data (total: $orderbookCount)" }
+                    } catch (e: Exception) {
+                        conn.rollback()
+                        logger.error(e) { "Failed to flush orderbooks batch: ${e.message}" }
+                        throw e
+                    }
                 }
+            } catch (e: Exception) {
+                synchronized(batchLock) {
+                    orderbookBatch.addAll(0, orderbooks)
+                }
+                throw e
             }
-        } catch (e: Exception) {
-            synchronized(batchLock) {
-                orderbookBatch.addAll(0, orderbooks)
-            }
-            throw e
         }
     }
 

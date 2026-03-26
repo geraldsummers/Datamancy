@@ -245,7 +245,7 @@ internal fun loadMarketDataServiceConfig(): MarketDataServiceConfig {
         batchSize = System.getenv("MARKET_DATA_BATCH_SIZE")?.toIntOrNull() ?: 250,
         orderbookBatchSize = System.getenv("MARKET_DATA_ORDERBOOK_BATCH_SIZE")?.toIntOrNull() ?: 5_000,
         assetContextBatchSize = System.getenv("MARKET_DATA_ASSET_CONTEXT_BATCH_SIZE")?.toIntOrNull() ?: 5_000,
-        orderbookPersistWorkers = System.getenv("ORDERBOOK_PERSIST_WORKERS")?.toIntOrNull() ?: 4,
+        orderbookPersistWorkers = System.getenv("ORDERBOOK_PERSIST_WORKERS")?.toIntOrNull() ?: 1,
         assetContextPersistWorkers = System.getenv("ASSET_CONTEXT_PERSIST_WORKERS")?.toIntOrNull() ?: 2,
         flushIntervalSeconds = System.getenv("MARKET_DATA_FLUSH_SECONDS")?.toLongOrNull() ?: 10L,
         exchangeId = hyperliquidPolicy.exchangeId,
