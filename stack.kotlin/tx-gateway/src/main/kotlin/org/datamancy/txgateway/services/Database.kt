@@ -2,6 +2,8 @@ package org.datamancy.txgateway.services
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
+import org.datamancy.trading.storage.verifyCanonicalMarketDataDatabase
+import org.datamancy.trading.storage.verifyPrimaryDatabaseDoesNotContainCanonicalMarketData
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.javatime.timestamp
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -252,6 +254,13 @@ class DatabaseService(
                     minimumIdle = 2,
                     poolName = "tx-gateway-primary"
                 )
+                candidateDataSource.connection.use { conn ->
+                    verifyPrimaryDatabaseDoesNotContainCanonicalMarketData(
+                        connection = conn,
+                        verificationKey = "tx-gateway-primary:$host:$port/$database:$user",
+                        descriptor = "tx-gateway primary database $host:$port/$database as $user"
+                    )
+                }
                 Database.connect(candidateDataSource)
 
                 // Create tables
@@ -335,9 +344,11 @@ class DatabaseService(
                 poolName = "tx-gateway-marketdata"
             )
             quoteDs.connection.use { conn ->
-                conn.prepareStatement("SELECT 1").use { stmt ->
-                    stmt.executeQuery().use { rs -> rs.next() }
-                }
+                verifyCanonicalMarketDataDatabase(
+                    connection = conn,
+                    verificationKey = "tx-gateway-marketdata:$marketDataHost:$marketDataPort/$marketDataDatabase:$marketDataUser",
+                    descriptor = "tx-gateway market-data database $marketDataHost:$marketDataPort/$marketDataDatabase as $marketDataUser"
+                )
             }
             marketDataSource = quoteDs
             logger.info(
@@ -348,12 +359,12 @@ class DatabaseService(
                 marketDataUser
             )
         } catch (e: Exception) {
-            logger.warn(
-                "Failed to initialize market-data datasource for quote queries; falling back to primary DB: {}",
-                e.message
-            )
             marketDataSource?.close()
             marketDataSource = null
+            throw IllegalStateException(
+                "Failed to initialize canonical market-data datasource for quote queries: ${e.message}",
+                e
+            )
         }
     }
 

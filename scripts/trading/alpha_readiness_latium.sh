@@ -105,7 +105,7 @@ PY
 
 echo "[alpha-readiness] server=$server exchange=$exchange"
 echo "[compose]"
-remote_exec "docker compose ps alpha-analytics-service tx-gateway postgres"
+remote_exec "docker compose ps alpha-analytics-service tx-gateway postgres market-postgres"
 
 summary_json="$(remote_http_get "/api/v1/data-health/summary?exchange=$exchange&barMinutes=1")"
 issues_json="$(remote_http_get "/api/v1/data-health/issues?exchange=$exchange&barMinutes=1&limit=5")"

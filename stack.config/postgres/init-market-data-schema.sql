@@ -2,6 +2,20 @@
 -- Creates tables for storing market data from the data pipeline
 -- This schema is used by both the pipeline (writes) and trading SDK (reads)
 
+CREATE TABLE IF NOT EXISTS market_data_database_identity (
+    singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+    database_role TEXT NOT NULL,
+    canonical_feature_table TEXT NOT NULL,
+    initialized_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO market_data_database_identity (singleton, database_role, canonical_feature_table)
+VALUES (TRUE, 'market_data', 'research_features_1m')
+ON CONFLICT (singleton) DO UPDATE
+SET database_role = EXCLUDED.database_role,
+    canonical_feature_table = EXCLUDED.canonical_feature_table,
+    initialized_at = NOW();
+
 -- Create market_data table (unified table for candles, trades, funding, and open interest)
 CREATE TABLE IF NOT EXISTS market_data (
     time TIMESTAMPTZ NOT NULL,
@@ -776,6 +790,7 @@ GROUP BY exchange;
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pipeline_user') THEN
+        ALTER TABLE IF EXISTS market_data_database_identity OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS market_data OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS orderbook_data OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS minute_trade_stats OWNER TO pipeline_user;
@@ -812,7 +827,11 @@ END $$;
 -- Grant permissions to test runner
 DO $$
 BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'search_service_user') THEN
+        GRANT SELECT ON market_data_database_identity TO search_service_user;
+    END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'test_runner_user') THEN
+        GRANT SELECT ON market_data_database_identity TO test_runner_user;
         GRANT SELECT, INSERT ON market_data TO test_runner_user;
         GRANT SELECT, INSERT ON orderbook_data TO test_runner_user;
         GRANT SELECT, INSERT ON minute_trade_stats TO test_runner_user;
@@ -836,6 +855,7 @@ BEGIN
         GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO test_runner_user;
     END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pipeline_user') THEN
+        GRANT SELECT ON market_data_database_identity TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON market_data TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON orderbook_data TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON minute_trade_stats TO pipeline_user;

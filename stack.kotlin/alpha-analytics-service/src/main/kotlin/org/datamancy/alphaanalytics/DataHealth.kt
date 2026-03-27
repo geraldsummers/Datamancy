@@ -6,6 +6,7 @@ import org.datamancy.trading.analytics.crosssectional.resolveAuthoritativeMarket
 import org.datamancy.trading.policy.ActiveTradingPolicy
 import org.datamancy.trading.policy.RequirementLevel
 import org.datamancy.trading.policy.TradingPolicy
+import org.datamancy.trading.storage.verifyCanonicalMarketDataDatabase
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.Table
@@ -368,12 +369,24 @@ class DataHealthService(
 
     companion object {
         fun fromEnvironment(policyProvider: () -> TradingPolicy = ActiveTradingPolicy::current): DataHealthService {
+            val host = System.getenv("POSTGRES_HOST") ?: "market-postgres"
+            val port = (System.getenv("POSTGRES_PORT") ?: "5432").toInt()
+            val database = System.getenv("POSTGRES_DB") ?: "datamancy"
+            val user = System.getenv("POSTGRES_USER") ?: "pipeline_user"
+            val password = System.getenv("POSTGRES_PASSWORD") ?: ""
             val dataSource = PGSimpleDataSource().apply {
-                serverNames = arrayOf(System.getenv("POSTGRES_HOST") ?: "postgres")
-                portNumbers = intArrayOf((System.getenv("POSTGRES_PORT") ?: "5432").toInt())
-                databaseName = System.getenv("POSTGRES_DB") ?: "datamancy"
-                user = System.getenv("POSTGRES_USER") ?: "pipeline_user"
-                password = System.getenv("POSTGRES_PASSWORD") ?: ""
+                serverNames = arrayOf(host)
+                portNumbers = intArrayOf(port)
+                databaseName = database
+                this.user = user
+                this.password = password
+            }
+            dataSource.connection.use { connection ->
+                verifyCanonicalMarketDataDatabase(
+                    connection = connection,
+                    verificationKey = "alpha-analytics-service:$host:$port/$database:$user",
+                    descriptor = "alpha-analytics-service market-data connection $host:$port/$database as $user"
+                )
             }
             return DataHealthService(dataSource = dataSource, policyProvider = policyProvider)
         }

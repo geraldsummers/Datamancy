@@ -6,6 +6,20 @@
 -- 2. orderbook_data: Orderbook snapshots with pre-calculated metrics
 -- =============================================================================
 
+CREATE TABLE IF NOT EXISTS market_data_database_identity (
+    singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+    database_role TEXT NOT NULL,
+    canonical_feature_table TEXT NOT NULL,
+    initialized_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO market_data_database_identity (singleton, database_role, canonical_feature_table)
+VALUES (TRUE, 'market_data', 'research_features_1m')
+ON CONFLICT (singleton) DO UPDATE
+SET database_role = EXCLUDED.database_role,
+    canonical_feature_table = EXCLUDED.canonical_feature_table,
+    initialized_at = NOW();
+
 -- =============================================================================
 -- MARKET DATA TABLE - All trades, candles, ticks in one place
 -- =============================================================================
@@ -162,6 +176,20 @@ CREATE TABLE IF NOT EXISTS strategy_performance (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (strategy_id, date)
 );
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pipeline_user') THEN
+        ALTER TABLE IF EXISTS market_data_database_identity OWNER TO pipeline_user;
+        GRANT SELECT ON market_data_database_identity TO pipeline_user;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'search_service_user') THEN
+        GRANT SELECT ON market_data_database_identity TO search_service_user;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'test_runner_user') THEN
+        GRANT SELECT ON market_data_database_identity TO test_runner_user;
+    END IF;
+END $$;
 
 -- =============================================================================
 -- HELPFUL COMMENTS

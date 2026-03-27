@@ -19,6 +19,7 @@ import org.datamancy.trading.policy.TradingPolicy
 import org.datamancy.trading.policy.UniversePolicy
 import org.datamancy.trading.policy.UniverseSelectionMode
 import org.datamancy.trading.policy.VenuePolicy
+import org.datamancy.trading.storage.verifyCanonicalMarketDataDatabase
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
@@ -848,7 +849,7 @@ private val postgresDriverLoaded: Boolean = run {
     Class.forName("org.postgresql.Driver")
     true
 }
-val pgHost = env("POSTGRES_HOST", "postgres")
+val pgHost = env("POSTGRES_HOST", "market-postgres")
 val pgPort = env("POSTGRES_PORT", "5432")
 val pgDb = env("POSTGRES_DB", "datamancy")
 val pgUser = env("POSTGRES_USER", "pipeline_user")
@@ -857,6 +858,13 @@ val jdbcUrl = "jdbc:postgresql://$pgHost:$pgPort/$pgDb"
 
 fun pgConnection(): Connection =
     DriverManager.getConnection(jdbcUrl, pgUser, pgPassword)
+        .also { connection ->
+            verifyCanonicalMarketDataDatabase(
+                connection = connection,
+                verificationKey = "trading-sdk:$jdbcUrl:$pgUser",
+                descriptor = "trading-sdk market-data connection $jdbcUrl as $pgUser"
+            )
+        }
 
 inline fun <T> timedMillis(block: () -> T): Pair<T, Long> {
     val started = System.nanoTime()
