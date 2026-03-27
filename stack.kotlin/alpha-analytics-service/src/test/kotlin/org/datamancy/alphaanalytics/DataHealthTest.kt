@@ -53,6 +53,29 @@ class DataHealthTest {
         assertTrue(issue.reasons.any { it.contains("candle_1m lag 360s exceeds 90s") })
     }
 
+    @Test
+    fun `active symbol with stale execution context becomes critical and blocks readiness`() {
+        val issue = evaluateDataHealthRow(
+            row = baseRow(
+                symbol = "STALLED",
+                candleLatestRawTime = Instant.parse("2026-03-27T05:00:00Z"),
+                tradeLatestRawTime = Instant.parse("2026-03-27T04:40:00Z"),
+                orderbookLatestRawTime = Instant.parse("2026-03-27T04:40:00Z"),
+                candleRawLagSeconds = 30,
+                tradeRawLagSeconds = 1_260,
+                orderbookRawLagSeconds = 1_260,
+                recentTradeObservedShare24h = 0.60
+            ),
+            thresholds = thresholds(minTradeObservedRatioForEligibility = 0.10)
+        )
+
+        assertEquals(DataHealthStatus.CRITICAL, issue.status)
+        assertFalse(issue.readinessEligible)
+        assertTrue("trade" in issue.staleChannels)
+        assertTrue("orderbook_l2" in issue.staleChannels)
+        assertTrue(issue.reasons.any { it.contains("execution context is not currently live") })
+    }
+
     private fun thresholds(minTradeObservedRatioForEligibility: Double) = DataHealthThresholds(
         exchange = "hyperliquid_mainnet",
         barMinutes = 1,

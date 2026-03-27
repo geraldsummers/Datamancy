@@ -619,8 +619,10 @@ class ApplicationTest {
                             executionObservedRatio = 0.3750,
                             latestFeatureTime = Instant.parse("2026-03-25T05:00:00Z"),
                             finalizedThrough = Instant.parse("2026-03-25T04:58:00Z"),
+                            latestExecutionObservedTime = Instant.parse("2026-03-25T04:57:00Z"),
                             latestFeatureLagSeconds = 60,
-                            finalizedLagMinutes = 3
+                            finalizedLagMinutes = 3,
+                            latestExecutionObservedLagSeconds = 120
                         )
                     )
                 )

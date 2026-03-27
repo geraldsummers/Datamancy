@@ -123,6 +123,50 @@ class CrossSectionalResearchTest {
         assertEquals(0.5, coverage.executionObservedRatio)
         assertEquals(Instant.parse("2026-03-27T05:00:00Z"), coverage.latestFeatureTime)
         assertEquals(Instant.parse("2026-03-27T04:30:00Z"), coverage.finalizedThrough)
+        assertEquals(Instant.parse("2026-03-27T04:30:00Z"), coverage.latestExecutionObservedTime)
+        assertEquals(3_600L, coverage.latestExecutionObservedLagSeconds)
+    }
+
+    @Test
+    fun `buildResearchCoverageVerdict rejects stale execution frontier even when execution ratio passes`() {
+        val coveragePolicy = CoverageContractPolicy(
+            minCoverageRatio = 0.98,
+            minFinalizedRatio = 0.95,
+            minExecutionObservedRatio = 0.55,
+            minUniverseSymbols = 1,
+            maxFeatureLagSeconds = 180L,
+            maxFinalizedLagMinutes = 5L,
+            requireExecutionObserved = true
+        )
+        val snapshot = ResearchCoverageSnapshot(
+            symbol = "BTC",
+            expectedBars = 96,
+            observedBars = 96,
+            finalizedBars = 96,
+            executionObservedBars = 96,
+            coverageRatio = 1.0,
+            finalizedRatio = 1.0,
+            executionObservedRatio = 1.0,
+            latestFeatureTime = Instant.parse("2026-03-27T05:30:00Z"),
+            finalizedThrough = Instant.parse("2026-03-27T05:30:00Z"),
+            latestExecutionObservedTime = Instant.parse("2026-03-27T00:00:00Z"),
+            latestFeatureLagSeconds = 0L,
+            finalizedLagMinutes = 0L,
+            latestExecutionObservedLagSeconds = 19_800L
+        )
+
+        val verdict = buildResearchCoverageVerdict(
+            exchange = "hyperliquid",
+            symbols = listOf("BTC"),
+            snapshots = listOf(snapshot),
+            requiredBars = 96,
+            coveragePolicy = coveragePolicy,
+            barMinutes = 30
+        )
+
+        assertFalse(verdict.passed)
+        assertTrue(verdict.eligibleSymbols.isEmpty())
+        assertTrue(verdict.reason.orEmpty().contains("execLag<="))
     }
 
     @Test

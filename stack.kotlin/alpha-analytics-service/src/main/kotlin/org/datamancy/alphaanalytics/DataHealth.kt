@@ -207,32 +207,29 @@ class DataHealthService(
             eligibleSymbols = eligibleRows.size,
             idleLiveSymbols = evaluated.count { it.status == DataHealthStatus.IDLE_LIVE },
             inactiveSymbols = rows.size - activeRows.size,
-            healthySymbols = eligibleRows.count { it.status == DataHealthStatus.HEALTHY },
-            degradedSymbols = eligibleRows.count { it.status == DataHealthStatus.DEGRADED },
-            criticalSymbols = eligibleRows.count { it.status == DataHealthStatus.CRITICAL },
-            symbolsMissingRequiredChannels = eligibleRows.count { it.missingRequiredChannels.isNotEmpty() },
-            staleCandleSymbols = eligibleRows.count { "candle_1m" in it.staleChannels },
-            staleFeatureSymbols = eligibleRows.count {
+            healthySymbols = evaluated.count { it.status == DataHealthStatus.HEALTHY },
+            degradedSymbols = evaluated.count { it.status == DataHealthStatus.DEGRADED },
+            criticalSymbols = evaluated.count { it.status == DataHealthStatus.CRITICAL },
+            symbolsMissingRequiredChannels = evaluated.count { it.missingRequiredChannels.isNotEmpty() },
+            staleCandleSymbols = evaluated.count { "candle_1m" in it.staleChannels },
+            staleFeatureSymbols = evaluated.count {
                 (
                     it.featureLagSeconds == null || it.featureLagSeconds > thresholds.featureLagMaxSeconds
                 )
             },
-            coverageFailSymbols = eligibleRows.count {
+            coverageFailSymbols = evaluated.count {
                 it.coverageRatio < thresholds.minCoverageRatio
             },
-            finalizedFailSymbols = eligibleRows.count {
+            finalizedFailSymbols = evaluated.count {
                 it.finalizedRatio < thresholds.minFinalizedRatio
             },
-            executionFailSymbols = eligibleRows.count {
-                it.recentFeatureRows24h > 0 &&
-                    it.recentExecutionObservedShare24h < thresholds.minExecutionObservedRatio
-            },
-            avgCoverageRatioActive = eligibleRows.averageOfOrZero { it.coverageRatio },
-            avgFinalizedRatioActive = eligibleRows.averageOfOrZero { it.finalizedRatio },
-            avgRecentExecutionObservedShare24hActive = eligibleRows.averageOfOrZero { it.recentExecutionObservedShare24h },
-            maxCandleLagSecondsActive = eligibleRows.maxOfOrNull { it.candleRawLagSeconds ?: 0L } ?: 0L,
-            maxFeatureLagSecondsActive = eligibleRows.maxOfOrNull { it.featureLagSeconds ?: 0L } ?: 0L,
-            criticalSample = eligibleRows
+            executionFailSymbols = evaluated.count { it.hasExecutionHealthFailure(thresholds) },
+            avgCoverageRatioActive = evaluated.averageOfOrZero { it.coverageRatio },
+            avgFinalizedRatioActive = evaluated.averageOfOrZero { it.finalizedRatio },
+            avgRecentExecutionObservedShare24hActive = evaluated.averageOfOrZero { it.recentExecutionObservedShare24h },
+            maxCandleLagSecondsActive = evaluated.maxOfOrNull { it.candleRawLagSeconds ?: 0L } ?: 0L,
+            maxFeatureLagSecondsActive = evaluated.maxOfOrNull { it.featureLagSeconds ?: 0L } ?: 0L,
+            criticalSample = evaluated
                 .filter { it.status == DataHealthStatus.CRITICAL }
                 .sortedByDescending { it.candleRawLagSeconds ?: Long.MAX_VALUE }
                 .take(12)
@@ -401,18 +398,13 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
             row.rawLagSeconds(channel)?.let { it > thresholdForChannel(channel, thresholds) } == true
     }
 
-    if (!readinessEligible) {
+    if (!readinessEligible && row.isOrderbookLive(thresholds)) {
         val reasons = buildList {
-            when {
-                row.isOrderbookLive(thresholds) ->
-                    add(
-                        "idle but live: orderbook current, but recent trade observed share " +
-                            "${row.recentTradeObservedShare24h.formatRatio()} below " +
-                            "${thresholds.minTradeObservedRatioForEligibility.formatRatio()} eligibility threshold"
-                    )
-                else ->
-                    add("symbol not readiness-eligible: execution context is not currently live")
-            }
+            add(
+                "idle but live: orderbook current, but recent trade observed share " +
+                    "${row.recentTradeObservedShare24h.formatRatio()} below " +
+                    "${thresholds.minTradeObservedRatioForEligibility.formatRatio()} eligibility threshold"
+            )
             idleButLiveChannels.forEach { channel ->
                 add("$channel idle but live under current orderbook liveness")
             }
@@ -451,6 +443,9 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
     val criticalReasons = mutableListOf<String>()
     val degradedReasons = mutableListOf<String>()
 
+    if (!row.isOrderbookLive(thresholds)) {
+        criticalReasons += "execution context is not currently live"
+    }
     if ("candle_1m" in missingRequiredChannels) {
         criticalReasons += "missing required raw channel candle_1m"
     }
@@ -502,7 +497,7 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
         symbol = row.symbol,
         status = status,
         activeRecent = true,
-        readinessEligible = true,
+        readinessEligible = readinessEligible,
         missingRequiredChannels = missingRequiredChannels,
         idleButLiveChannels = idleButLiveChannels,
         staleChannels = staleChannels,
@@ -660,6 +655,15 @@ private fun DataHealthSymbolRow.isIdleButLiveChannel(
     if (!isOrderbookLive(thresholds)) return false
     if (channel != "trade" && channel != "candle_1m") return false
     return latestRawTime(channel) != null
+}
+
+private fun DataHealthSymbolIssue.hasExecutionHealthFailure(thresholds: DataHealthThresholds): Boolean {
+    if (recentFeatureRows24h > 0 && recentExecutionObservedShare24h < thresholds.minExecutionObservedRatio) {
+        return true
+    }
+    return missingRequiredChannels.any { it != "candle_1m" } ||
+        staleChannels.any { it != "candle_1m" } ||
+        (!readinessEligible && status != DataHealthStatus.IDLE_LIVE)
 }
 
 private fun Iterable<DataHealthSymbolIssue>.averageOfOrZero(selector: (DataHealthSymbolIssue) -> Double): Double {

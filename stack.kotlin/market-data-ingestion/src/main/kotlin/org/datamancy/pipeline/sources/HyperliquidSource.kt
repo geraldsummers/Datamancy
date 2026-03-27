@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.*
 import org.datamancy.pipeline.core.Source
+import java.time.Duration
 import java.io.IOException
 import java.time.Instant
 
@@ -58,6 +59,7 @@ class HyperliquidSource(
         try {
             client.webSocket(url) {
                 logger.info { "Connected to Hyperliquid WebSocket: $url" }
+                var lastMarketDataAt = Instant.now()
 
                 // Subscribe to configured data streams
                 symbols.forEach { symbol ->
@@ -83,13 +85,19 @@ class HyperliquidSource(
                     when (frame) {
                         is Frame.Text -> {
                             val text = frame.readText()
-                            processMessage(text)?.let { emit(it) }
+                            val marketData = processMessage(text)
+                            if (marketData != null) {
+                                lastMarketDataAt = Instant.now()
+                                emit(marketData)
+                            } else {
+                                ensureRecentMarketData(lastMarketDataAt)
+                            }
                         }
                         is Frame.Close -> {
                             logger.info { "WebSocket closed: ${frame.readReason()}" }
                             break
                         }
-                        else -> { /* Ignore other frame types */ }
+                        else -> ensureRecentMarketData(lastMarketDataAt)
                     }
                 }
             }
@@ -99,6 +107,19 @@ class HyperliquidSource(
         } finally {
             logger.info { "Hyperliquid WebSocket session ended" }
         }
+    }
+
+    private suspend fun DefaultClientWebSocketSession.ensureRecentMarketData(lastMarketDataAt: Instant) {
+        val idleMs = Duration.between(lastMarketDataAt, Instant.now()).toMillis().coerceAtLeast(0L)
+        if (idleMs <= receiveIdleTimeoutMs) {
+            return
+        }
+        val message = "No market data messages received for ${idleMs}ms"
+        logger.warn { "$message; forcing reconnect" }
+        runCatching {
+            close(CloseReason(CloseReason.Codes.GOING_AWAY, "market data idle timeout"))
+        }
+        throw IOException(message)
     }
 
     private suspend fun DefaultClientWebSocketSession.awaitNextFrame(): Frame {

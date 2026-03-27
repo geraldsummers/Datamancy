@@ -119,6 +119,11 @@ internal fun effectiveCoverageMaxFeatureLagSeconds(
         coveragePolicy.maxFeatureLagSeconds + (max(barMinutes, 1).toLong() - 1L).coerceAtLeast(0L) * 60L
     )
 
+internal fun effectiveCoverageMaxExecutionLagSeconds(
+    coveragePolicy: CoverageContractPolicy,
+    barMinutes: Int
+): Long = effectiveCoverageMaxFeatureLagSeconds(coveragePolicy, barMinutes)
+
 internal fun effectiveCoverageMaxFinalizedLagMinutes(
     coveragePolicy: CoverageContractPolicy,
     barMinutes: Int
@@ -4806,8 +4811,10 @@ data class ResearchCoverageSnapshot(
     val executionObservedRatio: Double,
     val latestFeatureTime: Instant?,
     val finalizedThrough: Instant?,
+    val latestExecutionObservedTime: Instant?,
     val latestFeatureLagSeconds: Long,
-    val finalizedLagMinutes: Long?
+    val finalizedLagMinutes: Long?,
+    val latestExecutionObservedLagSeconds: Long?
 )
 
 data class ResearchCoverageVerdict(
@@ -4904,6 +4911,7 @@ internal fun computeResearchCoverageSnapshotsFromUniverseSnapshot(
             } else {
                 val latestFeatureTime = bars.maxOfOrNull { it.time }
                 val finalizedThrough = bars.filter { it.finalized }.maxOfOrNull { it.time }
+                val latestExecutionObservedTime = bars.filter { it.executionObserved }.maxOfOrNull { it.time }
 
                 ResearchCoverageSnapshot(
                     symbol = symbol,
@@ -4916,6 +4924,7 @@ internal fun computeResearchCoverageSnapshotsFromUniverseSnapshot(
                     executionObservedRatio = clamp(bars.count { it.executionObserved }.toDouble() / max(expectedBars, 1).toDouble(), 0.0, 1.0),
                     latestFeatureTime = latestFeatureTime,
                     finalizedThrough = finalizedThrough,
+                    latestExecutionObservedTime = latestExecutionObservedTime,
                     latestFeatureLagSeconds = barCloseLagSeconds(
                         bucketStartTime = latestFeatureTime,
                         referenceTime = referenceTime,
@@ -4923,6 +4932,11 @@ internal fun computeResearchCoverageSnapshotsFromUniverseSnapshot(
                     ),
                     finalizedLagMinutes = barCloseLagMinutes(
                         bucketStartTime = finalizedThrough,
+                        referenceTime = referenceTime,
+                        bucketSeconds = window.bucketSeconds.toLong()
+                    ),
+                    latestExecutionObservedLagSeconds = barCloseLagSeconds(
+                        bucketStartTime = latestExecutionObservedTime,
                         referenceTime = referenceTime,
                         bucketSeconds = window.bucketSeconds.toLong()
                     )
@@ -5018,6 +5032,7 @@ private fun computeResearchCoverageSnapshots(
             COUNT(*)::INTEGER AS observed_bars,
             COUNT(*) FILTER (WHERE b.finalized)::INTEGER AS finalized_bars,
             COUNT(*) FILTER (WHERE b.execution_observed)::INTEGER AS execution_observed_bars,
+            MAX(b.bucket_time) FILTER (WHERE b.execution_observed) AS latest_execution_observed_time,
             f.latest_feature_time,
             f.finalized_through
         FROM bucket_rollup b
@@ -5037,6 +5052,7 @@ private fun computeResearchCoverageSnapshots(
                         val observedBars = rs.getInt("observed_bars")
                         val finalizedBars = rs.getInt("finalized_bars")
                         val executionObservedBars = rs.getInt("execution_observed_bars")
+                        val latestExecutionObservedTime = rs.getTimestamp("latest_execution_observed_time")?.toInstant()
                         val latestFeatureTime = rs.getTimestamp("latest_feature_time")?.toInstant()
                         val finalizedThrough = rs.getTimestamp("finalized_through")?.toInstant()
                         val latestFeatureLagSeconds = barCloseLagSeconds(
@@ -5045,6 +5061,10 @@ private fun computeResearchCoverageSnapshots(
                         )
                         val finalizedLagMinutes = barCloseLagMinutes(
                             bucketStartTime = finalizedThrough,
+                            referenceTime = referenceTime
+                        )
+                        val latestExecutionObservedLagSeconds = barCloseLagSeconds(
+                            bucketStartTime = latestExecutionObservedTime,
                             referenceTime = referenceTime
                         )
 
@@ -5060,8 +5080,10 @@ private fun computeResearchCoverageSnapshots(
                                 executionObservedRatio = clamp(executionObservedBars.toDouble() / max(expectedBars, 1).toDouble(), 0.0, 1.0),
                                 latestFeatureTime = latestFeatureTime,
                                 finalizedThrough = finalizedThrough,
+                                latestExecutionObservedTime = latestExecutionObservedTime,
                                 latestFeatureLagSeconds = latestFeatureLagSeconds,
-                                finalizedLagMinutes = finalizedLagMinutes
+                                finalizedLagMinutes = finalizedLagMinutes,
+                                latestExecutionObservedLagSeconds = latestExecutionObservedLagSeconds
                             )
                         )
                     }
@@ -5071,7 +5093,7 @@ private fun computeResearchCoverageSnapshots(
     }
 }
 
-private fun buildResearchCoverageVerdict(
+internal fun buildResearchCoverageVerdict(
     exchange: String,
     symbols: List<String>,
     snapshots: List<ResearchCoverageSnapshot>,
@@ -5080,6 +5102,10 @@ private fun buildResearchCoverageVerdict(
     barMinutes: Int
 ): ResearchCoverageVerdict {
     val maxFeatureLagSeconds = effectiveCoverageMaxFeatureLagSeconds(
+        coveragePolicy = coveragePolicy,
+        barMinutes = barMinutes
+    )
+    val maxExecutionLagSeconds = effectiveCoverageMaxExecutionLagSeconds(
         coveragePolicy = coveragePolicy,
         barMinutes = barMinutes
     )
@@ -5096,7 +5122,10 @@ private fun buildResearchCoverageVerdict(
                 (snapshot.finalizedLagMinutes ?: Long.MAX_VALUE) <= maxFinalizedLagMinutes &&
                 (
                     !coveragePolicy.requireExecutionObserved ||
-                        snapshot.executionObservedRatio >= coveragePolicy.minExecutionObservedRatio
+                        (
+                            snapshot.executionObservedRatio >= coveragePolicy.minExecutionObservedRatio &&
+                                (snapshot.latestExecutionObservedLagSeconds ?: Long.MAX_VALUE) <= maxExecutionLagSeconds
+                            )
                     )
         }
         .map { it.symbol }
@@ -5113,6 +5142,7 @@ private fun buildResearchCoverageVerdict(
                 "${snapshot.symbol}:cov=${snapshot.coverageRatio.round(3)} " +
                     "fin=${snapshot.finalizedRatio.round(3)} " +
                     "exec=${snapshot.executionObservedRatio.round(3)} " +
+                    "execLag=${snapshot.latestExecutionObservedLagSeconds ?: Long.MAX_VALUE}s " +
                     "featLag=${snapshot.latestFeatureLagSeconds}s " +
                     "finLag=${snapshot.finalizedLagMinutes ?: Long.MAX_VALUE}m"
             }
@@ -5120,7 +5150,7 @@ private fun buildResearchCoverageVerdict(
                 "requiredMinSymbols=${coveragePolicy.minUniverseSymbols} requiredBars=$requiredBars " +
                 "thresholds=cov>=${coveragePolicy.minCoverageRatio.round(3)} fin>=${coveragePolicy.minFinalizedRatio.round(3)} " +
                 "exec>=${coveragePolicy.minExecutionObservedRatio.round(3)} " +
-                "featLag<=${maxFeatureLagSeconds}s finLag<=${maxFinalizedLagMinutes}m sample=[$sample]"
+                "execLag<=${maxExecutionLagSeconds}s featLag<=${maxFeatureLagSeconds}s finLag<=${maxFinalizedLagMinutes}m sample=[$sample]"
         }
         else -> null
     }
