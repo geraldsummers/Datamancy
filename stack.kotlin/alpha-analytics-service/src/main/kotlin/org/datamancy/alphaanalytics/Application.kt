@@ -83,6 +83,20 @@ fun Application.configureAlphaAnalyticsApp(
                 includeInactive = includeInactive,
                 includeHealthy = includeHealthy
             )
+        },
+    loadVenueSanity: suspend (String?, String, Int) -> DataHealthVenueSanity =
+        { exchange, symbol, barMinutes ->
+            val service = DataHealthService.fromEnvironment(tradingPolicy)
+            val issue = service.loadIssue(
+                exchange = exchange,
+                symbol = symbol,
+                barMinutes = barMinutes
+            )
+            HyperliquidVenueSanityService(policyProvider = tradingPolicy).check(
+                exchange = issue.exchange,
+                symbol = issue.symbol,
+                localIssue = issue
+            )
         }
 ) {
     routing {
@@ -105,6 +119,7 @@ fun Application.configureAlphaAnalyticsApp(
                             "/api/v1/policy/trading",
                             "/api/v1/data-health/summary",
                             "/api/v1/data-health/issues",
+                            "/api/v1/data-health/venue-sanity",
                             "/api/v1/alpha/cross-sectional/default-config",
                             "/api/v1/alpha/cross-sectional/readiness",
                             "/api/v1/alpha/cross-sectional/cache/status",
@@ -174,6 +189,42 @@ fun Application.configureAlphaAnalyticsApp(
                     }
                     call.respondText(
                         responseGson.toJson(ErrorResponse("data health issues failed: ${ex.message ?: ex::class.simpleName}")),
+                        ContentType.Application.Json,
+                        status
+                    )
+                    return@get
+                }
+
+            call.respondText(
+                responseGson.toJson(result),
+                ContentType.Application.Json,
+                HttpStatusCode.OK
+            )
+        }
+
+        get("/api/v1/data-health/venue-sanity") {
+            val exchange = call.request.queryParameters["exchange"]?.trim()?.ifEmpty { null }
+            val symbol = call.request.queryParameters["symbol"]?.trim().orEmpty()
+            val barMinutes = call.request.queryParameters["barMinutes"]?.toIntOrNull() ?: 1
+            if (symbol.isBlank()) {
+                call.respondText(
+                    responseGson.toJson(ErrorResponse("venue sanity requires symbol query parameter")),
+                    ContentType.Application.Json,
+                    HttpStatusCode.BadRequest
+                )
+                return@get
+            }
+
+            val result = runCatching { loadVenueSanity(exchange, symbol, barMinutes) }
+                .onFailure { logger.warn("Data health venue sanity load failed", it) }
+                .getOrElse { ex ->
+                    val status = if (ex is IllegalArgumentException) {
+                        HttpStatusCode.BadRequest
+                    } else {
+                        HttpStatusCode.InternalServerError
+                    }
+                    call.respondText(
+                        responseGson.toJson(ErrorResponse("data health venue sanity failed: ${ex.message ?: ex::class.simpleName}")),
                         ContentType.Application.Json,
                         status
                     )

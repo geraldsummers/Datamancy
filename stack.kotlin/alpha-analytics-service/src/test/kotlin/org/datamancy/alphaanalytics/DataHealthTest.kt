@@ -24,6 +24,7 @@ class DataHealthTest {
         )
 
         assertEquals(DataHealthStatus.IDLE_LIVE, issue.status)
+        assertEquals(DataHealthLivenessClass.LIVE_SPARSE, issue.livenessClass)
         assertFalse(issue.readinessEligible)
         assertEquals(listOf("candle_1m", "trade"), issue.idleButLiveChannels.sorted())
         assertTrue(issue.staleChannels.isEmpty())
@@ -47,6 +48,7 @@ class DataHealthTest {
         )
 
         assertEquals(DataHealthStatus.CRITICAL, issue.status)
+        assertEquals(DataHealthLivenessClass.HEALTHY, issue.livenessClass)
         assertTrue(issue.readinessEligible)
         assertTrue("candle_1m" in issue.staleChannels)
         assertTrue(issue.idleButLiveChannels.isEmpty())
@@ -70,6 +72,7 @@ class DataHealthTest {
         )
 
         assertEquals(DataHealthStatus.CRITICAL, issue.status)
+        assertEquals(DataHealthLivenessClass.LOCAL_STALE, issue.livenessClass)
         assertFalse(issue.readinessEligible)
         assertTrue("trade" in issue.staleChannels)
         assertTrue("orderbook_l2" in issue.staleChannels)

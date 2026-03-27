@@ -76,10 +76,18 @@ enum class DataHealthStatus {
     INACTIVE
 }
 
+enum class DataHealthLivenessClass {
+    HEALTHY,
+    LIVE_SPARSE,
+    LOCAL_STALE,
+    INACTIVE
+}
+
 data class DataHealthSymbolIssue(
     val exchange: String,
     val symbol: String,
     val status: DataHealthStatus,
+    val livenessClass: DataHealthLivenessClass,
     val activeRecent: Boolean,
     val readinessEligible: Boolean,
     val missingRequiredChannels: List<String>,
@@ -115,6 +123,7 @@ data class DataHealthSummary(
     val activeSymbols: Int,
     val eligibleSymbols: Int,
     val idleLiveSymbols: Int,
+    val liveSparseSymbols: Int,
     val inactiveSymbols: Int,
     val healthySymbols: Int,
     val degradedSymbols: Int,
@@ -206,6 +215,7 @@ class DataHealthService(
             activeSymbols = activeRows.size,
             eligibleSymbols = eligibleRows.size,
             idleLiveSymbols = evaluated.count { it.status == DataHealthStatus.IDLE_LIVE },
+            liveSparseSymbols = evaluated.count { it.livenessClass == DataHealthLivenessClass.LIVE_SPARSE },
             inactiveSymbols = rows.size - activeRows.size,
             healthySymbols = evaluated.count { it.status == DataHealthStatus.HEALTHY },
             degradedSymbols = evaluated.count { it.status == DataHealthStatus.DEGRADED },
@@ -270,6 +280,23 @@ class DataHealthService(
             totalIssues = issues.size,
             issues = issues.take(limit.coerceIn(1, 500))
         )
+    }
+
+    suspend fun loadIssue(
+        symbol: String,
+        exchange: String? = null,
+        barMinutes: Int = 1
+    ): DataHealthSymbolIssue = withContext(Dispatchers.IO) {
+        require(barMinutes == 1) { "data health currently supports only barMinutes=1" }
+        val policy = policyProvider()
+        val resolvedExchange = resolveExchange(exchange, policy)
+        val thresholds = thresholdsFor(policy, resolvedExchange, barMinutes)
+        val authoritative = resolveAuthoritativeSymbols(resolvedExchange, policy)
+        val canonicalSymbol = symbol.trim().uppercase()
+        val row = loadRows(exchange = resolvedExchange, authoritativeSymbols = authoritative)
+            .firstOrNull { it.symbol.trim().uppercase() == canonicalSymbol }
+            ?: emptyDataHealthSymbolRow(exchange = resolvedExchange, symbol = canonicalSymbol)
+        evaluate(row, thresholds)
     }
 
     private fun resolveExchange(exchange: String?, policy: TradingPolicy): String {
@@ -359,6 +386,7 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
             exchange = row.exchange,
             symbol = row.symbol,
             status = DataHealthStatus.INACTIVE,
+            livenessClass = DataHealthLivenessClass.INACTIVE,
             activeRecent = false,
             readinessEligible = false,
             missingRequiredChannels = emptyList(),
@@ -387,6 +415,7 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
     }
 
     val readinessEligible = row.isReadinessEligible(thresholds)
+    val livenessClass = row.livenessClass(thresholds)
     val missingRequiredChannels = thresholds.requiredRawChannels.filter { channel ->
         row.latestRawTime(channel) == null
     }
@@ -413,6 +442,7 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
             exchange = row.exchange,
             symbol = row.symbol,
             status = if (row.isOrderbookLive(thresholds)) DataHealthStatus.IDLE_LIVE else DataHealthStatus.INACTIVE,
+            livenessClass = livenessClass,
             activeRecent = true,
             readinessEligible = false,
             missingRequiredChannels = missingRequiredChannels,
@@ -449,7 +479,7 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
     if ("candle_1m" in missingRequiredChannels) {
         criticalReasons += "missing required raw channel candle_1m"
     }
-    if ("candle_1m" in staleChannels) {
+    if ("candle_1m" in staleChannels && livenessClass != DataHealthLivenessClass.LIVE_SPARSE) {
         criticalReasons += "candle_1m lag ${row.candleRawLagSeconds}s exceeds ${thresholds.candleRawLagMaxSeconds}s"
     }
     if (row.latestFeatureTime == null) {
@@ -462,12 +492,22 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
         criticalReasons += "no recent feature rows in ${thresholds.recentObservationWindowHours}h"
     }
 
+    val degradeEligibleChannels = if (livenessClass == DataHealthLivenessClass.LIVE_SPARSE) {
+        setOf("funding", "orderbook_l2", "open_interest")
+    } else {
+        thresholds.requiredRawChannels.toSet() - "candle_1m"
+    }
+
     missingRequiredChannels
-        .filterNot { it == "candle_1m" }
+        .filter { it in degradeEligibleChannels }
         .forEach { degradedReasons += "missing required raw channel $it" }
     staleChannels
-        .filterNot { it == "candle_1m" }
+        .filter { it in degradeEligibleChannels }
         .forEach { degradedReasons += "$it lag ${row.rawLagSeconds(it)}s exceeds ${thresholdForChannel(it, thresholds)}s" }
+
+    if (livenessClass == DataHealthLivenessClass.LIVE_SPARSE) {
+        degradedReasons += "live sparse market: orderbook current while trade/candle channels are quiet"
+    }
 
     if (row.coverageRatio < thresholds.minCoverageRatio) {
         degradedReasons += "coverage ${row.coverageRatio.formatRatio()} below ${thresholds.minCoverageRatio.formatRatio()}"
@@ -496,6 +536,7 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
         exchange = row.exchange,
         symbol = row.symbol,
         status = status,
+        livenessClass = livenessClass,
         activeRecent = true,
         readinessEligible = readinessEligible,
         missingRequiredChannels = missingRequiredChannels,
@@ -657,7 +698,31 @@ private fun DataHealthSymbolRow.isIdleButLiveChannel(
     return latestRawTime(channel) != null
 }
 
+private fun DataHealthSymbolRow.livenessClass(thresholds: DataHealthThresholds): DataHealthLivenessClass {
+    if (!activeRecent) return DataHealthLivenessClass.INACTIVE
+    if (!isOrderbookLive(thresholds)) return DataHealthLivenessClass.LOCAL_STALE
+    val eventDrivenChannels = setOf("trade", "candle_1m")
+    val nonEventChannels = setOf("orderbook_l2", "funding", "open_interest")
+    val staleNonEventChannel = nonEventChannels.any { channel ->
+        rawLagSeconds(channel)?.let { it > thresholdForChannel(channel, thresholds) } == true
+    }
+    if (staleNonEventChannel) {
+        return DataHealthLivenessClass.LOCAL_STALE
+    }
+    val staleEventDrivenChannels = eventDrivenChannels.filter { channel ->
+        rawLagSeconds(channel)?.let { it > thresholdForChannel(channel, thresholds) } == true
+    }
+    return if (staleEventDrivenChannels.size == eventDrivenChannels.size || !isReadinessEligible(thresholds)) {
+        DataHealthLivenessClass.LIVE_SPARSE
+    } else {
+        DataHealthLivenessClass.HEALTHY
+    }
+}
+
 private fun DataHealthSymbolIssue.hasExecutionHealthFailure(thresholds: DataHealthThresholds): Boolean {
+    if (livenessClass == DataHealthLivenessClass.LIVE_SPARSE) {
+        return false
+    }
     if (recentFeatureRows24h > 0 && recentExecutionObservedShare24h < thresholds.minExecutionObservedRatio) {
         return true
     }

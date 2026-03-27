@@ -133,6 +133,46 @@ class ApplicationTest {
     }
 
     @Test
+    fun `data health venue sanity endpoint exposes live sparse classification`() = testApplication {
+        application {
+            configureAlphaAnalyticsApp(
+                runAnalysis = { fakeResult(it) },
+                runSearch = { fakeSearchResult(it) },
+                loadVenueSanity = { exchange, symbol, barMinutes ->
+                    assertEquals("hyperliquid_mainnet", exchange)
+                    assertEquals("MAVIA", symbol)
+                    assertEquals(1, barMinutes)
+                    DataHealthVenueSanity(
+                        exchange = "hyperliquid_mainnet",
+                        symbol = "MAVIA",
+                        checkedAt = Instant.parse("2026-03-28T00:00:00Z"),
+                        localStatus = DataHealthStatus.CRITICAL,
+                        localLivenessClass = DataHealthLivenessClass.LIVE_SPARSE,
+                        localReadinessEligible = true,
+                        localCandleLagSeconds = 263,
+                        localTradeLagSeconds = 304,
+                        localOrderbookLagSeconds = 14,
+                        venueMidPresent = true,
+                        venueBookPresent = true,
+                        venueBookTime = Instant.parse("2026-03-28T00:00:00Z"),
+                        venueBookAgeSeconds = 0,
+                        classification = VenueSanityClassification.LIVE_SPARSE,
+                        reasons = listOf("venue l2Book returned live levels"),
+                        probeError = null
+                    )
+                }
+            )
+        }
+
+        val response = client.get("/api/v1/data-health/venue-sanity?exchange=hyperliquid_mainnet&barMinutes=1&symbol=MAVIA")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"classification\": \"LIVE_SPARSE\""), body)
+        assertTrue(body.contains("\"venueBookPresent\": true"), body)
+        assertTrue(body.contains("\"localLivenessClass\": \"LIVE_SPARSE\""), body)
+    }
+
+    @Test
     fun `readiness endpoint exposes engine backed research verdict`() = testApplication {
         application {
             configureAlphaAnalyticsApp(
@@ -443,6 +483,7 @@ class ApplicationTest {
             activeSymbols = 182,
             eligibleSymbols = 176,
             idleLiveSymbols = 6,
+            liveSparseSymbols = 14,
             inactiveSymbols = 3,
             healthySymbols = 119,
             degradedSymbols = 56,
@@ -474,6 +515,7 @@ class ApplicationTest {
                     exchange = "hyperliquid_mainnet",
                     symbol = "KAS",
                     status = DataHealthStatus.CRITICAL,
+                    livenessClass = DataHealthLivenessClass.LOCAL_STALE,
                     activeRecent = true,
                     readinessEligible = true,
                     missingRequiredChannels = listOf("candle_1m"),
@@ -506,6 +548,7 @@ class ApplicationTest {
                     exchange = "hyperliquid_mainnet",
                     symbol = "NOT",
                     status = DataHealthStatus.DEGRADED,
+                    livenessClass = DataHealthLivenessClass.LIVE_SPARSE,
                     activeRecent = true,
                     readinessEligible = true,
                     missingRequiredChannels = emptyList(),
