@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicLong
 private val minuteStagingLogger = KotlinLogging.logger {}
 private const val DEFAULT_MINUTE_STAGING_BOOTSTRAP_HOURS = 72L
 private const val DEFAULT_MINUTE_STAGING_BOOTSTRAP_CHUNK_HOURS = 2L
+private const val DEFAULT_MINUTE_STAGING_BOOTSTRAP_CHUNK_MINUTES = DEFAULT_MINUTE_STAGING_BOOTSTRAP_CHUNK_HOURS * 60L
 private const val DEFAULT_MINUTE_STAGING_BOOTSTRAP_LIVE_OVERLAP_MINUTES = 5L
 private const val DEFAULT_MINUTE_STAGING_TRADE_WORKERS = 4
 private const val DEFAULT_MINUTE_STAGING_ORDERBOOK_WORKERS = 2
@@ -31,7 +32,7 @@ private const val DEFAULT_MINUTE_STAGING_STATS_INTERVAL_MS = 60_000L
 
 internal data class MinuteStagingConfig(
     val bootstrapHours: Long,
-    val bootstrapChunkHours: Long,
+    val bootstrapChunkMinutes: Long,
     val bootstrapLiveOverlapMinutes: Long,
     val tradeWorkers: Int,
     val orderbookWorkers: Int,
@@ -77,8 +78,12 @@ internal data class MinuteAssetContextStageUpdate(
 internal fun loadMinuteStagingConfig(): MinuteStagingConfig = MinuteStagingConfig(
     bootstrapHours = System.getenv("MINUTE_STAGING_BOOTSTRAP_HOURS")?.toLongOrNull()
         ?: DEFAULT_MINUTE_STAGING_BOOTSTRAP_HOURS,
-    bootstrapChunkHours = System.getenv("MINUTE_STAGING_BOOTSTRAP_CHUNK_HOURS")?.toLongOrNull()
-        ?: DEFAULT_MINUTE_STAGING_BOOTSTRAP_CHUNK_HOURS,
+    bootstrapChunkMinutes = System.getenv("MINUTE_STAGING_BOOTSTRAP_CHUNK_MINUTES")?.toLongOrNull()
+        ?: (
+            System.getenv("MINUTE_STAGING_BOOTSTRAP_CHUNK_HOURS")?.toLongOrNull()
+                ?.times(60L)
+                ?: DEFAULT_MINUTE_STAGING_BOOTSTRAP_CHUNK_MINUTES
+            ),
     bootstrapLiveOverlapMinutes = System.getenv("MINUTE_STAGING_BOOTSTRAP_LIVE_OVERLAP_MINUTES")?.toLongOrNull()
         ?: DEFAULT_MINUTE_STAGING_BOOTSTRAP_LIVE_OVERLAP_MINUTES,
     tradeWorkers = System.getenv("MINUTE_STAGING_TRADE_WORKERS")?.toIntOrNull()
@@ -123,7 +128,7 @@ internal class MinuteStagingStore(
 
     suspend fun bootstrapRecent(
         bootstrapHours: Long,
-        chunkHours: Long,
+        chunkMinutes: Long,
         liveOverlapMinutes: Long
     ) = withContext(Dispatchers.IO) {
         val endExclusive = Instant.now()
@@ -137,23 +142,29 @@ internal class MinuteStagingStore(
         while (chunkEndExclusive.isAfter(startInclusive)) {
             val chunkStartInclusive = laterInstant(
                 startInclusive,
-                chunkEndExclusive.minus(chunkHours.coerceAtLeast(1L), ChronoUnit.HOURS)
+                chunkEndExclusive.minus(chunkMinutes.coerceAtLeast(1L), ChronoUnit.MINUTES)
             )
-            dataSource.connection.use { conn ->
-                conn.autoCommit = false
-                try {
-                    backfillTradeChunk(conn, chunkStartInclusive, chunkEndExclusive)
-                    backfillOrderbookChunk(conn, chunkStartInclusive, chunkEndExclusive)
-                    backfillAssetContextChunk(conn, chunkStartInclusive, chunkEndExclusive)
-                    conn.commit()
-                    bootstrapChunks.incrementAndGet()
-                    minuteStagingLogger.info {
-                        "minute-staging bootstrap exchange=$exchangeId window=$chunkStartInclusive..$chunkEndExclusive"
-                    }
-                } catch (ex: Exception) {
-                    conn.rollback()
-                    throw ex
-                }
+            runBackfillPhase(
+                phase = "trade",
+                startInclusive = chunkStartInclusive,
+                endExclusive = chunkEndExclusive,
+                action = ::backfillTradeChunk
+            )
+            runBackfillPhase(
+                phase = "orderbook",
+                startInclusive = chunkStartInclusive,
+                endExclusive = chunkEndExclusive,
+                action = ::backfillOrderbookChunk
+            )
+            runBackfillPhase(
+                phase = "asset_context",
+                startInclusive = chunkStartInclusive,
+                endExclusive = chunkEndExclusive,
+                action = ::backfillAssetContextChunk
+            )
+            bootstrapChunks.incrementAndGet()
+            minuteStagingLogger.info {
+                "minute-staging bootstrap exchange=$exchangeId window=$chunkStartInclusive..$chunkEndExclusive"
             }
             chunkEndExclusive = chunkStartInclusive
         }
@@ -182,6 +193,27 @@ internal class MinuteStagingStore(
         assetContextUpserts = assetContextUpserts.get(),
         bootstrapChunks = bootstrapChunks.get()
     )
+
+    private fun runBackfillPhase(
+        phase: String,
+        startInclusive: Instant,
+        endExclusive: Instant,
+        action: (Connection, Instant, Instant) -> Unit
+    ) {
+        dataSource.connection.use { conn ->
+            conn.autoCommit = false
+            try {
+                action(conn, startInclusive, endExclusive)
+                conn.commit()
+                minuteStagingLogger.info {
+                    "minute-staging bootstrap phase=$phase exchange=$exchangeId window=$startInclusive..$endExclusive"
+                }
+            } catch (ex: Exception) {
+                conn.rollback()
+                throw ex
+            }
+        }
+    }
 
     private fun backfillTradeChunk(conn: Connection, startInclusive: Instant, endExclusive: Instant) {
         val sql = """
@@ -337,34 +369,6 @@ internal class MinuteStagingStore(
 
     private fun backfillAssetContextChunk(conn: Connection, startInclusive: Instant, endExclusive: Instant) {
         val sql = """
-            WITH minute_funding AS (
-                SELECT DISTINCT ON (bucket_time, symbol, exchange)
-                    time_bucket(INTERVAL '1 minute', time) AS bucket_time,
-                    symbol,
-                    exchange,
-                    funding_rate,
-                    time AS funding_time
-                FROM market_data
-                WHERE exchange = ?
-                  AND data_type = 'funding'
-                  AND time >= ?
-                  AND time < ?
-                ORDER BY bucket_time, symbol, exchange, time DESC
-            ),
-            minute_open_interest AS (
-                SELECT DISTINCT ON (bucket_time, symbol, exchange)
-                    time_bucket(INTERVAL '1 minute', time) AS bucket_time,
-                    symbol,
-                    exchange,
-                    open_interest,
-                    time AS open_interest_time
-                FROM market_data
-                WHERE exchange = ?
-                  AND data_type = 'open_interest'
-                  AND time >= ?
-                  AND time < ?
-                ORDER BY bucket_time, symbol, exchange, time DESC
-            )
             INSERT INTO minute_asset_context (
                 time,
                 symbol,
@@ -375,22 +379,19 @@ internal class MinuteStagingStore(
                 source_updated_at
             )
             SELECT
-                COALESCE(f.bucket_time, oi.bucket_time),
-                COALESCE(f.symbol, oi.symbol),
-                COALESCE(f.exchange, oi.exchange),
-                f.funding_rate,
-                oi.open_interest,
-                COALESCE(
-                    GREATEST(f.funding_time, oi.open_interest_time),
-                    f.funding_time,
-                    oi.open_interest_time
-                ),
+                time_bucket(INTERVAL '1 minute', time) AS bucket_time,
+                symbol,
+                exchange,
+                last(funding_rate, time) FILTER (WHERE data_type = 'funding'),
+                last(open_interest, time) FILTER (WHERE data_type = 'open_interest'),
+                MAX(time) AS last_event_time,
                 NOW()
-            FROM minute_funding f
-            FULL OUTER JOIN minute_open_interest oi
-              ON oi.bucket_time = f.bucket_time
-             AND oi.symbol = f.symbol
-             AND oi.exchange = f.exchange
+            FROM market_data
+            WHERE exchange = ?
+              AND data_type IN ('funding', 'open_interest')
+              AND time >= ?
+              AND time < ?
+            GROUP BY 1, 2, 3
             ON CONFLICT (time, symbol, exchange) DO UPDATE SET
                 funding_rate = EXCLUDED.funding_rate,
                 open_interest = EXCLUDED.open_interest,
@@ -401,9 +402,6 @@ internal class MinuteStagingStore(
             stmt.setString(1, exchangeId)
             stmt.setTimestamp(2, Timestamp.from(startInclusive))
             stmt.setTimestamp(3, Timestamp.from(endExclusive))
-            stmt.setString(4, exchangeId)
-            stmt.setTimestamp(5, Timestamp.from(startInclusive))
-            stmt.setTimestamp(6, Timestamp.from(endExclusive))
             stmt.executeUpdate()
         }
     }
@@ -707,13 +705,13 @@ class MinuteStagingRunner internal constructor(
             }
         }
         minuteStagingLogger.info {
-            "Starting market-data-minute-staging exchange=${config.exchangeId} bootstrapHours=${stagingConfig.bootstrapHours} chunkHours=${stagingConfig.bootstrapChunkHours} liveOverlapMinutes=${stagingConfig.bootstrapLiveOverlapMinutes}"
+            "Starting market-data-minute-staging exchange=${config.exchangeId} bootstrapHours=${stagingConfig.bootstrapHours} chunkMinutes=${stagingConfig.bootstrapChunkMinutes} liveOverlapMinutes=${stagingConfig.bootstrapLiveOverlapMinutes}"
         }
         bootstrapJob = scope.launch {
             try {
                 store.bootstrapRecent(
                     bootstrapHours = stagingConfig.bootstrapHours,
-                    chunkHours = stagingConfig.bootstrapChunkHours,
+                    chunkMinutes = stagingConfig.bootstrapChunkMinutes,
                     liveOverlapMinutes = stagingConfig.bootstrapLiveOverlapMinutes
                 )
             } catch (cancelled: CancellationException) {
