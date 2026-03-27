@@ -436,10 +436,13 @@ class ApplicationTest {
                 minCoverageRatio = 0.98,
                 minFinalizedRatio = 0.95,
                 minExecutionObservedRatio = 0.55,
-                minUniverseSymbols = 12
+                minUniverseSymbols = 12,
+                minTradeObservedRatioForEligibility = 0.40
             ),
             trackedSymbols = 185,
             activeSymbols = 182,
+            eligibleSymbols = 176,
+            idleLiveSymbols = 6,
             inactiveSymbols = 3,
             healthySymbols = 119,
             degradedSymbols = 56,
@@ -472,7 +475,9 @@ class ApplicationTest {
                     symbol = "KAS",
                     status = DataHealthStatus.CRITICAL,
                     activeRecent = true,
+                    readinessEligible = true,
                     missingRequiredChannels = listOf("candle_1m"),
+                    idleButLiveChannels = emptyList(),
                     staleChannels = listOf("candle_1m"),
                     reasons = listOf(
                         "missing required raw channel candle_1m",
@@ -502,7 +507,9 @@ class ApplicationTest {
                     symbol = "NOT",
                     status = DataHealthStatus.DEGRADED,
                     activeRecent = true,
+                    readinessEligible = true,
                     missingRequiredChannels = emptyList(),
+                    idleButLiveChannels = emptyList(),
                     staleChannels = emptyList(),
                     reasons = listOf(
                         "coverage 0.021 below 0.980",

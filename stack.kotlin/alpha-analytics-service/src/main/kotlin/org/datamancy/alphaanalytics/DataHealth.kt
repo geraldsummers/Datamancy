@@ -63,6 +63,7 @@ data class DataHealthThresholds(
     val minFinalizedRatio: Double,
     val minExecutionObservedRatio: Double,
     val minUniverseSymbols: Int,
+    val minTradeObservedRatioForEligibility: Double,
     val activeRecentWindowHours: Int = 6,
     val recentObservationWindowHours: Int = 24
 )
@@ -71,6 +72,7 @@ enum class DataHealthStatus {
     HEALTHY,
     DEGRADED,
     CRITICAL,
+    IDLE_LIVE,
     INACTIVE
 }
 
@@ -79,7 +81,9 @@ data class DataHealthSymbolIssue(
     val symbol: String,
     val status: DataHealthStatus,
     val activeRecent: Boolean,
+    val readinessEligible: Boolean,
     val missingRequiredChannels: List<String>,
+    val idleButLiveChannels: List<String>,
     val staleChannels: List<String>,
     val reasons: List<String>,
     val latestAnyRawTime: Instant?,
@@ -109,6 +113,8 @@ data class DataHealthSummary(
     val thresholds: DataHealthThresholds,
     val trackedSymbols: Int,
     val activeSymbols: Int,
+    val eligibleSymbols: Int,
+    val idleLiveSymbols: Int,
     val inactiveSymbols: Int,
     val healthySymbols: Int,
     val degradedSymbols: Int,
@@ -136,7 +142,7 @@ data class DataHealthIssuesResponse(
     val issues: List<DataHealthSymbolIssue>
 )
 
-private data class DataHealthSymbolRow(
+internal data class DataHealthSymbolRow(
     val exchange: String,
     val symbol: String,
     val activeRecent: Boolean,
@@ -189,6 +195,7 @@ class DataHealthService(
         )
         val activeRows = rows.filter { it.activeRecent }
         val evaluated = activeRows.map { evaluate(it, thresholds) }
+        val eligibleRows = evaluated.filter { it.readinessEligible }
 
         DataHealthSummary(
             exchange = resolvedExchange,
@@ -197,34 +204,35 @@ class DataHealthService(
             thresholds = thresholds,
             trackedSymbols = rows.size,
             activeSymbols = activeRows.size,
+            eligibleSymbols = eligibleRows.size,
+            idleLiveSymbols = evaluated.count { it.status == DataHealthStatus.IDLE_LIVE },
             inactiveSymbols = rows.size - activeRows.size,
-            healthySymbols = evaluated.count { it.status == DataHealthStatus.HEALTHY },
-            degradedSymbols = evaluated.count { it.status == DataHealthStatus.DEGRADED },
-            criticalSymbols = evaluated.count { it.status == DataHealthStatus.CRITICAL },
-            symbolsMissingRequiredChannels = evaluated.count { it.missingRequiredChannels.isNotEmpty() },
-            staleCandleSymbols = evaluated.count { "candle_1m" in it.staleChannels },
-            staleFeatureSymbols = evaluated.count {
-                it.status != DataHealthStatus.INACTIVE && (
+            healthySymbols = eligibleRows.count { it.status == DataHealthStatus.HEALTHY },
+            degradedSymbols = eligibleRows.count { it.status == DataHealthStatus.DEGRADED },
+            criticalSymbols = eligibleRows.count { it.status == DataHealthStatus.CRITICAL },
+            symbolsMissingRequiredChannels = eligibleRows.count { it.missingRequiredChannels.isNotEmpty() },
+            staleCandleSymbols = eligibleRows.count { "candle_1m" in it.staleChannels },
+            staleFeatureSymbols = eligibleRows.count {
+                (
                     it.featureLagSeconds == null || it.featureLagSeconds > thresholds.featureLagMaxSeconds
                 )
             },
-            coverageFailSymbols = evaluated.count {
-                it.status != DataHealthStatus.INACTIVE && it.coverageRatio < thresholds.minCoverageRatio
+            coverageFailSymbols = eligibleRows.count {
+                it.coverageRatio < thresholds.minCoverageRatio
             },
-            finalizedFailSymbols = evaluated.count {
-                it.status != DataHealthStatus.INACTIVE && it.finalizedRatio < thresholds.minFinalizedRatio
+            finalizedFailSymbols = eligibleRows.count {
+                it.finalizedRatio < thresholds.minFinalizedRatio
             },
-            executionFailSymbols = evaluated.count {
-                it.status != DataHealthStatus.INACTIVE &&
-                    it.recentFeatureRows24h > 0 &&
+            executionFailSymbols = eligibleRows.count {
+                it.recentFeatureRows24h > 0 &&
                     it.recentExecutionObservedShare24h < thresholds.minExecutionObservedRatio
             },
-            avgCoverageRatioActive = activeRows.averageOfOrZero { it.coverageRatio },
-            avgFinalizedRatioActive = activeRows.averageOfOrZero { it.finalizedRatio },
-            avgRecentExecutionObservedShare24hActive = activeRows.averageOfOrZero { it.recentExecutionObservedShare24h },
-            maxCandleLagSecondsActive = activeRows.maxOfOrNull { it.candleRawLagSeconds ?: 0L } ?: 0L,
-            maxFeatureLagSecondsActive = activeRows.maxOfOrNull { it.featureLagSeconds ?: 0L } ?: 0L,
-            criticalSample = evaluated
+            avgCoverageRatioActive = eligibleRows.averageOfOrZero { it.coverageRatio },
+            avgFinalizedRatioActive = eligibleRows.averageOfOrZero { it.finalizedRatio },
+            avgRecentExecutionObservedShare24hActive = eligibleRows.averageOfOrZero { it.recentExecutionObservedShare24h },
+            maxCandleLagSecondsActive = eligibleRows.maxOfOrNull { it.candleRawLagSeconds ?: 0L } ?: 0L,
+            maxFeatureLagSecondsActive = eligibleRows.maxOfOrNull { it.featureLagSeconds ?: 0L } ?: 0L,
+            criticalSample = eligibleRows
                 .filter { it.status == DataHealthStatus.CRITICAL }
                 .sortedByDescending { it.candleRawLagSeconds ?: Long.MAX_VALUE }
                 .take(12)
@@ -248,7 +256,7 @@ class DataHealthService(
             authoritativeSymbols = resolveAuthoritativeSymbols(resolvedExchange, policy)
         )
             .map { evaluate(it, thresholds) }
-            .filter { includeInactive || it.status != DataHealthStatus.INACTIVE }
+            .filter { includeInactive || (it.status != DataHealthStatus.INACTIVE && it.status != DataHealthStatus.IDLE_LIVE) }
             .filter { includeHealthy || it.status != DataHealthStatus.HEALTHY }
             .sortedWith(
                 compareByDescending<DataHealthSymbolIssue> { statusRank(it.status) }
@@ -296,7 +304,8 @@ class DataHealthService(
             minCoverageRatio = coverage.minCoverageRatio,
             minFinalizedRatio = coverage.minFinalizedRatio,
             minExecutionObservedRatio = coverage.minExecutionObservedRatio,
-            minUniverseSymbols = coverage.minUniverseSymbols
+            minUniverseSymbols = coverage.minUniverseSymbols,
+            minTradeObservedRatioForEligibility = coverage.minTradeObservedRatioForEligibility
         )
     }
 
@@ -322,101 +331,43 @@ class DataHealthService(
         }
     }
 
-    private fun evaluate(row: DataHealthSymbolRow, thresholds: DataHealthThresholds): DataHealthSymbolIssue {
-        if (!row.activeRecent) {
-            return DataHealthSymbolIssue(
-                exchange = row.exchange,
-                symbol = row.symbol,
-                status = DataHealthStatus.INACTIVE,
-                activeRecent = false,
-                missingRequiredChannels = emptyList(),
-                staleChannels = emptyList(),
-                reasons = listOf("no recent raw activity inside ${thresholds.activeRecentWindowHours}h window"),
-                latestAnyRawTime = row.latestAnyRawTime,
-                candleLatestRawTime = row.candleLatestRawTime,
-                tradeLatestRawTime = row.tradeLatestRawTime,
-                orderbookLatestRawTime = row.orderbookLatestRawTime,
-                fundingLatestRawTime = row.fundingLatestRawTime,
-                latestFeatureTime = row.latestFeatureTime,
-                finalizedThrough = row.finalizedThrough,
-                candleRawLagSeconds = row.candleRawLagSeconds,
-                tradeRawLagSeconds = row.tradeRawLagSeconds,
-                orderbookRawLagSeconds = row.orderbookRawLagSeconds,
-                fundingRawLagSeconds = row.fundingRawLagSeconds,
-                featureLagSeconds = row.featureLagSeconds,
-                finalizedLagMinutes = row.finalizedLagMinutes,
-                materializerLagSeconds = row.materializerLagSeconds,
-                coverageRatio = row.coverageRatio,
-                finalizedRatio = row.finalizedRatio,
-                recentExecutionObservedShare24h = row.recentExecutionObservedShare24h,
-                recentFeatureRows24h = row.recentFeatureRows24h
-            )
-        }
+    private fun evaluate(row: DataHealthSymbolRow, thresholds: DataHealthThresholds): DataHealthSymbolIssue =
+        evaluateDataHealthRow(row, thresholds)
 
-        val missingRequiredChannels = thresholds.requiredRawChannels.filter { channel ->
-            row.latestRawTime(channel) == null
-        }
-        val staleChannels = thresholds.requiredRawChannels.filter { channel ->
-            row.rawLagSeconds(channel)?.let { it > thresholdForChannel(channel, thresholds) } == true
-        }
+    private fun statusRank(status: DataHealthStatus): Int = when (status) {
+        DataHealthStatus.CRITICAL -> 4
+        DataHealthStatus.DEGRADED -> 3
+        DataHealthStatus.IDLE_LIVE -> 2
+        DataHealthStatus.INACTIVE -> 1
+        DataHealthStatus.HEALTHY -> 0
+    }
 
-        val criticalReasons = mutableListOf<String>()
-        val degradedReasons = mutableListOf<String>()
+    companion object {
+        fun fromEnvironment(policyProvider: () -> TradingPolicy = ActiveTradingPolicy::current): DataHealthService {
+            val dataSource = PGSimpleDataSource().apply {
+                serverNames = arrayOf(System.getenv("POSTGRES_HOST") ?: "postgres")
+                portNumbers = intArrayOf((System.getenv("POSTGRES_PORT") ?: "5432").toInt())
+                databaseName = System.getenv("POSTGRES_DB") ?: "datamancy"
+                user = System.getenv("POSTGRES_USER") ?: "pipeline_user"
+                password = System.getenv("POSTGRES_PASSWORD") ?: ""
+            }
+            return DataHealthService(dataSource = dataSource, policyProvider = policyProvider)
+        }
+    }
+}
 
-        if ("candle_1m" in missingRequiredChannels) {
-            criticalReasons += "missing required raw channel candle_1m"
-        }
-        if ("candle_1m" in staleChannels) {
-            criticalReasons += "candle_1m lag ${row.candleRawLagSeconds}s exceeds ${thresholds.candleRawLagMaxSeconds}s"
-        }
-        if (row.latestFeatureTime == null) {
-            criticalReasons += "missing research_features_1m rows"
-        }
-        if (row.featureLagSeconds == null || row.featureLagSeconds > thresholds.featureLagMaxSeconds) {
-            criticalReasons += "feature lag ${row.featureLagSeconds ?: -1}s exceeds ${thresholds.featureLagMaxSeconds}s"
-        }
-        if (row.recentFeatureRows24h == 0) {
-            criticalReasons += "no recent feature rows in ${thresholds.recentObservationWindowHours}h"
-        }
-
-        missingRequiredChannels
-            .filterNot { it == "candle_1m" }
-            .forEach { degradedReasons += "missing required raw channel $it" }
-        staleChannels
-            .filterNot { it == "candle_1m" }
-            .forEach { degradedReasons += "$it lag ${row.rawLagSeconds(it)}s exceeds ${thresholdForChannel(it, thresholds)}s" }
-
-        if (row.coverageRatio < thresholds.minCoverageRatio) {
-            degradedReasons += "coverage ${row.coverageRatio.formatRatio()} below ${thresholds.minCoverageRatio.formatRatio()}"
-        }
-        if (row.finalizedRatio < thresholds.minFinalizedRatio) {
-            degradedReasons += "finalized coverage ${row.finalizedRatio.formatRatio()} below ${thresholds.minFinalizedRatio.formatRatio()}"
-        }
-        if (row.finalizedLagMinutes == null || row.finalizedLagMinutes > thresholds.finalizedLagMaxMinutes) {
-            degradedReasons += "finalized lag ${row.finalizedLagMinutes?.formatMinutes() ?: "n/a"} exceeds ${thresholds.finalizedLagMaxMinutes}m"
-        }
-        if (row.recentFeatureRows24h > 0 && row.recentExecutionObservedShare24h < thresholds.minExecutionObservedRatio) {
-            degradedReasons +=
-                "recent execution observed ${row.recentExecutionObservedShare24h.formatRatio()} below ${thresholds.minExecutionObservedRatio.formatRatio()}"
-        }
-        if (row.materializerLagSeconds != null && row.materializerLagSeconds > thresholds.featureLagMaxSeconds) {
-            degradedReasons += "materializer lag ${row.materializerLagSeconds}s exceeds ${thresholds.featureLagMaxSeconds}s"
-        }
-
-        val status = when {
-            criticalReasons.isNotEmpty() -> DataHealthStatus.CRITICAL
-            degradedReasons.isNotEmpty() -> DataHealthStatus.DEGRADED
-            else -> DataHealthStatus.HEALTHY
-        }
-
+internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHealthThresholds): DataHealthSymbolIssue {
+    if (!row.activeRecent) {
         return DataHealthSymbolIssue(
             exchange = row.exchange,
             symbol = row.symbol,
-            status = status,
-            activeRecent = true,
-            missingRequiredChannels = missingRequiredChannels,
-            staleChannels = staleChannels,
-            reasons = criticalReasons + degradedReasons,
+            status = DataHealthStatus.INACTIVE,
+            activeRecent = false,
+            readinessEligible = false,
+            missingRequiredChannels = emptyList(),
+            idleButLiveChannels = emptyList(),
+            staleChannels = emptyList(),
+            reasons = listOf("no recent raw activity inside ${thresholds.activeRecentWindowHours}h window"),
             latestAnyRawTime = row.latestAnyRawTime,
             candleLatestRawTime = row.candleLatestRawTime,
             tradeLatestRawTime = row.tradeLatestRawTime,
@@ -438,30 +389,147 @@ class DataHealthService(
         )
     }
 
-    private fun thresholdForChannel(channel: String, thresholds: DataHealthThresholds): Long {
-        return if (channel == "candle_1m") thresholds.candleRawLagMaxSeconds else thresholds.rawStaleAfterSeconds
+    val readinessEligible = row.isReadinessEligible(thresholds)
+    val missingRequiredChannels = thresholds.requiredRawChannels.filter { channel ->
+        row.latestRawTime(channel) == null
+    }
+    val idleButLiveChannels = thresholds.requiredRawChannels.filter { channel ->
+        row.isIdleButLiveChannel(channel, thresholds, readinessEligible)
+    }
+    val staleChannels = thresholds.requiredRawChannels.filter { channel ->
+        channel !in idleButLiveChannels &&
+            row.rawLagSeconds(channel)?.let { it > thresholdForChannel(channel, thresholds) } == true
     }
 
-    private fun statusRank(status: DataHealthStatus): Int = when (status) {
-        DataHealthStatus.CRITICAL -> 3
-        DataHealthStatus.DEGRADED -> 2
-        DataHealthStatus.HEALTHY -> 1
-        DataHealthStatus.INACTIVE -> 0
-    }
-
-    companion object {
-        fun fromEnvironment(policyProvider: () -> TradingPolicy = ActiveTradingPolicy::current): DataHealthService {
-            val dataSource = PGSimpleDataSource().apply {
-                serverNames = arrayOf(System.getenv("POSTGRES_HOST") ?: "postgres")
-                portNumbers = intArrayOf((System.getenv("POSTGRES_PORT") ?: "5432").toInt())
-                databaseName = System.getenv("POSTGRES_DB") ?: "datamancy"
-                user = System.getenv("POSTGRES_USER") ?: "pipeline_user"
-                password = System.getenv("POSTGRES_PASSWORD") ?: ""
+    if (!readinessEligible) {
+        val reasons = buildList {
+            when {
+                row.isOrderbookLive(thresholds) ->
+                    add(
+                        "idle but live: orderbook current, but recent trade observed share " +
+                            "${row.recentTradeObservedShare24h.formatRatio()} below " +
+                            "${thresholds.minTradeObservedRatioForEligibility.formatRatio()} eligibility threshold"
+                    )
+                else ->
+                    add("symbol not readiness-eligible: execution context is not currently live")
             }
-            return DataHealthService(dataSource = dataSource, policyProvider = policyProvider)
+            idleButLiveChannels.forEach { channel ->
+                add("$channel idle but live under current orderbook liveness")
+            }
         }
+        return DataHealthSymbolIssue(
+            exchange = row.exchange,
+            symbol = row.symbol,
+            status = if (row.isOrderbookLive(thresholds)) DataHealthStatus.IDLE_LIVE else DataHealthStatus.INACTIVE,
+            activeRecent = true,
+            readinessEligible = false,
+            missingRequiredChannels = missingRequiredChannels,
+            idleButLiveChannels = idleButLiveChannels,
+            staleChannels = staleChannels,
+            reasons = reasons,
+            latestAnyRawTime = row.latestAnyRawTime,
+            candleLatestRawTime = row.candleLatestRawTime,
+            tradeLatestRawTime = row.tradeLatestRawTime,
+            orderbookLatestRawTime = row.orderbookLatestRawTime,
+            fundingLatestRawTime = row.fundingLatestRawTime,
+            latestFeatureTime = row.latestFeatureTime,
+            finalizedThrough = row.finalizedThrough,
+            candleRawLagSeconds = row.candleRawLagSeconds,
+            tradeRawLagSeconds = row.tradeRawLagSeconds,
+            orderbookRawLagSeconds = row.orderbookRawLagSeconds,
+            fundingRawLagSeconds = row.fundingRawLagSeconds,
+            featureLagSeconds = row.featureLagSeconds,
+            finalizedLagMinutes = row.finalizedLagMinutes,
+            materializerLagSeconds = row.materializerLagSeconds,
+            coverageRatio = row.coverageRatio,
+            finalizedRatio = row.finalizedRatio,
+            recentExecutionObservedShare24h = row.recentExecutionObservedShare24h,
+            recentFeatureRows24h = row.recentFeatureRows24h
+        )
     }
+
+    val criticalReasons = mutableListOf<String>()
+    val degradedReasons = mutableListOf<String>()
+
+    if ("candle_1m" in missingRequiredChannels) {
+        criticalReasons += "missing required raw channel candle_1m"
+    }
+    if ("candle_1m" in staleChannels) {
+        criticalReasons += "candle_1m lag ${row.candleRawLagSeconds}s exceeds ${thresholds.candleRawLagMaxSeconds}s"
+    }
+    if (row.latestFeatureTime == null) {
+        criticalReasons += "missing research_features_1m rows"
+    }
+    if (row.featureLagSeconds == null || row.featureLagSeconds > thresholds.featureLagMaxSeconds) {
+        criticalReasons += "feature lag ${row.featureLagSeconds ?: -1}s exceeds ${thresholds.featureLagMaxSeconds}s"
+    }
+    if (row.recentFeatureRows24h == 0) {
+        criticalReasons += "no recent feature rows in ${thresholds.recentObservationWindowHours}h"
+    }
+
+    missingRequiredChannels
+        .filterNot { it == "candle_1m" }
+        .forEach { degradedReasons += "missing required raw channel $it" }
+    staleChannels
+        .filterNot { it == "candle_1m" }
+        .forEach { degradedReasons += "$it lag ${row.rawLagSeconds(it)}s exceeds ${thresholdForChannel(it, thresholds)}s" }
+
+    if (row.coverageRatio < thresholds.minCoverageRatio) {
+        degradedReasons += "coverage ${row.coverageRatio.formatRatio()} below ${thresholds.minCoverageRatio.formatRatio()}"
+    }
+    if (row.finalizedRatio < thresholds.minFinalizedRatio) {
+        degradedReasons += "finalized coverage ${row.finalizedRatio.formatRatio()} below ${thresholds.minFinalizedRatio.formatRatio()}"
+    }
+    if (row.finalizedLagMinutes == null || row.finalizedLagMinutes > thresholds.finalizedLagMaxMinutes) {
+        degradedReasons += "finalized lag ${row.finalizedLagMinutes?.formatMinutes() ?: "n/a"} exceeds ${thresholds.finalizedLagMaxMinutes}m"
+    }
+    if (row.recentFeatureRows24h > 0 && row.recentExecutionObservedShare24h < thresholds.minExecutionObservedRatio) {
+        degradedReasons +=
+            "recent execution observed ${row.recentExecutionObservedShare24h.formatRatio()} below ${thresholds.minExecutionObservedRatio.formatRatio()}"
+    }
+    if (row.materializerLagSeconds != null && row.materializerLagSeconds > thresholds.featureLagMaxSeconds) {
+        degradedReasons += "materializer lag ${row.materializerLagSeconds}s exceeds ${thresholds.featureLagMaxSeconds}s"
+    }
+
+    val status = when {
+        criticalReasons.isNotEmpty() -> DataHealthStatus.CRITICAL
+        degradedReasons.isNotEmpty() -> DataHealthStatus.DEGRADED
+        else -> DataHealthStatus.HEALTHY
+    }
+
+    return DataHealthSymbolIssue(
+        exchange = row.exchange,
+        symbol = row.symbol,
+        status = status,
+        activeRecent = true,
+        readinessEligible = true,
+        missingRequiredChannels = missingRequiredChannels,
+        idleButLiveChannels = idleButLiveChannels,
+        staleChannels = staleChannels,
+        reasons = criticalReasons + degradedReasons,
+        latestAnyRawTime = row.latestAnyRawTime,
+        candleLatestRawTime = row.candleLatestRawTime,
+        tradeLatestRawTime = row.tradeLatestRawTime,
+        orderbookLatestRawTime = row.orderbookLatestRawTime,
+        fundingLatestRawTime = row.fundingLatestRawTime,
+        latestFeatureTime = row.latestFeatureTime,
+        finalizedThrough = row.finalizedThrough,
+        candleRawLagSeconds = row.candleRawLagSeconds,
+        tradeRawLagSeconds = row.tradeRawLagSeconds,
+        orderbookRawLagSeconds = row.orderbookRawLagSeconds,
+        fundingRawLagSeconds = row.fundingRawLagSeconds,
+        featureLagSeconds = row.featureLagSeconds,
+        finalizedLagMinutes = row.finalizedLagMinutes,
+        materializerLagSeconds = row.materializerLagSeconds,
+        coverageRatio = row.coverageRatio,
+        finalizedRatio = row.finalizedRatio,
+        recentExecutionObservedShare24h = row.recentExecutionObservedShare24h,
+        recentFeatureRows24h = row.recentFeatureRows24h
+    )
 }
+
+private fun thresholdForChannel(channel: String, thresholds: DataHealthThresholds): Long =
+    if (channel == "candle_1m") thresholds.candleRawLagMaxSeconds else thresholds.rawStaleAfterSeconds
 
 private fun emptyDataHealthSymbolRow(exchange: String, symbol: String): DataHealthSymbolRow =
     DataHealthSymbolRow(
@@ -575,7 +643,26 @@ private fun DataHealthSymbolRow.rawLagSeconds(channel: String): Long? = when (ch
     else -> null
 }
 
-private fun Iterable<DataHealthSymbolRow>.averageOfOrZero(selector: (DataHealthSymbolRow) -> Double): Double {
+private fun DataHealthSymbolRow.isOrderbookLive(thresholds: DataHealthThresholds): Boolean =
+    orderbookRawLagSeconds?.let { it <= thresholds.rawStaleAfterSeconds } == true
+
+private fun DataHealthSymbolRow.isReadinessEligible(thresholds: DataHealthThresholds): Boolean =
+    activeRecent &&
+        isOrderbookLive(thresholds) &&
+        recentTradeObservedShare24h >= thresholds.minTradeObservedRatioForEligibility
+
+private fun DataHealthSymbolRow.isIdleButLiveChannel(
+    channel: String,
+    thresholds: DataHealthThresholds,
+    readinessEligible: Boolean
+): Boolean {
+    if (readinessEligible) return false
+    if (!isOrderbookLive(thresholds)) return false
+    if (channel != "trade" && channel != "candle_1m") return false
+    return latestRawTime(channel) != null
+}
+
+private fun Iterable<DataHealthSymbolIssue>.averageOfOrZero(selector: (DataHealthSymbolIssue) -> Double): Double {
     var count = 0
     var total = 0.0
     for (row in this) {

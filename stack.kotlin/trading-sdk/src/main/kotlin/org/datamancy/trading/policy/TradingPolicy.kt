@@ -206,6 +206,7 @@ data class CoverageContractPolicy(
     val minCoverageRatio: Double = 0.98,
     val minFinalizedRatio: Double = 0.95,
     val minExecutionObservedRatio: Double = 0.55,
+    val minTradeObservedRatioForEligibility: Double = 0.40,
     val maxFeatureLagSeconds: Long = 180L,
     val maxFinalizedLagMinutes: Long = 5L,
     val minUniverseSymbols: Int = 12,
@@ -715,6 +716,7 @@ class CoverageContractPolicyBuilder {
     var minCoverageRatio: Double = 0.98
     var minFinalizedRatio: Double = 0.95
     var minExecutionObservedRatio: Double = 0.55
+    var minTradeObservedRatioForEligibility: Double = 0.40
     var maxFeatureLagSeconds: Long = 180L
     var maxFinalizedLagMinutes: Long = 5L
     var minUniverseSymbols: Int = 12
@@ -724,6 +726,7 @@ class CoverageContractPolicyBuilder {
         minCoverageRatio = minCoverageRatio,
         minFinalizedRatio = minFinalizedRatio,
         minExecutionObservedRatio = minExecutionObservedRatio,
+        minTradeObservedRatioForEligibility = minTradeObservedRatioForEligibility,
         maxFeatureLagSeconds = maxFeatureLagSeconds,
         maxFinalizedLagMinutes = maxFinalizedLagMinutes,
         minUniverseSymbols = minUniverseSymbols,
@@ -991,6 +994,7 @@ object DatamancyTradingPolicy {
                     minCoverageRatio = 0.98
                     minFinalizedRatio = 0.95
                     minExecutionObservedRatio = 0.55
+                    minTradeObservedRatioForEligibility = 0.40
                     maxFeatureLagSeconds = 180L
                     maxFinalizedLagMinutes = 5L
                     minUniverseSymbols = 12
