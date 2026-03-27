@@ -19,7 +19,7 @@ Server environment:
 - ssh: ssh gerald@latium.local "command"
 - stack path on server: ~/datamancy
 - do not use -v in rsync
-- if waiting, wait in 120s intervals unless waiting for the test runner, then prefer 300s intervals
+- if waiting, prefer 600s intervals unless waiting for the test runner, then prefer 300s intervals
 
 Hard operating constraints:
 - Use latium.local for deployments. Do not run the stack locally.
@@ -45,7 +45,18 @@ Current architectural reality:
 - Single-name alpha workflows are not the supported search path.
 - `research_features_1m` is the canonical research layer.
 - No implicit raw fallback is allowed in normal search, readiness, promotion, or kill flows.
+- The hot ingest path is no longer Postgres-first. The live path is:
+  `Hyperliquid websocket -> market-data-sync -> NATS JetStream -> Redpanda Connect -> market-data-persist / market-data-minute-staging -> market-postgres -> research-feature-materializer`.
+- `market-postgres` is the dedicated SSD-backed market data Postgres instance. Treat it as the authoritative store for raw/staged/features, separate from colder stack data.
+- The ingestion/runtime split is now:
+  - `market-data-sync`
+  - `raw-candle-repair`
+  - `market-data-persist`
+  - `market-data-minute-staging`
+  - `research-feature-materializer`
+  - `market-data-health-updater`
 - Raw sync owns raw completeness and freshness.
+- Minute staging owns minute-level raw-event aggregation and bootstrap behind the live frontier.
 - Feature materialization owns feature completeness, freshness, provisional/finalized lifecycle, and observation flags.
 - Readers must not reconstruct research features on the fly from raw tables.
 - Trading policy is centralized and authoritative; notebooks are clients, not the source of truth.
@@ -77,6 +88,12 @@ What changed recently and should be assumed true unless new evidence contradicts
 - Candle snapshot repair requests are bounded so the bootstrap path should no longer freeze indefinitely.
 - Alpha readiness is wired to the engine-backed coverage contract rather than ad hoc optimism.
 - SQL access has been moving toward Exposed/ORM-backed access patterns rather than scattered raw SQL.
+- The live market-data hot path moved off append-hot Postgres scans onto NATS JetStream plus Redpanda Connect style stream plumbing before persistence.
+- Minute staging now bootstraps in bounded windows and stays behind the live frontier instead of scanning the raw tables directly.
+- Live replay for raw-event persistence can be bounded by start time and isolated with a replay durable suffix for cutover repair.
+- Readiness lag gates are now cadence-aware: larger bar sizes get larger allowed feature/finalization lag rather than inheriting 1m thresholds.
+- The latest verified readiness sample during prompt update passed on `2026-03-27T14:38:33Z` for `hyperliquid_mainnet`, but treat that as stale unless rechecked.
+- The latest verified discovery search during prompt update completed on `2026-03-27T14:38:22Z`, evaluated 72 configs, and found no promotable trend or reversion configs because the surviving regions produced zero backtest and zero forward trades. That is a research result, not a data-readiness failure.
 
 Important rule about status:
 - Any hardcoded status in this prompt can be stale.
@@ -126,12 +143,14 @@ Required operating loop:
 2. Verify live readiness on latium.local before meaningful research.
 3. If readiness fails, determine whether the blocker is:
    - raw freshness/coverage
+   - minute staging freshness/bootstrap
    - feature freshness/finalization
    - execution-observation coverage
    - search/cache/readiness logic
 4. Fix the blocker decisively or document why it is not yet fixable.
 5. Only after readiness passes, run cross-sectional search and backtests.
-6. Promote or kill strategies using the same contract, not a looser offline shortcut.
+6. If search returns zero trades or zero promotable configs, treat that as an alpha failure to diagnose, not a reason to relax readiness or execution realism.
+7. Promote or kill strategies using the same contract, not a looser offline shortcut.
 
 Operator surfaces:
 - Use `scripts/trading/alpha_readiness_latium.sh hyperliquid_mainnet` before meaningful research or promotion attempts.
@@ -215,8 +234,8 @@ Work style:
 
 Immediate priorities:
 1. Keep the canonical no-fallback research contract intact.
-2. Finish driving universe-wide raw coverage/finalization to the point that readiness passes reliably.
-3. Once readiness passes, resume cross-sectional search over medium-term residual trend and reversion families first.
+2. Keep universe-wide raw coverage, minute staging, and feature finalization current enough that readiness keeps passing reliably.
+3. Resume cross-sectional search over medium-term residual trend and reversion families first, but explicitly explain zero-trade regions instead of treating them as silent misses.
 4. Tighten the coupling between alpha search, execution realism, and universe-level risk management.
 5. Keep the prompt and operator surface aligned with actual engine behavior.
 

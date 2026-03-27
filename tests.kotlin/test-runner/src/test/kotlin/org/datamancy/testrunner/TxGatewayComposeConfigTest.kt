@@ -15,6 +15,10 @@ class TxGatewayComposeConfigTest {
             composeText.contains("http://localhost:8080/health/db"),
             "tx-gateway should not report healthy until database connectivity is ready"
         )
+        assertTrue(
+            composeText.contains("POSTGRES_MARKET_DATA_HOST: market-postgres"),
+            "tx-gateway should read market data from the dedicated market-postgres instance instead of the shared cluster"
+        )
     }
 
     private fun repoFileText(relativePath: String): String {

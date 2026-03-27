@@ -45,6 +45,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNames
 import org.datamancy.pipeline.runners.CandleHistoricalBackfillCandidate
+import org.datamancy.pipeline.runners.DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_WINDOWS_PER_CYCLE
 import org.datamancy.pipeline.runners.DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS
 import org.datamancy.pipeline.runners.FeatureStateStore
 import org.datamancy.pipeline.runners.HistoricalCandleBackfillRange
@@ -106,6 +107,7 @@ import java.sql.Connection as JdbcConnection
 import java.sql.Timestamp
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -287,6 +289,44 @@ internal fun selectPrioritizedRecentGapScanSymbols(
     return (prioritySymbols + rotatingSymbols).distinct() to nextCursor
 }
 
+internal fun prioritizeHistoricalGapScanSymbols(
+    sessionSymbols: List<String>,
+    persistedStates: List<PersistedCandleRepairStream>,
+    recentActivityCutoff: Instant,
+    staleCandleCutoff: Instant
+): List<String> {
+    val normalized = sessionSymbols.map(String::trim).filter(String::isNotEmpty).distinct()
+    if (normalized.isEmpty()) return emptyList()
+
+    val stateBySymbol = persistedStates.associateBy { it.symbol }
+    val targeted = normalized.filter { symbol ->
+        val state = stateBySymbol[symbol] ?: return@filter false
+        shouldRepairPersistedCandleStream(
+            latestTradeTime = state.latestTradeTime,
+            latestOrderbookTime = state.latestActivityTime,
+            latestFundingTime = null,
+            latestOpenInterestTime = null,
+            latestCandleTime = state.latestCandleTime,
+            recentActivityCutoff = recentActivityCutoff,
+            staleCandleCutoff = staleCandleCutoff
+        )
+    }.toSet()
+
+    val frontierCurrent = normalized
+        .filter { it !in targeted }
+        .sortedWith(
+            compareByDescending<String> { stateBySymbol[it]?.latestTradeTime ?: Instant.EPOCH }
+                .thenByDescending { stateBySymbol[it]?.latestCandleTime ?: Instant.EPOCH }
+                .thenBy { it }
+        )
+
+    return if (frontierCurrent.isNotEmpty()) {
+        frontierCurrent + normalized.filter { it in targeted }
+    } else {
+        normalized
+    }
+}
+
 internal data class PersistedCandleRepairStream(
     val symbol: String,
     val interval: String,
@@ -352,7 +392,9 @@ internal data class RawEventTransportConfig(
     val maxAgeHours: Long,
     val fetchBatch: Int,
     val fetchExpiresMs: Long,
-    val maxAckPending: Long
+    val maxAckPending: Long,
+    val persistLiveReplayStartTime: Instant? = null,
+    val persistLiveDurableSuffix: String? = null
 ) {
     fun ingestSubject(exchangeId: String, channel: String, lane: RawEventLane): String =
         "${ingestSubjectPrefix}.${lane.subjectToken}.${sanitizeSubjectToken(exchangeId)}.${sanitizeSubjectToken(channel)}"
@@ -406,6 +448,7 @@ internal data class MarketDataServiceConfig(
     val researchFeaturesWindowTimeoutSeconds: Int,
     val researchFeaturesBackgroundWindowTimeoutSeconds: Int?,
     val researchFeaturesBackgroundPhaseBudgetMs: Long?,
+    val researchFeaturesRecentGapRepairWindowsPerCycle: Int,
     val universeSettings: HyperliquidUniverseSettings,
     val enableOrderbook: Boolean,
     val splitCandlesFromExecution: Boolean,
@@ -495,6 +538,9 @@ internal fun loadMarketDataServiceConfig(): MarketDataServiceConfig {
             System.getenv("RESEARCH_FEATURES_BACKGROUND_WINDOW_TIMEOUT_SECONDS")?.toIntOrNull(),
         researchFeaturesBackgroundPhaseBudgetMs =
             System.getenv("RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS")?.toLongOrNull(),
+        researchFeaturesRecentGapRepairWindowsPerCycle =
+            System.getenv("RESEARCH_FEATURES_RECENT_GAP_REPAIR_WINDOWS_PER_CYCLE")?.toIntOrNull()
+                ?: DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_WINDOWS_PER_CYCLE,
         universeSettings = HyperliquidUniverseSettings(
             mode = universeMode,
             staticSymbols = hyperliquidPolicy.universe.staticSymbols,
@@ -526,7 +572,14 @@ internal fun loadMarketDataServiceConfig(): MarketDataServiceConfig {
             fetchExpiresMs = System.getenv("RAW_EVENT_FETCH_EXPIRES_MS")?.toLongOrNull()
                 ?: DEFAULT_RAW_EVENT_FETCH_EXPIRES_MS,
             maxAckPending = System.getenv("RAW_EVENT_MAX_ACK_PENDING")?.toLongOrNull()
-                ?: DEFAULT_RAW_EVENT_MAX_ACK_PENDING
+                ?: DEFAULT_RAW_EVENT_MAX_ACK_PENDING,
+            persistLiveReplayStartTime = System.getenv("RAW_EVENT_PERSIST_LIVE_REPLAY_START_TIME")
+                ?.trim()
+                ?.takeIf(String::isNotEmpty)
+                ?.let(Instant::parse),
+            persistLiveDurableSuffix = System.getenv("RAW_EVENT_PERSIST_LIVE_DURABLE_SUFFIX")
+                ?.trim()
+                ?.takeIf(String::isNotEmpty)
         ),
         stateUpdater = StateUpdaterConfig(
             refreshIntervalMs = System.getenv("MARKET_DATA_STATE_REFRESH_INTERVAL_MS")?.toLongOrNull()
@@ -818,12 +871,14 @@ internal interface RawMarketDataTransport : AutoCloseable {
         subjectFilter: String,
         durableName: String,
         deliverPolicy: DeliverPolicy = DeliverPolicy.All,
+        startTime: Instant? = null,
         handler: suspend (RawMarketDataEnvelope) -> Unit
     )
     suspend fun consumeBatch(
         subjectFilter: String,
         durableName: String,
         deliverPolicy: DeliverPolicy = DeliverPolicy.All,
+        startTime: Instant? = null,
         handler: suspend (List<RawMarketDataEnvelope>) -> Unit
     )
 }
@@ -861,16 +916,15 @@ internal class NatsJetStreamRawMarketDataTransport(
         subjectFilter: String,
         durableName: String,
         deliverPolicy: DeliverPolicy,
+        startTime: Instant?,
         handler: suspend (RawMarketDataEnvelope) -> Unit
     ) {
-        val consumerConfiguration = ConsumerConfiguration.builder()
-            .durable(durableName)
-            .deliverPolicy(deliverPolicy)
-            .ackPolicy(AckPolicy.Explicit)
-            .filterSubject(subjectFilter)
-            .ackWait(Duration.ofMinutes(DEFAULT_RAW_EVENT_ACK_WAIT_MINUTES))
-            .maxAckPending(config.maxAckPending)
-            .build()
+        val consumerConfiguration = consumerConfiguration(
+            subjectFilter = subjectFilter,
+            durableName = durableName,
+            deliverPolicy = deliverPolicy,
+            startTime = startTime
+        )
         runCatching {
             jetStreamManagement.addOrUpdateConsumer(config.stream, consumerConfiguration)
         }.onFailure { ex ->
@@ -882,7 +936,6 @@ internal class NatsJetStreamRawMarketDataTransport(
             PullSubscribeOptions.builder()
                 .stream(config.stream)
                 .durable(durableName)
-                .configuration(consumerConfiguration)
                 .build()
         )
         try {
@@ -928,16 +981,15 @@ internal class NatsJetStreamRawMarketDataTransport(
         subjectFilter: String,
         durableName: String,
         deliverPolicy: DeliverPolicy,
+        startTime: Instant?,
         handler: suspend (List<RawMarketDataEnvelope>) -> Unit
     ) {
-        val consumerConfiguration = ConsumerConfiguration.builder()
-            .durable(durableName)
-            .deliverPolicy(deliverPolicy)
-            .ackPolicy(AckPolicy.Explicit)
-            .filterSubject(subjectFilter)
-            .ackWait(Duration.ofMinutes(DEFAULT_RAW_EVENT_ACK_WAIT_MINUTES))
-            .maxAckPending(config.maxAckPending)
-            .build()
+        val consumerConfiguration = consumerConfiguration(
+            subjectFilter = subjectFilter,
+            durableName = durableName,
+            deliverPolicy = deliverPolicy,
+            startTime = startTime
+        )
         runCatching {
             jetStreamManagement.addOrUpdateConsumer(config.stream, consumerConfiguration)
         }.onFailure { ex ->
@@ -949,7 +1001,6 @@ internal class NatsJetStreamRawMarketDataTransport(
             PullSubscribeOptions.builder()
                 .stream(config.stream)
                 .durable(durableName)
-                .configuration(consumerConfiguration)
                 .build()
         )
         try {
@@ -1008,6 +1059,26 @@ internal class NatsJetStreamRawMarketDataTransport(
         runCatching { connection.close() }
     }
 
+    private fun consumerConfiguration(
+        subjectFilter: String,
+        durableName: String,
+        deliverPolicy: DeliverPolicy,
+        startTime: Instant?
+    ): ConsumerConfiguration =
+        ConsumerConfiguration.builder()
+            .durable(durableName)
+            .deliverPolicy(if (startTime != null) DeliverPolicy.ByStartTime else deliverPolicy)
+            .ackPolicy(AckPolicy.Explicit)
+            .filterSubject(subjectFilter)
+            .ackWait(Duration.ofMinutes(DEFAULT_RAW_EVENT_ACK_WAIT_MINUTES))
+            .maxAckPending(config.maxAckPending)
+            .apply {
+                if (startTime != null) {
+                    startTime(startTime.atZone(ZoneOffset.UTC))
+                }
+            }
+            .build()
+
     private fun ensureStream() {
         val streamConfiguration = StreamConfiguration.builder()
             .name(config.stream)
@@ -1036,6 +1107,43 @@ internal class NatsJetStreamRawMarketDataTransport(
 internal fun persistDeliverPolicy(lane: RawEventLane): DeliverPolicy = when (lane) {
     RawEventLane.LIVE -> DeliverPolicy.New
     RawEventLane.REPLAY -> DeliverPolicy.All
+}
+
+internal fun effectivePersistDeliverPolicy(
+    lane: RawEventLane,
+    startTime: Instant?
+): DeliverPolicy = if (lane == RawEventLane.LIVE && startTime != null) {
+    DeliverPolicy.ByStartTime
+} else {
+    persistDeliverPolicy(lane)
+}
+
+internal fun persistLiveDurableName(
+    exchangeId: String,
+    channel: String,
+    replayStartTime: Instant?,
+    durableSuffix: String?
+): String {
+    val base =
+        "market-data-persist-live-v3-${sanitizeSubjectToken(exchangeId)}-${sanitizeSubjectToken(channel)}"
+    val replayToken = replayStartTime?.let { "-replay-${it.epochSecond}" }.orEmpty()
+    val suffixToken = durableSuffix
+        ?.trim()
+        ?.takeIf(String::isNotEmpty)
+        ?.let { "-${sanitizeSubjectToken(it)}" }
+        .orEmpty()
+    return base + replayToken + suffixToken
+}
+
+internal fun persistReplayDurableName(exchangeId: String): String =
+    "market-data-persist-replay-v2-${sanitizeSubjectToken(exchangeId)}"
+
+internal fun persistLiveChannelEnabled(config: MarketDataServiceConfig, channel: String): Boolean = when (channel) {
+    "trade" -> config.persistTradesToPostgres
+    "candle_1m" -> config.persistCandlesToPostgres
+    "orderbook_l2" -> config.persistOrderbooksToPostgres
+    "asset_context" -> config.persistAssetContextToPostgres
+    else -> false
 }
 
 internal val persistLiveChannels: List<String> = listOf(
@@ -1223,7 +1331,8 @@ private fun buildFeatureMaterializerDependencies(): FeatureMaterializerDependenc
             featureStateStore = featureStateStore,
             windowTimeoutSeconds = config.researchFeaturesWindowTimeoutSeconds,
             backgroundWindowTimeoutSeconds = config.researchFeaturesBackgroundWindowTimeoutSeconds,
-            backgroundPhaseBudgetMs = config.researchFeaturesBackgroundPhaseBudgetMs
+            backgroundPhaseBudgetMs = config.researchFeaturesBackgroundPhaseBudgetMs,
+            recentGapRepairWindowsPerCycle = config.researchFeaturesRecentGapRepairWindowsPerCycle
         )
     )
 }
@@ -1576,7 +1685,17 @@ class MarketDataPersistRunner internal constructor(
                 error("TimescaleDB did not become ready for market-data-persist")
             }
         }
+        val liveReplayStartTime = config.rawEventTransport.persistLiveReplayStartTime
+        if (liveReplayStartTime != null) {
+            logger.warn {
+                "Starting market-data-persist bounded live replay from $liveReplayStartTime " +
+                    "suffix=${config.rawEventTransport.persistLiveDurableSuffix ?: "auto"}"
+            }
+        }
         liveConsumeJobs = persistLiveChannels.flatMap { channel ->
+            if (!persistLiveChannelEnabled(config, channel)) {
+                return@flatMap emptyList()
+            }
             val workerCount = persistWorkerCountForChannel(
                 channel = channel,
                 tradeWorkers = config.tradePersistWorkers,
@@ -1592,8 +1711,17 @@ class MarketDataPersistRunner internal constructor(
                             channel = channel,
                             lane = RawEventLane.LIVE
                         ),
-                        durableName = "market-data-persist-live-v3-${sanitizeSubjectToken(config.exchangeId)}-${sanitizeSubjectToken(channel)}",
-                        deliverPolicy = persistDeliverPolicy(RawEventLane.LIVE)
+                        durableName = persistLiveDurableName(
+                            exchangeId = config.exchangeId,
+                            channel = channel,
+                            replayStartTime = liveReplayStartTime,
+                            durableSuffix = config.rawEventTransport.persistLiveDurableSuffix
+                        ),
+                        deliverPolicy = effectivePersistDeliverPolicy(
+                            lane = RawEventLane.LIVE,
+                            startTime = liveReplayStartTime
+                        ),
+                        startTime = liveReplayStartTime
                     ) { envelope ->
                         sink.write(envelope.toMarketData())
                     }
@@ -1604,7 +1732,7 @@ class MarketDataPersistRunner internal constructor(
         replayConsumeJob = scope.launch {
             transport.consume(
                 subjectFilter = config.rawEventTransport.persistWildcard(RawEventLane.REPLAY),
-                durableName = "market-data-persist-replay-v2-${sanitizeSubjectToken(config.exchangeId)}",
+                durableName = persistReplayDurableName(config.exchangeId),
                 deliverPolicy = persistDeliverPolicy(RawEventLane.REPLAY)
             ) { envelope ->
                 replaySink.write(envelope.toMarketData())
@@ -1723,10 +1851,30 @@ class MarketDataStateUpdaterRunner internal constructor(
             }
         }
         runJob = scope.launch {
-            reconcileStateOnce(fullFeatureBackfill = true)
+            while (isActive) {
+                try {
+                    reconcileStateOnce(fullFeatureBackfill = true)
+                    break
+                } catch (ex: CancellationException) {
+                    throw ex
+                } catch (ex: Exception) {
+                    logger.error(ex) {
+                        "State updater initial reconcile failed exchange=${config.exchangeId}; retrying"
+                    }
+                    delay(config.stateUpdater.refreshIntervalMs)
+                }
+            }
             while (isActive) {
                 delay(config.stateUpdater.refreshIntervalMs)
-                reconcileStateOnce(fullFeatureBackfill = false)
+                try {
+                    reconcileStateOnce(fullFeatureBackfill = false)
+                } catch (ex: CancellationException) {
+                    throw ex
+                } catch (ex: Exception) {
+                    logger.error(ex) {
+                        "State updater reconcile failed exchange=${config.exchangeId}; retrying"
+                    }
+                }
             }
         }
     }
@@ -1756,10 +1904,15 @@ class MarketDataStateUpdaterRunner internal constructor(
                 logger.warn { "Skipping raw_sync_state refresh because another refresh transaction is in progress" }
                 return
             }
+            logger.info {
+                "Refreshed raw_sync_state recent window exchange=${config.exchangeId} " +
+                    "window=${startInclusive}..${endExclusive}"
+            }
         }
         if (fullFeatureBackfill && !featureStateStore.hasPersistedState()) {
             logger.info { "Hydrating feature state tables from research_features_1m" }
             featureStateStore.backfillAll()
+            logger.info { "Hydrated feature state tables from research_features_1m exchange=${config.exchangeId}" }
             return
         }
         val endExclusive = Instant.now().truncatedTo(ChronoUnit.MINUTES)
@@ -1770,6 +1923,10 @@ class MarketDataStateUpdaterRunner internal constructor(
                 try {
                     featureStateStore.refreshCoverage(connection, startInclusive, endExclusive)
                     connection.commit()
+                    logger.info {
+                        "Refreshed feature_coverage_state exchange=${config.exchangeId} " +
+                            "window=${startInclusive}..${endExclusive}"
+                    }
                 } catch (ex: Exception) {
                     connection.rollback()
                     throw ex
@@ -1994,27 +2151,11 @@ class MarketDataRepairRunner internal constructor(
         prioritized.toList()
     }
 
-    private suspend fun loadPersistedCandleRepairStreams(
+    private suspend fun loadPersistedCandleRepairState(
         sessionSymbols: List<String>,
-        limit: Int = 16
     ): List<PersistedCandleRepairStream> = withContext(Dispatchers.IO) {
         val normalized = sessionSymbols.map(String::trim).filter(String::isNotEmpty).distinct()
         if (normalized.isEmpty()) return@withContext emptyList()
-        val now = Instant.now()
-        val candleIntervalMs = candleIntervalToMillis("1m")
-        val recentActivityCutoff = targetedCandleRepairActivityCutoff(
-            now = now,
-            activityTimeoutMs = config.channelActivityTimeoutMs,
-            intervalMs = candleIntervalMs,
-            candleStaleMultiplier = config.candleStaleMultiplier
-        )
-        val staleCandleCutoff = now.minusMillis(
-            candleAllowedLagMs(
-                activityTimeoutMs = config.channelActivityTimeoutMs,
-                intervalMs = candleIntervalMs,
-                candleStaleMultiplier = config.candleStaleMultiplier
-            )
-        )
         val sql = """
             WITH channel_state AS (
                 SELECT
@@ -2066,8 +2207,29 @@ class MarketDataRepairRunner internal constructor(
                 }
             }
         }
-
         states
+    }
+
+    private suspend fun loadPersistedCandleRepairStreams(
+        sessionSymbols: List<String>,
+        limit: Int = 16
+    ): List<PersistedCandleRepairStream> = withContext(Dispatchers.IO) {
+        val now = Instant.now()
+        val candleIntervalMs = candleIntervalToMillis("1m")
+        val recentActivityCutoff = targetedCandleRepairActivityCutoff(
+            now = now,
+            activityTimeoutMs = config.channelActivityTimeoutMs,
+            intervalMs = candleIntervalMs,
+            candleStaleMultiplier = config.candleStaleMultiplier
+        )
+        val staleCandleCutoff = now.minusMillis(
+            candleAllowedLagMs(
+                activityTimeoutMs = config.channelActivityTimeoutMs,
+                intervalMs = candleIntervalMs,
+                candleStaleMultiplier = config.candleStaleMultiplier
+            )
+        )
+        loadPersistedCandleRepairState(sessionSymbols)
             .asSequence()
             .filter { state ->
                 shouldRepairPersistedCandleStream(
@@ -2124,7 +2286,28 @@ class MarketDataRepairRunner internal constructor(
         )
         val latestStableBoundary = alignDownToIntervalBoundary(now, intervalMs).minusMillis(intervalMs)
         if (latestStableBoundary.isBefore(lookbackStart)) return@withContext emptyList()
-        val recentGapSymbols = nextRecentGapScanSymbols(eligibleSymbols)
+        val recentActivityCutoff = targetedCandleRepairActivityCutoff(
+            now = now,
+            activityTimeoutMs = config.channelActivityTimeoutMs,
+            intervalMs = intervalMs,
+            candleStaleMultiplier = config.candleStaleMultiplier
+        )
+        val staleCandleCutoff = now.minusMillis(
+            candleAllowedLagMs(
+                activityTimeoutMs = config.channelActivityTimeoutMs,
+                intervalMs = intervalMs,
+                candleStaleMultiplier = config.candleStaleMultiplier
+            )
+        )
+        val persistedStates = loadPersistedCandleRepairState(eligibleSymbols)
+        val recentGapSymbols = nextRecentGapScanSymbols(
+            prioritizeHistoricalGapScanSymbols(
+                sessionSymbols = eligibleSymbols,
+                persistedStates = persistedStates,
+                recentActivityCutoff = recentActivityCutoff,
+                staleCandleCutoff = staleCandleCutoff
+            )
+        )
         if (recentGapSymbols.isEmpty()) return@withContext emptyList()
 
         val recentGapCandidates = try {
@@ -2189,7 +2372,7 @@ class MarketDataRepairRunner internal constructor(
                   AND channel = 'candle_1m'
                   AND symbol = ANY (?)
         """.trimIndent()
-        val persistedStates = dataSource.connection.use { connection ->
+        val rawCoverageStates = dataSource.connection.use { connection ->
             connection.prepareStatement(sql).use { statement ->
                 statement.setString(1, config.exchangeId)
                 val sqlArray: SqlArray = connection.createArrayOf("text", eligibleSymbols.toTypedArray())
@@ -2209,7 +2392,7 @@ class MarketDataRepairRunner internal constructor(
                 }
             }
         }
-        val stateBySymbol = persistedStates.associateBy { it.symbol }
+        val stateBySymbol = rawCoverageStates.associateBy { it.symbol }
         prioritizeHistoricalBackfillCandidates(
             interval = interval,
             now = now,
@@ -2291,6 +2474,7 @@ class MarketDataRepairRunner internal constructor(
             maxBars = config.backfillMaxBars,
             overlapBars = config.backfillOverlapBars
         )
+        var publishedCandles = 0
         for (window in windows) {
             currentCoroutineContext().ensureActive()
             val candles = try {
@@ -2304,9 +2488,25 @@ class MarketDataRepairRunner internal constructor(
                 }
                 return
             }
+            if (candles.isEmpty()) {
+                logger.warn {
+                    "historical_candle_backfill empty ${candidate.symbol}/${candidate.interval} " +
+                        "window=${window.startTime}..${window.endTime}"
+                }
+            } else {
+                logger.info {
+                    "historical_candle_backfill fetched ${candidate.symbol}/${candidate.interval} " +
+                        "window=${window.startTime}..${window.endTime} candles=${candles.size}"
+                }
+            }
             candles.forEach { candle ->
                 publishBackfilledCandle("historical_candle_backfill", candle)
             }
+            publishedCandles += candles.size
+        }
+        logger.info {
+            "historical_candle_backfill complete ${candidate.symbol}/${candidate.interval} " +
+                "range=${candidate.range.startTime}..${candidate.range.endTime} publishedCandles=$publishedCandles windows=${windows.size}"
         }
     }
 

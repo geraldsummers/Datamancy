@@ -8,10 +8,12 @@ services:
       - |
         echo "=== Volume Init: Creating bind mount directories ==="
         mkdir -p ${VECTOR_DB_ROOT}/qdrant
+        mkdir -p ${VECTOR_DB_ROOT}/market-postgres
         mkdir -p ${QBITTORRENT_DATA_ROOT}
         mkdir -p ${SEAFILE_MEDIA_ROOT}
         echo "Setting permissions..."
         chmod 755 ${VECTOR_DB_ROOT}/qdrant
+        chmod 755 ${VECTOR_DB_ROOT}/market-postgres
         chmod 755 ${QBITTORRENT_DATA_ROOT}
         chmod 755 ${SEAFILE_MEDIA_ROOT}
         echo "✓ Volume directories initialized successfully"

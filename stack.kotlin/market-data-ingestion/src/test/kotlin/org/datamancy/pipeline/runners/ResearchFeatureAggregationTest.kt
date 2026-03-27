@@ -212,6 +212,12 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `recent gap repair windows per cycle clamps to minimum`() {
+        assertEquals(1, resolveResearchFeaturesRecentGapRepairWindowsPerCycle(0))
+        assertEquals(24, resolveResearchFeaturesRecentGapRepairWindowsPerCycle(24))
+    }
+
+    @Test
     fun `aggregation window minutes measure inclusive range width in minutes`() {
         val window = AggregationWindow(
             startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
@@ -441,6 +447,36 @@ class ResearchFeatureAggregationTest {
         assertTrue(batch.reusedPendingWindows)
         assertEquals(pending, batch.windows)
         assertEquals(Instant.parse("2026-03-20T22:00:00Z"), batch.nextCursorExclusive)
+    }
+
+    @Test
+    fun `observed candle repair windows deduplicate and prioritize newest buckets`() {
+        val windows = observedCandleRepairWindows(
+            listOf(
+                Instant.parse("2026-03-20T14:30:00Z"),
+                Instant.parse("2026-03-20T14:31:00Z"),
+                Instant.parse("2026-03-20T14:30:00Z"),
+                Instant.parse("2026-03-20T14:29:00Z")
+            )
+        )
+
+        assertEquals(
+            listOf(
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T14:31:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T14:32:00Z")
+                ),
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T14:30:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T14:31:00Z")
+                ),
+                AggregationWindow(
+                    startInclusive = Instant.parse("2026-03-20T14:29:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T14:30:00Z")
+                )
+            ),
+            windows
+        )
     }
 
     @Test

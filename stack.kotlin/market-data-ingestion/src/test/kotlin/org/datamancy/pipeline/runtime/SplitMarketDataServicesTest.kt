@@ -228,6 +228,46 @@ class SplitMarketDataServicesTest {
     }
 
     @Test
+    fun `bounded live replay switches persist deliver policy to start time`() {
+        assertEquals(
+            DeliverPolicy.ByStartTime,
+            effectivePersistDeliverPolicy(
+                lane = RawEventLane.LIVE,
+                startTime = Instant.parse("2026-03-27T08:00:00Z")
+            )
+        )
+        assertEquals(
+            DeliverPolicy.All,
+            effectivePersistDeliverPolicy(
+                lane = RawEventLane.REPLAY,
+                startTime = Instant.parse("2026-03-27T08:00:00Z")
+            )
+        )
+    }
+
+    @Test
+    fun `bounded live replay durable names stay isolated from steady state consumers`() {
+        assertEquals(
+            "market-data-persist-live-v3-hyperliquid_mainnet-trade",
+            persistLiveDurableName(
+                exchangeId = "hyperliquid_mainnet",
+                channel = "trade",
+                replayStartTime = null,
+                durableSuffix = null
+            )
+        )
+        assertEquals(
+            "market-data-persist-live-v3-hyperliquid_mainnet-trade-replay-1743062400-cutover_fill",
+            persistLiveDurableName(
+                exchangeId = "hyperliquid_mainnet",
+                channel = "trade",
+                replayStartTime = Instant.ofEpochSecond(1_743_062_400L),
+                durableSuffix = "cutover fill"
+            )
+        )
+    }
+
+    @Test
     fun `persist live channels split high volume lanes from candles and trades`() {
         assertEquals(
             listOf("trade", "candle_1m", "orderbook_l2", "asset_context"),
@@ -343,6 +383,88 @@ class SplitMarketDataServicesTest {
 
         assertEquals(listOf("BOME", "ENA", "MNT", "DOT", "XRP", "YGG"), selected)
         assertEquals(0, nextCursor)
+    }
+
+    @Test
+    fun `historical gap scan prioritizes frontier current symbols ahead of targeted repair debt`() {
+        val prioritized = prioritizeHistoricalGapScanSymbols(
+            sessionSymbols = listOf("BLAST", "NOT", "BTC", "ETH", "SOL"),
+            persistedStates = listOf(
+                PersistedCandleRepairStream(
+                    symbol = "BLAST",
+                    interval = "1m",
+                    latestTradeTime = Instant.parse("2026-03-27T04:29:49Z"),
+                    latestActivityTime = Instant.parse("2026-03-27T06:23:00Z"),
+                    latestCandleTime = Instant.parse("2026-03-27T04:29:00Z")
+                ),
+                PersistedCandleRepairStream(
+                    symbol = "NOT",
+                    interval = "1m",
+                    latestTradeTime = Instant.parse("2026-03-27T05:11:44Z"),
+                    latestActivityTime = Instant.parse("2026-03-27T06:23:00Z"),
+                    latestCandleTime = Instant.parse("2026-03-27T05:11:00Z")
+                ),
+                PersistedCandleRepairStream(
+                    symbol = "BTC",
+                    interval = "1m",
+                    latestTradeTime = Instant.parse("2026-03-27T06:23:09Z"),
+                    latestActivityTime = Instant.parse("2026-03-27T06:23:09Z"),
+                    latestCandleTime = Instant.parse("2026-03-27T06:23:00Z")
+                ),
+                PersistedCandleRepairStream(
+                    symbol = "ETH",
+                    interval = "1m",
+                    latestTradeTime = Instant.parse("2026-03-27T06:23:03Z"),
+                    latestActivityTime = Instant.parse("2026-03-27T06:23:03Z"),
+                    latestCandleTime = Instant.parse("2026-03-27T06:23:00Z")
+                ),
+                PersistedCandleRepairStream(
+                    symbol = "SOL",
+                    interval = "1m",
+                    latestTradeTime = Instant.parse("2026-03-27T06:23:08Z"),
+                    latestActivityTime = Instant.parse("2026-03-27T06:23:08Z"),
+                    latestCandleTime = Instant.parse("2026-03-27T06:23:00Z")
+                )
+            ),
+            recentActivityCutoff = Instant.parse("2026-03-27T06:00:00Z"),
+            staleCandleCutoff = Instant.parse("2026-03-27T06:20:00Z")
+        )
+
+        assertEquals(listOf("BTC", "SOL", "ETH", "BLAST", "NOT"), prioritized)
+    }
+
+    @Test
+    fun `historical gap scan keeps original order when every symbol still needs targeted repair`() {
+        val prioritized = prioritizeHistoricalGapScanSymbols(
+            sessionSymbols = listOf("BLAST", "NOT", "BTC"),
+            persistedStates = listOf(
+                PersistedCandleRepairStream(
+                    symbol = "BLAST",
+                    interval = "1m",
+                    latestTradeTime = Instant.parse("2026-03-27T04:29:49Z"),
+                    latestActivityTime = Instant.parse("2026-03-27T06:23:00Z"),
+                    latestCandleTime = Instant.parse("2026-03-27T04:29:00Z")
+                ),
+                PersistedCandleRepairStream(
+                    symbol = "NOT",
+                    interval = "1m",
+                    latestTradeTime = Instant.parse("2026-03-27T05:11:44Z"),
+                    latestActivityTime = Instant.parse("2026-03-27T06:23:00Z"),
+                    latestCandleTime = Instant.parse("2026-03-27T05:11:00Z")
+                ),
+                PersistedCandleRepairStream(
+                    symbol = "BTC",
+                    interval = "1m",
+                    latestTradeTime = Instant.parse("2026-03-27T06:21:00Z"),
+                    latestActivityTime = Instant.parse("2026-03-27T06:23:00Z"),
+                    latestCandleTime = Instant.parse("2026-03-27T06:10:00Z")
+                )
+            ),
+            recentActivityCutoff = Instant.parse("2026-03-27T06:00:00Z"),
+            staleCandleCutoff = Instant.parse("2026-03-27T06:20:00Z")
+        )
+
+        assertEquals(listOf("BLAST", "NOT", "BTC"), prioritized)
     }
 
     @Test

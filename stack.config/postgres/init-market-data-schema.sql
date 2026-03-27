@@ -116,7 +116,9 @@ ALTER TABLE minute_trade_stats ADD COLUMN IF NOT EXISTS sell_volume DOUBLE PRECI
 ALTER TABLE minute_trade_stats ADD COLUMN IF NOT EXISTS trade_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE minute_trade_stats ADD COLUMN IF NOT EXISTS trade_notional DOUBLE PRECISION NOT NULL DEFAULT 0;
 ALTER TABLE minute_trade_stats ADD COLUMN IF NOT EXISTS last_event_time TIMESTAMPTZ;
-ALTER TABLE minute_trade_stats ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+-- Avoid non-constant defaults on repeated ALTER runs against compressed hypertables.
+-- Fresh rows still populate this column from the aggregation pipeline.
+ALTER TABLE minute_trade_stats ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS minute_orderbook_state (
     time TIMESTAMPTZ NOT NULL,
@@ -144,7 +146,9 @@ ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS bid_depth_10 DOUBLE 
 ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS ask_depth_10 DOUBLE PRECISION NOT NULL DEFAULT 0;
 ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS orderbook_samples INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS last_event_time TIMESTAMPTZ;
-ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+-- Avoid non-constant defaults on repeated ALTER runs against compressed hypertables.
+-- Fresh rows still populate this column from the aggregation pipeline.
+ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS minute_asset_context (
     time TIMESTAMPTZ NOT NULL,
@@ -170,7 +174,9 @@ ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS mid_price DOUBLE PRECI
 ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS day_notional_volume DOUBLE PRECISION;
 ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS previous_day_price DOUBLE PRECISION;
 ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS last_event_time TIMESTAMPTZ;
-ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+-- Avoid non-constant defaults on repeated ALTER runs against compressed hypertables.
+-- Fresh rows still populate this column from the aggregation pipeline.
+ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
 
 -- Minute-granularity research feature store used by alpha discovery, walk-forward,
 -- and execution realism queries. This is populated from raw candles/trades/orderbooks.

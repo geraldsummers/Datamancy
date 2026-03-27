@@ -14,13 +14,13 @@ services:
       - postgres
       - monitoring
     depends_on:
-      postgres:
+      market-postgres:
         condition: service_healthy
       tx-gateway:
         condition: service_started
     environment:
       PORT: 8080
-      POSTGRES_HOST: postgres
+      POSTGRES_HOST: market-postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: datamancy
       POSTGRES_USER: ${POSTGRES_PIPELINE_USER}

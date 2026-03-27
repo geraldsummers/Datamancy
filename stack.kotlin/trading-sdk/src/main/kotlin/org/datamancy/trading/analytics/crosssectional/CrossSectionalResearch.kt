@@ -110,6 +110,24 @@ internal fun barCloseLagMinutes(
             Duration.between(bucketClose, referenceTime).toMinutes().coerceAtLeast(0L)
         }
 
+internal fun effectiveCoverageMaxFeatureLagSeconds(
+    coveragePolicy: CoverageContractPolicy,
+    barMinutes: Int
+): Long =
+    max(
+        coveragePolicy.maxFeatureLagSeconds,
+        coveragePolicy.maxFeatureLagSeconds + (max(barMinutes, 1).toLong() - 1L).coerceAtLeast(0L) * 60L
+    )
+
+internal fun effectiveCoverageMaxFinalizedLagMinutes(
+    coveragePolicy: CoverageContractPolicy,
+    barMinutes: Int
+): Long =
+    max(
+        coveragePolicy.maxFinalizedLagMinutes,
+        coveragePolicy.maxFinalizedLagMinutes + (max(barMinutes, 1).toLong() - 1L).coerceAtLeast(0L)
+    )
+
 fun clamp(value: Double, lower: Double, upper: Double): Double =
     max(lower, min(upper, value))
 
@@ -470,7 +488,8 @@ data class Bar(
     val bidDepth10: Double,
     val askDepth10: Double,
     val midPrice: Double,
-    val executionObserved: Boolean = true
+    val executionObserved: Boolean = true,
+    val finalized: Boolean = true
 )
 
 data class BasePoint(
@@ -1392,6 +1411,23 @@ fun discoverSymbolsFromMarketCatalog(
 
     val source = selectResearchCandleSource(barMinutes)
     val scaledMinBars = scaleRequiredSourceBars(minBars, source.minutes, barMinutes)
+    loadUniverseSnapshot(
+        aliases = aliases,
+        lookbackHours = lookbackHours,
+        barMinutes = source.minutes
+    )?.let { snapshot ->
+        val ranked = rankUniverseSnapshotLiquidity(
+            snapshot = snapshot,
+            symbols = normalizedSymbols,
+            lookbackHours = lookbackHours,
+            barMinutes = source.minutes,
+            minBars = scaledMinBars
+        ).map { it.symbol }
+        if (ranked.isNotEmpty()) {
+            return if (maxSymbols > 0) ranked.take(maxSymbols) else ranked
+        }
+    }
+
     val batchSize = if (maxSymbols > 0) {
         min(64, max(16, maxSymbols * 4))
     } else {
@@ -4833,6 +4869,69 @@ private fun expectedCoverageBars(lookbackHours: Int, barMinutes: Int, minBars: I
     )
 }
 
+internal fun computeResearchCoverageSnapshotsFromUniverseSnapshot(
+    exchange: String,
+    snapshot: UniverseSnapshot,
+    symbols: List<String>,
+    lookbackHours: Int,
+    barMinutes: Int,
+    minBars: Int,
+    referenceTime: Instant = Instant.now()
+): List<ResearchCoverageSnapshot> {
+    if (symbols.isEmpty()) return emptyList()
+
+    val expectedBars = expectedCoverageBars(
+        lookbackHours = lookbackHours,
+        barMinutes = barMinutes,
+        minBars = minBars
+    )
+    val window = alignedResearchWindowBounds(
+        lookbackHours = lookbackHours,
+        barMinutes = barMinutes,
+        now = referenceTime
+    )
+
+    return symbols
+        .map(String::trim)
+        .map(String::uppercase)
+        .filter(String::isNotEmpty)
+        .distinct()
+        .mapNotNull { symbol ->
+            val bars = snapshot.barsBySymbol[symbol].orEmpty()
+                .filter { !it.time.isBefore(window.startInclusive) && it.time.isBefore(window.endExclusive) }
+            if (bars.isEmpty()) {
+                null
+            } else {
+                val latestFeatureTime = bars.maxOfOrNull { it.time }
+                val finalizedThrough = bars.filter { it.finalized }.maxOfOrNull { it.time }
+
+                ResearchCoverageSnapshot(
+                    symbol = symbol,
+                    expectedBars = expectedBars,
+                    observedBars = bars.size,
+                    finalizedBars = bars.count { it.finalized },
+                    executionObservedBars = bars.count { it.executionObserved },
+                    coverageRatio = clamp(bars.size.toDouble() / max(expectedBars, 1).toDouble(), 0.0, 1.0),
+                    finalizedRatio = clamp(bars.count { it.finalized }.toDouble() / max(expectedBars, 1).toDouble(), 0.0, 1.0),
+                    executionObservedRatio = clamp(bars.count { it.executionObserved }.toDouble() / max(expectedBars, 1).toDouble(), 0.0, 1.0),
+                    latestFeatureTime = latestFeatureTime,
+                    finalizedThrough = finalizedThrough,
+                    latestFeatureLagSeconds = barCloseLagSeconds(
+                        bucketStartTime = latestFeatureTime,
+                        referenceTime = referenceTime,
+                        bucketSeconds = window.bucketSeconds.toLong()
+                    ),
+                    finalizedLagMinutes = barCloseLagMinutes(
+                        bucketStartTime = finalizedThrough,
+                        referenceTime = referenceTime,
+                        bucketSeconds = window.bucketSeconds.toLong()
+                    )
+                )
+            }
+        }
+        .sortedBy { it.symbol }
+}
+
 private fun computeResearchCoverageSnapshots(
     exchange: String,
     aliases: List<String>,
@@ -4845,6 +4944,23 @@ private fun computeResearchCoverageSnapshots(
 
     val normalizedSymbols = symbols.map(String::trim).map(String::uppercase).filter(String::isNotEmpty).distinct()
     if (normalizedSymbols.isEmpty()) return emptyList()
+    val referenceTime = Instant.now()
+
+    loadUniverseSnapshot(
+        aliases = aliases,
+        lookbackHours = lookbackHours,
+        barMinutes = barMinutes
+    )?.let { snapshot ->
+        return computeResearchCoverageSnapshotsFromUniverseSnapshot(
+            exchange = exchange,
+            snapshot = snapshot,
+            symbols = normalizedSymbols,
+            lookbackHours = lookbackHours,
+            barMinutes = barMinutes,
+            minBars = minBars,
+            referenceTime = referenceTime
+        )
+    }
 
     val aliasSql = sqlList(aliases)
     val symbolSql = sqlList(normalizedSymbols)
@@ -4911,7 +5027,6 @@ private fun computeResearchCoverageSnapshots(
         ORDER BY b.symbol ASC
     """.trimIndent()
 
-    val referenceTime = Instant.now()
     return buildList {
         pgConnection().use { conn ->
             conn.prepareStatement(sql).use { stmt ->
@@ -4961,15 +5076,24 @@ private fun buildResearchCoverageVerdict(
     symbols: List<String>,
     snapshots: List<ResearchCoverageSnapshot>,
     requiredBars: Int,
-    coveragePolicy: CoverageContractPolicy
+    coveragePolicy: CoverageContractPolicy,
+    barMinutes: Int
 ): ResearchCoverageVerdict {
+    val maxFeatureLagSeconds = effectiveCoverageMaxFeatureLagSeconds(
+        coveragePolicy = coveragePolicy,
+        barMinutes = barMinutes
+    )
+    val maxFinalizedLagMinutes = effectiveCoverageMaxFinalizedLagMinutes(
+        coveragePolicy = coveragePolicy,
+        barMinutes = barMinutes
+    )
     val eligibleSymbols = snapshots
         .filter { snapshot ->
             snapshot.observedBars >= requiredBars &&
                 snapshot.coverageRatio >= coveragePolicy.minCoverageRatio &&
                 snapshot.finalizedRatio >= coveragePolicy.minFinalizedRatio &&
-                snapshot.latestFeatureLagSeconds <= coveragePolicy.maxFeatureLagSeconds &&
-                (snapshot.finalizedLagMinutes ?: Long.MAX_VALUE) <= coveragePolicy.maxFinalizedLagMinutes &&
+                snapshot.latestFeatureLagSeconds <= maxFeatureLagSeconds &&
+                (snapshot.finalizedLagMinutes ?: Long.MAX_VALUE) <= maxFinalizedLagMinutes &&
                 (
                     !coveragePolicy.requireExecutionObserved ||
                         snapshot.executionObservedRatio >= coveragePolicy.minExecutionObservedRatio
@@ -4995,7 +5119,8 @@ private fun buildResearchCoverageVerdict(
             "coverage gate failed exchange=$exchange eligible=${eligibleSymbols.size}/$requestedSymbols " +
                 "requiredMinSymbols=${coveragePolicy.minUniverseSymbols} requiredBars=$requiredBars " +
                 "thresholds=cov>=${coveragePolicy.minCoverageRatio.round(3)} fin>=${coveragePolicy.minFinalizedRatio.round(3)} " +
-                "exec>=${coveragePolicy.minExecutionObservedRatio.round(3)} sample=[$sample]"
+                "exec>=${coveragePolicy.minExecutionObservedRatio.round(3)} " +
+                "featLag<=${maxFeatureLagSeconds}s finLag<=${maxFinalizedLagMinutes}m sample=[$sample]"
         }
         else -> null
     }
@@ -5060,7 +5185,8 @@ private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUni
             symbols = symbols,
             snapshots = snapshots,
             requiredBars = requiredCoverageBars,
-            coveragePolicy = coveragePolicy
+            coveragePolicy = coveragePolicy,
+            barMinutes = config.barMinutes
         )
     }.toMap(LinkedHashMap())
 

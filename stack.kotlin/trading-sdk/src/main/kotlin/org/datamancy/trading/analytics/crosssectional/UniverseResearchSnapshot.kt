@@ -17,7 +17,8 @@ internal data class UniverseSnapshotBar(
     val bidDepth10: Double,
     val askDepth10: Double,
     val midPrice: Double,
-    val executionObserved: Boolean
+    val executionObserved: Boolean,
+    val finalized: Boolean
 )
 
 internal data class UniverseSnapshot(
@@ -80,6 +81,7 @@ private class UniverseSnapshotCache(
     private var reloads: Long = 0
     private var lastLoadMs: Long? = null
     private var lastError: String? = null
+    private val loadingKeys = mutableSetOf<UniverseSnapshotKey>()
 
     fun getOrLoad(aliases: List<String>, lookbackHours: Int, barMinutes: Int): UniverseSnapshot? {
         if (!enabled) return null
@@ -99,18 +101,24 @@ private class UniverseSnapshotCache(
         val now = Instant.now()
 
         synchronized(this) {
-            val existing = entries[key]
-            if (existing != null) {
-                val fresh = Duration.between(existing.snapshot.loadedAt, now) <= ttl
-                if (fresh && existing.snapshot.lookbackHours >= lookbackHours) {
-                    hits += 1
-                    return existing.snapshot
+            while (true) {
+                val existing = entries[key]
+                if (existing != null) {
+                    val fresh = Duration.between(existing.snapshot.loadedAt, now) <= ttl
+                    if (fresh && existing.snapshot.lookbackHours >= lookbackHours) {
+                        hits += 1
+                        return existing.snapshot
+                    }
                 }
+                if (loadingKeys.add(key)) {
+                    misses += 1
+                    break
+                }
+                (this as java.lang.Object).wait()
             }
-            misses += 1
         }
 
-        return runCatching {
+        val loaded = runCatching {
             val startedAt = System.nanoTime()
             val snapshot = loadUniverseSnapshotFromFeatures(
                 aliases = normalizedAliases,
@@ -132,6 +140,12 @@ private class UniverseSnapshotCache(
                 lastError = ex.message ?: ex::class.simpleName ?: "unknown"
             }
         }.getOrNull()
+
+        synchronized(this) {
+            loadingKeys.remove(key)
+            (this as java.lang.Object).notifyAll()
+        }
+        return loaded
     }
 
     fun status(now: Instant = Instant.now()): UniverseSnapshotCacheStatus = synchronized(this) {
@@ -211,6 +225,7 @@ private fun loadUniverseSnapshotFromFeatures(
                 COALESCE(ask_depth_10, 0) AS ask_depth_10,
                 COALESCE(NULLIF(mid_price, 0), close) AS mid_price,
                 orderbook_observed,
+                is_finalized,
                 exchange
             FROM research_features_1m
             WHERE exchange IN ($aliasSql)
@@ -234,7 +249,8 @@ private fun loadUniverseSnapshotFromFeatures(
                 bid_depth_10,
                 ask_depth_10,
                 mid_price,
-                orderbook_observed
+                orderbook_observed,
+                is_finalized
             FROM minute_rows
         ),
         bucket_volume AS (
@@ -265,6 +281,14 @@ private fun loadUniverseSnapshotFromFeatures(
             FROM bucketed
             WHERE orderbook_observed
             ORDER BY symbol, bucket_time, time DESC
+        ),
+        bucket_finalization AS (
+            SELECT
+                symbol,
+                bucket_time,
+                BOOL_AND(is_finalized) AS finalized
+            FROM bucketed
+            GROUP BY symbol, bucket_time
         )
         SELECT
             c.symbol,
@@ -275,7 +299,8 @@ private fun loadUniverseSnapshotFromFeatures(
             COALESCE(o.bid_depth_10, 0) AS bid_depth_10,
             COALESCE(o.ask_depth_10, 0) AS ask_depth_10,
             COALESCE(o.mid_price, c.close) AS mid_price,
-            CASE WHEN o.symbol IS NULL THEN FALSE ELSE TRUE END AS execution_observed
+            CASE WHEN o.symbol IS NULL THEN FALSE ELSE TRUE END AS execution_observed,
+            COALESCE(f.finalized, FALSE) AS finalized
         FROM bucket_close c
         JOIN bucket_volume v
           ON v.symbol = c.symbol
@@ -283,6 +308,9 @@ private fun loadUniverseSnapshotFromFeatures(
         LEFT JOIN bucket_orderbook o
           ON o.symbol = c.symbol
          AND o.bucket_time = c.bucket_time
+        JOIN bucket_finalization f
+          ON f.symbol = c.symbol
+         AND f.bucket_time = c.bucket_time
         ORDER BY c.bucket_time ASC, c.symbol ASC
     """.trimIndent()
 
@@ -303,7 +331,8 @@ private fun loadUniverseSnapshotFromFeatures(
                                 bidDepth10 = rs.getDouble("bid_depth_10"),
                                 askDepth10 = rs.getDouble("ask_depth_10"),
                                 midPrice = rs.getDouble("mid_price"),
-                                executionObserved = rs.getBoolean("execution_observed")
+                                executionObserved = rs.getBoolean("execution_observed"),
+                                finalized = rs.getBoolean("finalized")
                             )
                         )
                     }
@@ -353,7 +382,8 @@ internal fun loadUniverseSnapshotBars(
                         bidDepth10 = bar.bidDepth10,
                         askDepth10 = bar.askDepth10,
                         midPrice = bar.midPrice,
-                        executionObserved = bar.executionObserved
+                        executionObserved = bar.executionObserved,
+                        finalized = bar.finalized
                     )
                 }
         }
@@ -361,8 +391,19 @@ internal fun loadUniverseSnapshotBars(
         .toList()
 }
 
-internal fun loadUniverseSnapshotLiquidity(
+internal fun loadUniverseSnapshot(
     aliases: List<String>,
+    lookbackHours: Int,
+    barMinutes: Int
+): UniverseSnapshot? =
+    universeSnapshotCache.getOrLoad(
+        aliases = aliases,
+        lookbackHours = lookbackHours,
+        barMinutes = barMinutes
+    )
+
+internal fun rankUniverseSnapshotLiquidity(
+    snapshot: UniverseSnapshot,
     symbols: List<String>,
     lookbackHours: Int,
     barMinutes: Int,
@@ -370,7 +411,6 @@ internal fun loadUniverseSnapshotLiquidity(
     maxSymbols: Int = 0,
     now: Instant = Instant.now()
 ): List<SymbolLiquiditySnapshot> {
-    val snapshot = universeSnapshotCache.getOrLoad(aliases, lookbackHours, barMinutes) ?: return emptyList()
     val window = alignedResearchWindowBounds(lookbackHours = lookbackHours, barMinutes = barMinutes, now = now)
     val targetSymbols = if (symbols.isEmpty()) {
         snapshot.barsBySymbol.keys.sorted()
@@ -395,6 +435,27 @@ internal fun loadUniverseSnapshotLiquidity(
             .thenBy { it.symbol }
     )
     return if (maxSymbols > 0) ranked.take(maxSymbols) else ranked
+}
+
+internal fun loadUniverseSnapshotLiquidity(
+    aliases: List<String>,
+    symbols: List<String>,
+    lookbackHours: Int,
+    barMinutes: Int,
+    minBars: Int,
+    maxSymbols: Int = 0,
+    now: Instant = Instant.now()
+): List<SymbolLiquiditySnapshot> {
+    val snapshot = universeSnapshotCache.getOrLoad(aliases, lookbackHours, barMinutes) ?: return emptyList()
+    return rankUniverseSnapshotLiquidity(
+        snapshot = snapshot,
+        symbols = symbols,
+        lookbackHours = lookbackHours,
+        barMinutes = barMinutes,
+        minBars = minBars,
+        maxSymbols = maxSymbols,
+        now = now
+    )
 }
 
 fun crossSectionalUniverseSnapshotCacheStatus(): UniverseSnapshotCacheStatus =

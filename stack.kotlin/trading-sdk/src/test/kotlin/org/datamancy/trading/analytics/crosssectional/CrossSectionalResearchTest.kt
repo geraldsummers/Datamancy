@@ -7,6 +7,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import java.time.Instant
+import org.datamancy.trading.policy.CoverageContractPolicy
 import org.datamancy.trading.policy.DatamancyTradingPolicy
 import org.datamancy.trading.policy.UniverseSelectionMode
 
@@ -34,6 +35,94 @@ class CrossSectionalResearchTest {
         assertEquals(96, requiredResearchWindowBars(lookbackHours = 48, barMinutes = 30, minBars = 48))
         assertEquals(48, requiredResearchWindowBars(lookbackHours = 24, barMinutes = 30, minBars = 32))
         assertEquals(72, requiredResearchWindowBars(lookbackHours = 8, barMinutes = 15, minBars = 72))
+    }
+
+    @Test
+    fun `computeResearchCoverageSnapshotsFromUniverseSnapshot derives exact target-bar coverage`() {
+        val snapshot = UniverseSnapshot(
+            aliases = listOf("hyperliquid_mainnet"),
+            barMinutes = 30,
+            lookbackHours = 2,
+            loadedAt = Instant.parse("2026-03-27T06:00:00Z"),
+            barsBySymbol = mapOf(
+                "BTC" to listOf(
+                    UniverseSnapshotBar(
+                        symbol = "BTC",
+                        time = Instant.parse("2026-03-27T04:00:00Z"),
+                        close = 100.0,
+                        volume = 1_000.0,
+                        spreadPct = 0.001,
+                        bidDepth10 = 50_000.0,
+                        askDepth10 = 50_000.0,
+                        midPrice = 100.0,
+                        executionObserved = true,
+                        finalized = true
+                    ),
+                    UniverseSnapshotBar(
+                        symbol = "BTC",
+                        time = Instant.parse("2026-03-27T04:30:00Z"),
+                        close = 101.0,
+                        volume = 1_100.0,
+                        spreadPct = 0.001,
+                        bidDepth10 = 51_000.0,
+                        askDepth10 = 51_000.0,
+                        midPrice = 101.0,
+                        executionObserved = true,
+                        finalized = true
+                    ),
+                    UniverseSnapshotBar(
+                        symbol = "BTC",
+                        time = Instant.parse("2026-03-27T05:00:00Z"),
+                        close = 102.0,
+                        volume = 1_200.0,
+                        spreadPct = 0.001,
+                        bidDepth10 = 52_000.0,
+                        askDepth10 = 52_000.0,
+                        midPrice = 102.0,
+                        executionObserved = false,
+                        finalized = false
+                    ),
+                    UniverseSnapshotBar(
+                        symbol = "BTC",
+                        time = Instant.parse("2026-03-27T05:30:00Z"),
+                        close = 103.0,
+                        volume = 1_300.0,
+                        spreadPct = 0.001,
+                        bidDepth10 = 53_000.0,
+                        askDepth10 = 53_000.0,
+                        midPrice = 103.0,
+                        executionObserved = true,
+                        finalized = false
+                    )
+                )
+            ),
+            totalBars = 4,
+            firstBarTime = Instant.parse("2026-03-27T04:00:00Z"),
+            lastBarTime = Instant.parse("2026-03-27T05:30:00Z")
+        )
+
+        val snapshots = computeResearchCoverageSnapshotsFromUniverseSnapshot(
+            exchange = "hyperliquid",
+            snapshot = snapshot,
+            symbols = listOf("BTC"),
+            lookbackHours = 2,
+            barMinutes = 30,
+            minBars = 4,
+            referenceTime = Instant.parse("2026-03-27T06:00:00Z")
+        )
+
+        assertEquals(1, snapshots.size)
+        val coverage = snapshots.single()
+        assertEquals("BTC", coverage.symbol)
+        assertEquals(4, coverage.expectedBars)
+        assertEquals(3, coverage.observedBars)
+        assertEquals(2, coverage.finalizedBars)
+        assertEquals(2, coverage.executionObservedBars)
+        assertEquals(0.75, coverage.coverageRatio)
+        assertEquals(0.5, coverage.finalizedRatio)
+        assertEquals(0.5, coverage.executionObservedRatio)
+        assertEquals(Instant.parse("2026-03-27T05:00:00Z"), coverage.latestFeatureTime)
+        assertEquals(Instant.parse("2026-03-27T04:30:00Z"), coverage.finalizedThrough)
     }
 
     @Test
@@ -142,6 +231,19 @@ class CrossSectionalResearchTest {
 
         assertEquals(133L, barCloseLagSeconds(bucketStart, reference))
         assertEquals(2L, barCloseLagMinutes(bucketStart, reference))
+    }
+
+    @Test
+    fun `coverage lag thresholds expand with bar cadence without loosening one minute bars`() {
+        val policy = CoverageContractPolicy(
+            maxFeatureLagSeconds = 180L,
+            maxFinalizedLagMinutes = 5L
+        )
+
+        assertEquals(180L, effectiveCoverageMaxFeatureLagSeconds(policy, barMinutes = 1))
+        assertEquals(5L, effectiveCoverageMaxFinalizedLagMinutes(policy, barMinutes = 1))
+        assertEquals(1920L, effectiveCoverageMaxFeatureLagSeconds(policy, barMinutes = 30))
+        assertEquals(34L, effectiveCoverageMaxFinalizedLagMinutes(policy, barMinutes = 30))
     }
 
     @Test

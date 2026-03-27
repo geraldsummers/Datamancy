@@ -27,6 +27,7 @@ internal const val DEFAULT_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS = 6L
 internal const val MIN_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS = 1L
 internal const val DEFAULT_RESEARCH_FEATURES_HISTORICAL_CATCHUP_WINDOWS_PER_CYCLE = 8
 internal const val DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_WINDOWS_PER_CYCLE = 4
+internal const val MIN_RESEARCH_FEATURES_RECENT_GAP_REPAIR_WINDOWS_PER_CYCLE = 1
 internal const val DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES = 5L
 internal const val DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_HOURS = 48L
 internal const val DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 30
@@ -37,6 +38,7 @@ internal const val DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS = 30_000
 internal const val MIN_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS = 5_000L
 internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOW_MINUTES = 15L
 internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOWS_PER_CYCLE = 8
+internal const val DEFAULT_RESEARCH_FEATURES_OBSERVED_CANDLE_REPAIR_WINDOWS_PER_CYCLE = 30
 
 internal fun resolveResearchFeaturesBootstrapHours(explicitHours: Long?): Long {
     val hours = explicitHours ?: DEFAULT_RESEARCH_FEATURES_BOOTSTRAP_HOURS
@@ -56,6 +58,11 @@ internal fun resolveResearchFeaturesRefreshOverlapMinutes(explicitMinutes: Long?
 internal fun resolveResearchFeaturesBackfillChunkHours(explicitHours: Long?): Long {
     val hours = explicitHours ?: DEFAULT_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS
     return hours.coerceAtLeast(MIN_RESEARCH_FEATURES_BACKFILL_CHUNK_HOURS)
+}
+
+internal fun resolveResearchFeaturesRecentGapRepairWindowsPerCycle(explicitWindows: Int?): Int {
+    val windows = explicitWindows ?: DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_WINDOWS_PER_CYCLE
+    return windows.coerceAtLeast(MIN_RESEARCH_FEATURES_RECENT_GAP_REPAIR_WINDOWS_PER_CYCLE)
 }
 
 internal fun resolveResearchFeaturesWindowTimeoutSeconds(explicitSeconds: Int?): Int {
@@ -321,10 +328,23 @@ internal data class RecentGapRepairState(
     val pendingNextCursorExclusive: Instant?
 )
 
+internal fun observedCandleRepairWindows(
+    bucketTimes: List<Instant>
+): List<AggregationWindow> = bucketTimes
+    .distinct()
+    .sortedDescending()
+    .map { bucketTime ->
+        AggregationWindow(
+            startInclusive = bucketTime,
+            endExclusive = bucketTime.plus(1, ChronoUnit.MINUTES)
+        )
+    }
+
 internal fun selectRecentGapRepairBatch(
     startInclusive: Instant,
     endExclusive: Instant,
     chunkMinutes: Long,
+    maxWindowsPerCycle: Int = DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_WINDOWS_PER_CYCLE,
     cursorExclusive: Instant?,
     pendingWindows: List<AggregationWindow>,
     pendingNextCursorExclusive: Instant?
@@ -340,6 +360,7 @@ internal fun selectRecentGapRepairBatch(
         startInclusive = startInclusive,
         endExclusive = endExclusive,
         chunkMinutes = chunkMinutes,
+        maxWindowsPerCycle = maxWindowsPerCycle,
         cursorExclusive = cursorExclusive
     )
     return RecentGapRepairBatch(
@@ -430,7 +451,8 @@ internal class ResearchFeatureAggregator(
     private val featureStateStore: FeatureStateStore,
     windowTimeoutSeconds: Int = DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS,
     backgroundWindowTimeoutSeconds: Int? = null,
-    backgroundPhaseBudgetMs: Long? = null
+    backgroundPhaseBudgetMs: Long? = null,
+    recentGapRepairWindowsPerCycle: Int = DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_WINDOWS_PER_CYCLE
 ) {
     private val schemaLock = Any()
     @Volatile
@@ -452,6 +474,8 @@ internal class ResearchFeatureAggregator(
         explicitBudgetMs = backgroundPhaseBudgetMs,
         refreshIntervalMs = refreshIntervalMs
     )
+    private val effectiveRecentGapRepairWindowsPerCycle =
+        resolveResearchFeaturesRecentGapRepairWindowsPerCycle(recentGapRepairWindowsPerCycle)
 
     private val requiredColumns = listOf(
         "time",
@@ -498,7 +522,8 @@ internal class ResearchFeatureAggregator(
         researchFeatureLogger.info {
             "Starting research_features_1m aggregation for $exchangeId " +
                 "(bootstrap=${bootstrapHours}h refreshEvery=${refreshIntervalMs}ms overlap=${refreshOverlapMinutes}m " +
-                "chunk=${backfillChunkHours}h finalizeLag=${finalizationLagMinutes}m)"
+                "chunk=${backfillChunkHours}h finalizeLag=${finalizationLagMinutes}m " +
+                "recentGapWindows=${effectiveRecentGapRepairWindowsPerCycle})"
         }
 
         while (coroutineContext.isActive) {
@@ -745,14 +770,33 @@ internal class ResearchFeatureAggregator(
             }
             val endExclusive = Instant.now().truncatedTo(ChronoUnit.HOURS)
             val startInclusive = endExclusive.minus(recentGapRepairHours(bootstrapHours), ChronoUnit.HOURS)
-            val batch = selectRecentGapRepairBatch(
-                startInclusive = startInclusive,
-                endExclusive = endExclusive,
-                chunkMinutes = recentGapRepairChunkMinutes(backfillChunkHours),
-                cursorExclusive = recentGapRepairCursorExclusive,
-                pendingWindows = recentGapRepairPendingWindows,
-                pendingNextCursorExclusive = recentGapRepairPendingNextCursorExclusive
-            )
+            val observedRepairWindows = if (recentGapRepairPendingWindows.isEmpty()) {
+                selectObservedCandleRepairWindows(
+                    conn = conn,
+                    startInclusive = startInclusive,
+                    endExclusive = endExclusive
+                )
+            } else {
+                emptyList()
+            }
+            val usingObservedRepair = observedRepairWindows.isNotEmpty()
+            val batch = if (usingObservedRepair) {
+                RecentGapRepairBatch(
+                    windows = observedRepairWindows,
+                    nextCursorExclusive = recentGapRepairCursorExclusive ?: endExclusive,
+                    reusedPendingWindows = false
+                )
+            } else {
+                selectRecentGapRepairBatch(
+                    startInclusive = startInclusive,
+                    endExclusive = endExclusive,
+                    chunkMinutes = recentGapRepairChunkMinutes(backfillChunkHours),
+                    maxWindowsPerCycle = effectiveRecentGapRepairWindowsPerCycle,
+                    cursorExclusive = recentGapRepairCursorExclusive,
+                    pendingWindows = recentGapRepairPendingWindows,
+                    pendingNextCursorExclusive = recentGapRepairPendingNextCursorExclusive
+                )
+            }
             val windows = batch.windows
             if (windows.isEmpty()) {
                 return@withContext false
@@ -778,9 +822,56 @@ internal class ResearchFeatureAggregator(
                 "research_features_1m gap_repair complete exchange=$exchangeId windows=${windows.size} " +
                 "totalRows=${result.totalRows} finalized=${result.totalFinalizedRows} " +
                     "completed=${result.completed} reusedPending=${batch.reusedPendingWindows} " +
+                    "observedRepair=$usingObservedRepair " +
                     "pending=${recentGapRepairPendingWindows.size} nextCursor=$recentGapRepairCursorExclusive"
             }
             return@withContext true
+        }
+    }
+
+    private fun selectObservedCandleRepairWindows(
+        conn: Connection,
+        startInclusive: Instant,
+        endExclusive: Instant,
+        maxWindows: Int = DEFAULT_RESEARCH_FEATURES_OBSERVED_CANDLE_REPAIR_WINDOWS_PER_CYCLE
+    ): List<AggregationWindow> {
+        if (!startInclusive.isBefore(endExclusive) || maxWindows <= 0) {
+            return emptyList()
+        }
+        val sql = """
+            SELECT c.time AS bucket_time
+            FROM market_data c
+            WHERE c.exchange = ?
+              AND c.data_type = 'candle_1m'
+              AND c.time >= ?
+              AND c.time < ?
+              AND EXISTS (
+                    SELECT 1
+                    FROM research_features_1m f
+                    WHERE f.exchange = c.exchange
+                      AND f.symbol = c.symbol
+                      AND f.time = c.time
+                      AND NOT f.candle_observed
+                )
+            GROUP BY c.time
+            ORDER BY c.time DESC
+            LIMIT ?
+        """.trimIndent()
+
+        conn.prepareStatement(sql).use { stmt ->
+            stmt.queryTimeout = effectiveBackgroundWindowTimeoutSeconds
+            stmt.setString(1, exchangeId)
+            stmt.setTimestamp(2, Timestamp.from(startInclusive))
+            stmt.setTimestamp(3, Timestamp.from(endExclusive))
+            stmt.setInt(4, maxWindows)
+            stmt.executeQuery().use { rs ->
+                val bucketTimes = buildList {
+                    while (rs.next()) {
+                        rs.getTimestamp("bucket_time")?.toInstant()?.let(::add)
+                    }
+                }
+                return observedCandleRepairWindows(bucketTimes)
+            }
         }
     }
 
