@@ -16,6 +16,7 @@ import javax.sql.DataSource
 
 internal const val POSTGRES_DEADLOCK_SQL_STATE = "40P01"
 private const val RAW_SYNC_UPSERT_MAX_RETRIES = 3
+private const val RAW_SYNC_REFRESH_LOCK_DISCRIMINATOR = 30_001
 
 internal data class RawSyncObservation(
     val symbol: String,
@@ -90,13 +91,18 @@ internal class RawSyncStateStore(
         }
     }
 
-    suspend fun backfillAll() = withContext(Dispatchers.IO) {
+    suspend fun backfillAll(): Boolean = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             conn.autoCommit = false
             try {
+                if (!tryAcquireRefreshLock(conn)) {
+                    conn.rollback()
+                    return@withContext false
+                }
                 backfillMarketData(conn)
                 backfillOrderbookData(conn)
                 conn.commit()
+                true
             } catch (e: Exception) {
                 conn.rollback()
                 throw e
@@ -104,17 +110,32 @@ internal class RawSyncStateStore(
         }
     }
 
-    suspend fun refreshRecent(startInclusive: Instant, endExclusive: Instant) = withContext(Dispatchers.IO) {
-        if (!startInclusive.isBefore(endExclusive)) return@withContext
+    suspend fun refreshRecent(startInclusive: Instant, endExclusive: Instant): Boolean = withContext(Dispatchers.IO) {
+        if (!startInclusive.isBefore(endExclusive)) return@withContext false
         dataSource.connection.use { conn ->
             conn.autoCommit = false
             try {
+                if (!tryAcquireRefreshLock(conn)) {
+                    conn.rollback()
+                    return@withContext false
+                }
                 refreshRecentMarketData(conn, startInclusive, endExclusive)
                 refreshRecentOrderbookData(conn, startInclusive, endExclusive)
                 conn.commit()
+                true
             } catch (e: Exception) {
                 conn.rollback()
                 throw e
+            }
+        }
+    }
+
+    private fun tryAcquireRefreshLock(conn: Connection): Boolean {
+        conn.prepareStatement("SELECT pg_try_advisory_xact_lock(?, ?)").use { stmt ->
+            stmt.setInt(1, exchangeId.hashCode())
+            stmt.setInt(2, RAW_SYNC_REFRESH_LOCK_DISCRIMINATOR)
+            stmt.executeQuery().use { rs ->
+                return rs.next() && rs.getBoolean(1)
             }
         }
     }
@@ -358,24 +379,83 @@ internal class RawSyncStateStore(
 
     private fun refreshRecentMarketData(conn: Connection, startInclusive: Instant, endExclusive: Instant) {
         val sql = """
-            WITH aggregated AS (
+            WITH symbols AS (
+                SELECT DISTINCT symbol
+                FROM raw_sync_state
+                WHERE exchange = ?
+            ),
+            latest AS (
                 SELECT
                     symbol,
-                    data_type AS channel,
-                    MIN(time) AS earliest_raw_time,
-                    MAX(time) AS latest_raw_time,
-                    COUNT(*)::BIGINT AS row_count
-                FROM market_data
-                WHERE exchange = ?
-                  AND time >= ?
-                  AND time < ?
-                  AND (
-                    data_type = 'trade' OR
-                    data_type = 'funding' OR
-                    data_type = 'open_interest' OR
-                    data_type LIKE 'candle_%'
-                  )
-                GROUP BY symbol, data_type
+                    channel,
+                    latest_raw_time
+                FROM (
+                    SELECT
+                        symbols.symbol,
+                        latest.channel,
+                        latest.latest_raw_time
+                    FROM symbols
+                    CROSS JOIN LATERAL (
+                        VALUES
+                            (
+                                'trade',
+                                (
+                                    SELECT time
+                                    FROM market_data
+                                    WHERE exchange = ?
+                                      AND symbol = symbols.symbol
+                                      AND data_type = 'trade'
+                                      AND time >= ?
+                                      AND time < ?
+                                    ORDER BY time DESC
+                                    LIMIT 1
+                                )
+                            ),
+                            (
+                                'funding',
+                                (
+                                    SELECT time
+                                    FROM market_data
+                                    WHERE exchange = ?
+                                      AND symbol = symbols.symbol
+                                      AND data_type = 'funding'
+                                      AND time >= ?
+                                      AND time < ?
+                                    ORDER BY time DESC
+                                    LIMIT 1
+                                )
+                            ),
+                            (
+                                'open_interest',
+                                (
+                                    SELECT time
+                                    FROM market_data
+                                    WHERE exchange = ?
+                                      AND symbol = symbols.symbol
+                                      AND data_type = 'open_interest'
+                                      AND time >= ?
+                                      AND time < ?
+                                    ORDER BY time DESC
+                                    LIMIT 1
+                                )
+                            ),
+                            (
+                                'candle_1m',
+                                (
+                                    SELECT time
+                                    FROM market_data
+                                    WHERE exchange = ?
+                                      AND symbol = symbols.symbol
+                                      AND data_type = 'candle_1m'
+                                      AND time >= ?
+                                      AND time < ?
+                                    ORDER BY time DESC
+                                    LIMIT 1
+                                )
+                            )
+                    ) AS latest(channel, latest_raw_time)
+                ) candidates
+                WHERE latest_raw_time IS NOT NULL
             )
             INSERT INTO raw_sync_state (
                 exchange,
@@ -391,12 +471,12 @@ internal class RawSyncStateStore(
                 ?,
                 symbol,
                 channel,
-                earliest_raw_time,
+                latest_raw_time,
                 latest_raw_time,
                 latest_raw_time,
                 NOW(),
-                row_count
-            FROM aggregated
+                1
+            FROM latest
             ORDER BY symbol, channel
             ON CONFLICT (exchange, symbol, channel) DO UPDATE SET
                 earliest_raw_time = CASE
@@ -419,26 +499,45 @@ internal class RawSyncStateStore(
         """.trimIndent()
         conn.prepareStatement(sql).use { stmt ->
             stmt.setString(1, exchangeId)
-            stmt.setTimestamp(2, Timestamp.from(startInclusive))
-            stmt.setTimestamp(3, Timestamp.from(endExclusive))
-            stmt.setString(4, exchangeId)
+            stmt.setString(2, exchangeId)
+            stmt.setTimestamp(3, Timestamp.from(startInclusive))
+            stmt.setTimestamp(4, Timestamp.from(endExclusive))
+            stmt.setString(5, exchangeId)
+            stmt.setTimestamp(6, Timestamp.from(startInclusive))
+            stmt.setTimestamp(7, Timestamp.from(endExclusive))
+            stmt.setString(8, exchangeId)
+            stmt.setTimestamp(9, Timestamp.from(startInclusive))
+            stmt.setTimestamp(10, Timestamp.from(endExclusive))
+            stmt.setString(11, exchangeId)
+            stmt.setTimestamp(12, Timestamp.from(startInclusive))
+            stmt.setTimestamp(13, Timestamp.from(endExclusive))
+            stmt.setString(14, exchangeId)
             stmt.executeUpdate()
         }
     }
 
     private fun refreshRecentOrderbookData(conn: Connection, startInclusive: Instant, endExclusive: Instant) {
         val sql = """
-            WITH aggregated AS (
-                SELECT
-                    symbol,
-                    MIN(time) AS earliest_raw_time,
-                    MAX(time) AS latest_raw_time,
-                    COUNT(*)::BIGINT AS row_count
-                FROM orderbook_data
+            WITH symbols AS (
+                SELECT DISTINCT symbol
+                FROM raw_sync_state
                 WHERE exchange = ?
-                  AND time >= ?
-                  AND time < ?
-                GROUP BY symbol
+            ),
+            latest AS (
+                SELECT
+                    symbols.symbol,
+                    latest.latest_raw_time
+                FROM symbols
+                CROSS JOIN LATERAL (
+                    SELECT time AS latest_raw_time
+                    FROM orderbook_data
+                    WHERE exchange = ?
+                      AND symbol = symbols.symbol
+                      AND time >= ?
+                      AND time < ?
+                    ORDER BY time DESC
+                    LIMIT 1
+                ) latest
             )
             INSERT INTO raw_sync_state (
                 exchange,
@@ -454,12 +553,12 @@ internal class RawSyncStateStore(
                 ?,
                 symbol,
                 'orderbook_l2',
-                earliest_raw_time,
+                latest_raw_time,
                 latest_raw_time,
                 latest_raw_time,
                 NOW(),
-                row_count
-            FROM aggregated
+                1
+            FROM latest
             ORDER BY symbol
             ON CONFLICT (exchange, symbol, channel) DO UPDATE SET
                 earliest_raw_time = CASE
@@ -482,9 +581,10 @@ internal class RawSyncStateStore(
         """.trimIndent()
         conn.prepareStatement(sql).use { stmt ->
             stmt.setString(1, exchangeId)
-            stmt.setTimestamp(2, Timestamp.from(startInclusive))
-            stmt.setTimestamp(3, Timestamp.from(endExclusive))
-            stmt.setString(4, exchangeId)
+            stmt.setString(2, exchangeId)
+            stmt.setTimestamp(3, Timestamp.from(startInclusive))
+            stmt.setTimestamp(4, Timestamp.from(endExclusive))
+            stmt.setString(5, exchangeId)
             stmt.executeUpdate()
         }
     }

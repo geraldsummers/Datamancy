@@ -1631,7 +1631,10 @@ class MarketDataStateUpdaterRunner internal constructor(
     private suspend fun reconcileStateOnce(fullFeatureBackfill: Boolean) {
         if (!rawSyncStateStore.hasPersistedState()) {
             logger.info { "Hydrating raw_sync_state from canonical raw tables" }
-            rawSyncStateStore.backfillAll()
+            if (!rawSyncStateStore.backfillAll()) {
+                logger.warn { "Skipping raw_sync_state hydration because another refresh transaction is in progress" }
+                return
+            }
         } else {
             val endExclusive = Instant.now().truncatedTo(ChronoUnit.MINUTES)
             val startInclusive = endExclusive.minus(config.stateUpdater.refreshLookbackHours, ChronoUnit.HOURS)
@@ -1639,7 +1642,10 @@ class MarketDataStateUpdaterRunner internal constructor(
                 "Refreshing raw_sync_state recent window from canonical raw tables " +
                     "lookbackHours=${config.stateUpdater.refreshLookbackHours}"
             }
-            rawSyncStateStore.refreshRecent(startInclusive, endExclusive)
+            if (!rawSyncStateStore.refreshRecent(startInclusive, endExclusive)) {
+                logger.warn { "Skipping raw_sync_state refresh because another refresh transaction is in progress" }
+                return
+            }
         }
         if (fullFeatureBackfill && !featureStateStore.hasPersistedState()) {
             logger.info { "Hydrating feature state tables from research_features_1m" }

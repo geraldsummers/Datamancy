@@ -330,6 +330,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
       DATAMANCY_TRADING_POLICY_FILE: /app/config/trading-policy.json
       MARKET_DATA_STATE_REFRESH_INTERVAL_MS: "300000"
-      MARKET_DATA_STATE_REFRESH_LOOKBACK_HOURS: "48"
+      MARKET_DATA_STATE_REFRESH_LOOKBACK_HOURS: "1"
     volumes:
       - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro

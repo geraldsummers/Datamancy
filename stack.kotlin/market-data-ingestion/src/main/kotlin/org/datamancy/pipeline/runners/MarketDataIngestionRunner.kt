@@ -564,8 +564,11 @@ class MarketDataIngestionRunner {
             if (rawSyncStateStore.hasPersistedState()) {
                 logger.info { "Skipping raw_sync_state hydration because persisted state already exists" }
             } else {
-                rawSyncStateStore.backfillAll()
-                logger.info { "Hydrated raw_sync_state from existing market data" }
+                if (rawSyncStateStore.backfillAll()) {
+                    logger.info { "Hydrated raw_sync_state from existing market data" }
+                } else {
+                    logger.warn { "Skipped raw_sync_state hydration because another refresh transaction is in progress" }
+                }
             }
         }.onFailure { ex ->
             logger.error(ex) { "Failed to hydrate persistent sync/materialization state: ${ex.message}" }
