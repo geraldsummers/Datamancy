@@ -1683,6 +1683,8 @@ class MarketDataRepairRunner internal constructor(
     private var currentUniverseSymbols: List<String> = emptyList()
     private var initialRepairSymbols: List<String> = emptyList()
     private var recentGapScanCursor: Int = 0
+    private val deferredCandleStreams = linkedMapOf<Pair<String, String>, Instant>()
+    private val deferredCandleStreamsLock = Any()
 
     constructor() : this(buildRepairRunnerDependencies())
 
@@ -1723,10 +1725,12 @@ class MarketDataRepairRunner internal constructor(
                     continue
                 }
                 val initialStreams = if (plannerState.initialRecentRepairPending) {
-                    initialRepairSymbols
+                    filterDeferredCandleStreams(
+                        initialRepairSymbols
                         .drop(plannerState.initialRecentRepairCursor)
                         .take(DEFAULT_HYPERLIQUID_INITIAL_RECENT_REPAIR_BATCH_STREAMS)
                         .flatMap { symbol -> config.candleIntervals.map { interval -> symbol to interval } }
+                    )
                 } else {
                     emptyList()
                 }
@@ -1966,6 +1970,7 @@ class MarketDataRepairRunner internal constructor(
                     staleCandleCutoff = staleCandleCutoff
                 )
             }
+            .filter { state -> !isCandleStreamDeferred(state.symbol, state.interval) }
             .sortedWith(
                 compareBy<PersistedCandleRepairStream> { it.latestCandleTime == null }
                     .reversed()
@@ -1999,6 +2004,8 @@ class MarketDataRepairRunner internal constructor(
         val normalized = sessionSymbols.map(String::trim).filter(String::isNotEmpty).distinct()
         if (normalized.isEmpty()) return@withContext emptyList()
         val interval = "1m"
+        val eligibleSymbols = normalized.filter { !isCandleStreamDeferred(it, interval) }
+        if (eligibleSymbols.isEmpty()) return@withContext emptyList()
         val intervalMs = candleIntervalToMillis(interval)
         val lookbackHours = minOf(config.backfillLookbackHours, 48L).coerceAtLeast(1L)
         val lookbackStart = alignDownToIntervalBoundary(
@@ -2007,7 +2014,7 @@ class MarketDataRepairRunner internal constructor(
         )
         val latestStableBoundary = alignDownToIntervalBoundary(now, intervalMs).minusMillis(intervalMs)
         if (latestStableBoundary.isBefore(lookbackStart)) return@withContext emptyList()
-        val recentGapSymbols = nextRecentGapScanSymbols(normalized)
+        val recentGapSymbols = nextRecentGapScanSymbols(eligibleSymbols)
         if (recentGapSymbols.isEmpty()) return@withContext emptyList()
 
         val recentGapCandidates = try {
@@ -2067,15 +2074,15 @@ class MarketDataRepairRunner internal constructor(
 
         val sql = """
             SELECT symbol, earliest_raw_time, latest_raw_time
-            FROM raw_sync_state
-            WHERE exchange = ?
-              AND channel = 'candle_1m'
-              AND symbol = ANY (?)
+                FROM raw_sync_state
+                WHERE exchange = ?
+                  AND channel = 'candle_1m'
+                  AND symbol = ANY (?)
         """.trimIndent()
         val persistedStates = dataSource.connection.use { connection ->
             connection.prepareStatement(sql).use { statement ->
                 statement.setString(1, config.exchangeId)
-                val sqlArray: SqlArray = connection.createArrayOf("text", normalized.toTypedArray())
+                val sqlArray: SqlArray = connection.createArrayOf("text", eligibleSymbols.toTypedArray())
                 statement.setArray(2, sqlArray)
                 statement.executeQuery().use { rs ->
                     buildList {
@@ -2097,7 +2104,7 @@ class MarketDataRepairRunner internal constructor(
             interval = interval,
             now = now,
             lookbackHours = config.backfillLookbackHours,
-            coverageStates = normalized.map { symbol ->
+            coverageStates = eligibleSymbols.map { symbol ->
                 stateBySymbol[symbol] ?: RawCandleCoverageState(symbol, null, null)
             },
             maxCandidates = limit.coerceAtLeast(1)
@@ -2109,7 +2116,11 @@ class MarketDataRepairRunner internal constructor(
         label: String,
         lookbackHours: Long
     ) {
-        val distinctStreams = streams.distinct()
+        val distinctStreams = filterDeferredCandleStreams(streams.distinct())
+        if (distinctStreams.isEmpty()) {
+            logger.info { "$label skipped all streams because they are in backfill cooldown" }
+            return
+        }
         val permits = determineCandleRepairPermits(
             streamCount = distinctStreams.size,
             markInitialRepairComplete = plannerState.initialRecentRepairPending
@@ -2134,6 +2145,7 @@ class MarketDataRepairRunner internal constructor(
                             }
                             RepairStreamResult(publishedCandles = candles.size, deferred = false)
                         } catch (deferred: HyperliquidBackfillDeferredException) {
+                            recordCandleStreamDeferral(symbol, interval, deferred.retryAfterMs)
                             logger.warn {
                                 "$label deferred stream $symbol/$interval retryAfterMs=${deferred.retryAfterMs} " +
                                     "reason=${deferred.message}"
@@ -2151,6 +2163,12 @@ class MarketDataRepairRunner internal constructor(
     }
 
     private suspend fun runHistoricalCandleBackfill(candidate: CandleHistoricalBackfillCandidate) {
+        if (isCandleStreamDeferred(candidate.symbol, candidate.interval)) {
+            logger.info {
+                "historical_candle_backfill skipped ${candidate.symbol}/${candidate.interval} because the stream is in backfill cooldown"
+            }
+            return
+        }
         logger.info {
             "historical_candle_backfill start ${candidate.symbol}/${candidate.interval} " +
                 "range=${candidate.range.startTime}..${candidate.range.endTime}"
@@ -2168,6 +2186,7 @@ class MarketDataRepairRunner internal constructor(
             val candles = try {
                 candleBackfillClient.fetchWindowCandles(window)
             } catch (deferred: HyperliquidBackfillDeferredException) {
+                recordCandleStreamDeferral(candidate.symbol, candidate.interval, deferred.retryAfterMs)
                 logger.warn {
                     "historical_candle_backfill deferred ${candidate.symbol}/${candidate.interval} " +
                         "window=${window.startTime}..${window.endTime} retryAfterMs=${deferred.retryAfterMs} " +
@@ -2177,6 +2196,49 @@ class MarketDataRepairRunner internal constructor(
             }
             candles.forEach { candle ->
                 publishBackfilledCandle("historical_candle_backfill", candle)
+            }
+        }
+    }
+
+    private fun filterDeferredCandleStreams(
+        streams: List<Pair<String, String>>,
+        now: Instant = Instant.now()
+    ): List<Pair<String, String>> =
+        streams.filterNot { (symbol, interval) -> isCandleStreamDeferred(symbol, interval, now) }
+
+    private fun isCandleStreamDeferred(
+        symbol: String,
+        interval: String,
+        now: Instant = Instant.now()
+    ): Boolean = synchronized(deferredCandleStreamsLock) {
+        pruneDeferredCandleStreamsLocked(now)
+        val deferredUntil = deferredCandleStreams[symbol to interval] ?: return@synchronized false
+        now.isBefore(deferredUntil)
+    }
+
+    private fun recordCandleStreamDeferral(
+        symbol: String,
+        interval: String,
+        retryAfterMs: Long,
+        now: Instant = Instant.now()
+    ) {
+        if (retryAfterMs <= 0L) return
+        synchronized(deferredCandleStreamsLock) {
+            pruneDeferredCandleStreamsLocked(now)
+            val deferredUntil = now.plusMillis(retryAfterMs)
+            val key = symbol to interval
+            val existing = deferredCandleStreams[key]
+            if (existing == null || existing.isBefore(deferredUntil)) {
+                deferredCandleStreams[key] = deferredUntil
+            }
+        }
+    }
+
+    private fun pruneDeferredCandleStreamsLocked(now: Instant) {
+        val iterator = deferredCandleStreams.entries.iterator()
+        while (iterator.hasNext()) {
+            if (!now.isBefore(iterator.next().value)) {
+                iterator.remove()
             }
         }
     }
