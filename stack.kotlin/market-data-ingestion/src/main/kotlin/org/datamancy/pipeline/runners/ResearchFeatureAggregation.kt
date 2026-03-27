@@ -876,6 +876,14 @@ internal class ResearchFeatureAggregator(
                     continue
                 }
                 if (isAggregationQueryTimeout(e)) {
+                    if (phase == "gap_repair") {
+                        researchFeatureLogger.warn(e) {
+                            "research_features_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
+                                "timed out after ${windowTimeoutSecondsForPhase(phase)}s at minimum granularity; " +
+                                "skipping until the rolling scan wraps instead of pinning recent-gap repair"
+                        }
+                        continue
+                    }
                     researchFeatureLogger.error(e) {
                         "research_features_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
                             "timed out after ${windowTimeoutSecondsForPhase(phase)}s at minimum granularity; retaining window"
@@ -947,96 +955,6 @@ internal class ResearchFeatureAggregator(
     ): Int {
         val updatedAt = Instant.now()
         val finalizationCutoff = updatedAt.minus(finalizationLagMinutes, ChronoUnit.MINUTES)
-        val singleMinuteWindow = isSingleMinuteAggregationWindow(
-            AggregationWindow(startInclusive = startInclusive, endExclusive = endExclusive)
-        )
-        val minuteOrderbooksSql = if (singleMinuteWindow) {
-            """
-            minute_orderbook_counts AS (
-                SELECT
-                    symbol,
-                    exchange,
-                    COUNT(*)::INTEGER AS orderbook_samples
-                FROM orderbook_data
-                WHERE exchange = ?
-                  AND time >= ?
-                  AND time < ?
-                GROUP BY symbol, exchange
-            ),
-            minute_orderbook_latest AS (
-                SELECT DISTINCT ON (symbol, exchange)
-                    CAST(? AS TIMESTAMPTZ) AS bucket_time,
-                    symbol,
-                    exchange,
-                    best_bid,
-                    best_ask,
-                    spread,
-                    spread_pct,
-                    mid_price,
-                    bid_depth_10,
-                    ask_depth_10
-                FROM orderbook_data
-                WHERE exchange = ?
-                  AND time >= ?
-                  AND time < ?
-                ORDER BY symbol, exchange, time DESC
-            ),
-            minute_orderbooks AS (
-                SELECT
-                    latest.bucket_time,
-                    latest.symbol,
-                    latest.exchange,
-                    latest.best_bid,
-                    latest.best_ask,
-                    latest.spread,
-                    latest.spread_pct,
-                    latest.mid_price,
-                    latest.bid_depth_10,
-                    latest.ask_depth_10,
-                    counts.orderbook_samples
-                FROM minute_orderbook_latest latest
-                JOIN minute_orderbook_counts counts
-                  ON counts.symbol = latest.symbol
-                 AND counts.exchange = latest.exchange
-            ),
-            """.trimIndent()
-        } else {
-            """
-            minute_orderbooks AS (
-                SELECT DISTINCT ON (bucket_time, symbol, exchange)
-                    bucket_time,
-                    symbol,
-                    exchange,
-                    best_bid,
-                    best_ask,
-                    spread,
-                    spread_pct,
-                    mid_price,
-                    bid_depth_10,
-                    ask_depth_10,
-                    1 AS orderbook_samples
-                FROM (
-                    SELECT
-                        time_bucket(INTERVAL '1 minute', time) AS bucket_time,
-                        symbol,
-                        exchange,
-                        best_bid,
-                        best_ask,
-                        spread,
-                        spread_pct,
-                        mid_price,
-                        bid_depth_10,
-                        ask_depth_10,
-                        time
-                    FROM orderbook_data
-                    WHERE exchange = ?
-                      AND time >= ?
-                      AND time < ?
-                ) ranked_orderbooks
-                ORDER BY bucket_time, symbol, exchange, time DESC
-            ),
-            """.trimIndent()
-        }
         val sql = """
             WITH minute_candles AS (
                 SELECT
@@ -1057,63 +975,58 @@ internal class ResearchFeatureAggregator(
             ),
             minute_trades AS (
                 SELECT
-                    time_bucket(INTERVAL '1 minute', time) AS bucket_time,
+                    time AS bucket_time,
                     symbol,
                     exchange,
-                    COALESCE(SUM(size), 0) AS trade_volume,
-                    COALESCE(SUM(CASE WHEN side = 'buy' THEN size ELSE 0 END), 0) AS buy_volume,
-                    COALESCE(SUM(CASE WHEN side = 'sell' THEN size ELSE 0 END), 0) AS sell_volume,
-                    COUNT(*)::INTEGER AS trade_count,
-                    CASE WHEN SUM(size) > 0 THEN SUM(price * size) / SUM(size) END AS trade_vwap
-                FROM market_data
+                    trade_volume,
+                    buy_volume,
+                    sell_volume,
+                    trade_count,
+                    CASE WHEN trade_volume > 0 THEN trade_notional / trade_volume END AS trade_vwap
+                FROM minute_trade_stats
                 WHERE exchange = ?
-                  AND data_type = 'trade'
                   AND time >= ?
                   AND time < ?
-                GROUP BY 1, 2, 3
             ),
-            $minuteOrderbooksSql
+            minute_orderbooks AS (
+                SELECT
+                    time AS bucket_time,
+                    symbol,
+                    exchange,
+                    best_bid,
+                    best_ask,
+                    spread,
+                    spread_pct,
+                    mid_price,
+                    bid_depth_10,
+                    ask_depth_10,
+                    orderbook_samples
+                FROM minute_orderbook_state
+                WHERE exchange = ?
+                  AND time >= ?
+                  AND time < ?
+            ),
             minute_funding AS (
-                SELECT DISTINCT ON (bucket_time, symbol, exchange)
-                    bucket_time,
+                SELECT
+                    time AS bucket_time,
                     symbol,
                     exchange,
                     funding_rate
-                FROM (
-                    SELECT
-                        time_bucket(INTERVAL '1 minute', time) AS bucket_time,
-                        symbol,
-                        exchange,
-                        funding_rate,
-                        time
-                    FROM market_data
-                    WHERE exchange = ?
-                      AND data_type = 'funding'
-                      AND time >= ?
-                      AND time < ?
-                ) ranked_funding
-                ORDER BY bucket_time, symbol, exchange, time DESC
+                FROM minute_asset_context
+                WHERE exchange = ?
+                  AND time >= ?
+                  AND time < ?
             ),
             minute_open_interest AS (
-                SELECT DISTINCT ON (bucket_time, symbol, exchange)
-                    bucket_time,
+                SELECT
+                    time AS bucket_time,
                     symbol,
                     exchange,
                     open_interest
-                FROM (
-                    SELECT
-                        time_bucket(INTERVAL '1 minute', time) AS bucket_time,
-                        symbol,
-                        exchange,
-                        open_interest,
-                        time
-                    FROM market_data
-                    WHERE exchange = ?
-                      AND data_type = 'open_interest'
-                      AND time >= ?
-                      AND time < ?
-                ) ranked_open_interest
-                ORDER BY bucket_time, symbol, exchange, time DESC
+                FROM minute_asset_context
+                WHERE exchange = ?
+                  AND time >= ?
+                  AND time < ?
             ),
             minute_feature_buckets AS (
                 SELECT bucket_time, symbol, exchange FROM minute_candles
@@ -1255,11 +1168,6 @@ internal class ResearchFeatureAggregator(
             parameterIndex += 3
             bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)
             parameterIndex += 3
-            if (singleMinuteWindow) {
-                bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)
-                parameterIndex += 3
-                stmt.setTimestamp(parameterIndex++, Timestamp.from(startInclusive))
-            }
             bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)
             parameterIndex += 3
             bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)

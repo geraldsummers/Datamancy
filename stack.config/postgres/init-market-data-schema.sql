@@ -95,6 +95,83 @@ CREATE INDEX IF NOT EXISTS idx_orderbook_data_time ON orderbook_data (time DESC)
 CREATE INDEX IF NOT EXISTS idx_orderbook_data_symbol ON orderbook_data (symbol, exchange, time DESC);
 CREATE INDEX IF NOT EXISTS idx_orderbook_data_spread ON orderbook_data (symbol, spread_pct, time DESC);
 
+-- Narrow minute staging tables decouple feature materialization from append-hot raw scans.
+CREATE TABLE IF NOT EXISTS minute_trade_stats (
+    time TIMESTAMPTZ NOT NULL,
+    symbol TEXT NOT NULL,
+    exchange TEXT NOT NULL,
+    trade_volume DOUBLE PRECISION NOT NULL DEFAULT 0,
+    buy_volume DOUBLE PRECISION NOT NULL DEFAULT 0,
+    sell_volume DOUBLE PRECISION NOT NULL DEFAULT 0,
+    trade_count INTEGER NOT NULL DEFAULT 0,
+    trade_notional DOUBLE PRECISION NOT NULL DEFAULT 0,
+    last_event_time TIMESTAMPTZ,
+    source_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (time, symbol, exchange)
+);
+
+ALTER TABLE minute_trade_stats ADD COLUMN IF NOT EXISTS trade_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE minute_trade_stats ADD COLUMN IF NOT EXISTS buy_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE minute_trade_stats ADD COLUMN IF NOT EXISTS sell_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE minute_trade_stats ADD COLUMN IF NOT EXISTS trade_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE minute_trade_stats ADD COLUMN IF NOT EXISTS trade_notional DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE minute_trade_stats ADD COLUMN IF NOT EXISTS last_event_time TIMESTAMPTZ;
+ALTER TABLE minute_trade_stats ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+CREATE TABLE IF NOT EXISTS minute_orderbook_state (
+    time TIMESTAMPTZ NOT NULL,
+    symbol TEXT NOT NULL,
+    exchange TEXT NOT NULL,
+    best_bid DOUBLE PRECISION,
+    best_ask DOUBLE PRECISION,
+    spread DOUBLE PRECISION,
+    spread_pct DOUBLE PRECISION,
+    mid_price DOUBLE PRECISION,
+    bid_depth_10 DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ask_depth_10 DOUBLE PRECISION NOT NULL DEFAULT 0,
+    orderbook_samples INTEGER NOT NULL DEFAULT 0,
+    last_event_time TIMESTAMPTZ,
+    source_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (time, symbol, exchange)
+);
+
+ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS best_bid DOUBLE PRECISION;
+ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS best_ask DOUBLE PRECISION;
+ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS spread DOUBLE PRECISION;
+ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS spread_pct DOUBLE PRECISION;
+ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS mid_price DOUBLE PRECISION;
+ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS bid_depth_10 DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS ask_depth_10 DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS orderbook_samples INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS last_event_time TIMESTAMPTZ;
+ALTER TABLE minute_orderbook_state ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+CREATE TABLE IF NOT EXISTS minute_asset_context (
+    time TIMESTAMPTZ NOT NULL,
+    symbol TEXT NOT NULL,
+    exchange TEXT NOT NULL,
+    funding_rate DOUBLE PRECISION,
+    open_interest DOUBLE PRECISION,
+    mark_price DOUBLE PRECISION,
+    oracle_price DOUBLE PRECISION,
+    mid_price DOUBLE PRECISION,
+    day_notional_volume DOUBLE PRECISION,
+    previous_day_price DOUBLE PRECISION,
+    last_event_time TIMESTAMPTZ,
+    source_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (time, symbol, exchange)
+);
+
+ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS funding_rate DOUBLE PRECISION;
+ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS open_interest DOUBLE PRECISION;
+ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS mark_price DOUBLE PRECISION;
+ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS oracle_price DOUBLE PRECISION;
+ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS mid_price DOUBLE PRECISION;
+ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS day_notional_volume DOUBLE PRECISION;
+ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS previous_day_price DOUBLE PRECISION;
+ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS last_event_time TIMESTAMPTZ;
+ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
 -- Minute-granularity research feature store used by alpha discovery, walk-forward,
 -- and execution realism queries. This is populated from raw candles/trades/orderbooks.
 CREATE TABLE IF NOT EXISTS research_features_1m (
@@ -695,6 +772,9 @@ BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pipeline_user') THEN
         ALTER TABLE IF EXISTS market_data OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS orderbook_data OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS minute_trade_stats OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS minute_orderbook_state OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS minute_asset_context OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS research_features_1m OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS raw_sync_state OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS feature_materialization_state OWNER TO pipeline_user;
@@ -729,6 +809,9 @@ BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'test_runner_user') THEN
         GRANT SELECT, INSERT ON market_data TO test_runner_user;
         GRANT SELECT, INSERT ON orderbook_data TO test_runner_user;
+        GRANT SELECT, INSERT ON minute_trade_stats TO test_runner_user;
+        GRANT SELECT, INSERT ON minute_orderbook_state TO test_runner_user;
+        GRANT SELECT, INSERT ON minute_asset_context TO test_runner_user;
         GRANT SELECT, INSERT ON research_features_1m TO test_runner_user;
         GRANT SELECT, INSERT ON raw_sync_state TO test_runner_user;
         GRANT SELECT, INSERT ON feature_materialization_state TO test_runner_user;
@@ -749,6 +832,9 @@ BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pipeline_user') THEN
         GRANT SELECT, INSERT, UPDATE ON market_data TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON orderbook_data TO pipeline_user;
+        GRANT SELECT, INSERT, UPDATE ON minute_trade_stats TO pipeline_user;
+        GRANT SELECT, INSERT, UPDATE ON minute_orderbook_state TO pipeline_user;
+        GRANT SELECT, INSERT, UPDATE ON minute_asset_context TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON research_features_1m TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON raw_sync_state TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON feature_materialization_state TO pipeline_user;
@@ -774,6 +860,9 @@ CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 -- Convert tables to TimescaleDB hypertables for optimized time-series storage
 SELECT create_hypertable('market_data', 'time', if_not_exists => TRUE);
 SELECT create_hypertable('orderbook_data', 'time', if_not_exists => TRUE);
+SELECT create_hypertable('minute_trade_stats', 'time', if_not_exists => TRUE);
+SELECT create_hypertable('minute_orderbook_state', 'time', if_not_exists => TRUE);
+SELECT create_hypertable('minute_asset_context', 'time', if_not_exists => TRUE);
 SELECT create_hypertable('research_features_1m', 'time', if_not_exists => TRUE);
 
 -- Create the candle-first discovery index after hypertable conversion.
@@ -825,6 +914,21 @@ CREATE INDEX IF NOT EXISTS idx_orderbook_data_exchange_time_symbol_covering
 CREATE INDEX IF NOT EXISTS idx_orderbook_data_exchange_time_symbol_full_covering
     ON orderbook_data (exchange, time DESC, symbol)
     INCLUDE (best_bid, best_ask, spread, spread_pct, bid_depth_10, ask_depth_10, mid_price)
+    WITH (timescaledb.transaction_per_chunk);
+
+CREATE INDEX IF NOT EXISTS idx_minute_trade_stats_exchange_time_symbol
+    ON minute_trade_stats (exchange, time DESC, symbol)
+    INCLUDE (trade_volume, buy_volume, sell_volume, trade_count, trade_notional, last_event_time)
+    WITH (timescaledb.transaction_per_chunk);
+
+CREATE INDEX IF NOT EXISTS idx_minute_orderbook_state_exchange_time_symbol
+    ON minute_orderbook_state (exchange, time DESC, symbol)
+    INCLUDE (best_bid, best_ask, spread, spread_pct, mid_price, bid_depth_10, ask_depth_10, orderbook_samples, last_event_time)
+    WITH (timescaledb.transaction_per_chunk);
+
+CREATE INDEX IF NOT EXISTS idx_minute_asset_context_exchange_time_symbol
+    ON minute_asset_context (exchange, time DESC, symbol)
+    INCLUDE (funding_rate, open_interest, mark_price, oracle_price, mid_price, day_notional_volume, previous_day_price, last_event_time)
     WITH (timescaledb.transaction_per_chunk);
 
 -- research_features_1m is the primary research read path for universe scans and bar loading.
@@ -879,6 +983,24 @@ ALTER TABLE orderbook_data SET (
   timescaledb.compress_orderby = 'time DESC'
 );
 
+ALTER TABLE minute_trade_stats SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'symbol, exchange',
+  timescaledb.compress_orderby = 'time DESC'
+);
+
+ALTER TABLE minute_orderbook_state SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'symbol, exchange',
+  timescaledb.compress_orderby = 'time DESC'
+);
+
+ALTER TABLE minute_asset_context SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'symbol, exchange',
+  timescaledb.compress_orderby = 'time DESC'
+);
+
 ALTER TABLE research_features_1m SET (
   timescaledb.compress,
   timescaledb.compress_segmentby = 'symbol, exchange',
@@ -888,4 +1010,7 @@ ALTER TABLE research_features_1m SET (
 -- Add compression policy: compress chunks older than 7 days
 SELECT add_compression_policy('market_data', INTERVAL '7 days', if_not_exists => TRUE);
 SELECT add_compression_policy('orderbook_data', INTERVAL '7 days', if_not_exists => TRUE);
+SELECT add_compression_policy('minute_trade_stats', INTERVAL '7 days', if_not_exists => TRUE);
+SELECT add_compression_policy('minute_orderbook_state', INTERVAL '7 days', if_not_exists => TRUE);
+SELECT add_compression_policy('minute_asset_context', INTERVAL '7 days', if_not_exists => TRUE);
 SELECT add_compression_policy('research_features_1m', INTERVAL '7 days', if_not_exists => TRUE);
