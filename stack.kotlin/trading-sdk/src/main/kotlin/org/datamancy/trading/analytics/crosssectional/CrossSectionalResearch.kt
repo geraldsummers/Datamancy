@@ -15,6 +15,10 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.Serializable
 import org.datamancy.trading.policy.ActiveTradingPolicy
 import org.datamancy.trading.policy.CoverageContractPolicy
+import org.datamancy.trading.policy.TradingPolicy
+import org.datamancy.trading.policy.UniversePolicy
+import org.datamancy.trading.policy.UniverseSelectionMode
+import org.datamancy.trading.policy.VenuePolicy
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
@@ -217,7 +221,8 @@ data class CandleSource(
 )
 
 data class ExchangeMarketSnapshot(
-    val symbol: String
+    val symbol: String,
+    val attributes: Map<String, String> = emptyMap()
 )
 
 data class SymbolLiquiditySnapshot(
@@ -943,7 +948,14 @@ fun fetchExchangeMarkets(txBase: String, exchange: String): List<ExchangeMarketS
                 val obj = element.asJsonObject
                 val symbol = obj.string("symbol")?.trim()?.uppercase()?.takeIf { it.isNotEmpty() }
                     ?: return@mapNotNull null
-                ExchangeMarketSnapshot(symbol = symbol)
+                val attributes = obj.obj("attributes")
+                    ?.entrySet()
+                    ?.asSequence()
+                    ?.filter { (_, value) -> !value.isJsonNull }
+                    ?.associate { (key, value) -> key to value.toMarketAttributeValue() }
+                    ?.filterValues { it.isNotEmpty() }
+                    ?: emptyMap()
+                ExchangeMarketSnapshot(symbol = symbol, attributes = attributes)
             }
             ?.distinctBy { it.symbol }
             ?: emptyList()
@@ -951,6 +963,94 @@ fun fetchExchangeMarkets(txBase: String, exchange: String): List<ExchangeMarketS
         println("Exchange market catalog unavailable for $exchange: ${ex.message}")
         emptyList()
     }
+
+private fun com.google.gson.JsonElement.toMarketAttributeValue(): String =
+    when {
+        isJsonNull -> ""
+        isJsonPrimitive && asJsonPrimitive.isString -> asString.trim()
+        else -> toString()
+    }
+
+private fun symbolKey(symbol: String): String = symbol.trim().uppercase()
+
+fun ExchangeMarketSnapshot.isDelisted(): Boolean {
+    val raw = attributes["isDelisted"] ?: attributes["delisted"] ?: return false
+    return raw.equals("true", ignoreCase = true)
+}
+
+fun TradingPolicy.findVenueForExchange(exchange: String, aliases: Collection<String> = emptyList()): VenuePolicy? {
+    val keys = buildSet {
+        add(exchange.trim().lowercase())
+        aliases.mapTo(this) { it.trim().lowercase() }
+    }.filter { it.isNotEmpty() }.toSet()
+    return venues.values.firstOrNull { venue ->
+        venue.venueId.trim().lowercase() in keys || venue.exchangeId.trim().lowercase() in keys
+    }
+}
+
+fun filterSymbolsByUniversePolicy(
+    symbols: Collection<String>,
+    universe: UniversePolicy
+): List<String> {
+    val includeSymbols = universe.includeSymbols.map(::symbolKey).toSet()
+    val excludeSymbols = universe.excludeSymbols.map(::symbolKey).toSet()
+    return symbols
+        .asSequence()
+        .map(String::trim)
+        .filter(String::isNotEmpty)
+        .filter { includeSymbols.isEmpty() || symbolKey(it) in includeSymbols }
+        .filterNot { symbolKey(it) in excludeSymbols }
+        .distinct()
+        .sortedWith(compareBy<String> { symbolKey(it) }.thenBy { it })
+        .toList()
+}
+
+fun filterExchangeMarketsByUniversePolicy(
+    markets: Collection<ExchangeMarketSnapshot>,
+    universe: UniversePolicy
+): List<ExchangeMarketSnapshot> {
+    val includeSymbols = universe.includeSymbols.map(::symbolKey).toSet()
+    val excludeSymbols = universe.excludeSymbols.map(::symbolKey).toSet()
+    return markets
+        .asSequence()
+        .filter { universe.includeDelisted || !it.isDelisted() }
+        .filter { includeSymbols.isEmpty() || symbolKey(it.symbol) in includeSymbols }
+        .filterNot { symbolKey(it.symbol) in excludeSymbols }
+        .distinctBy { symbolKey(it.symbol) }
+        .sortedWith(compareBy<ExchangeMarketSnapshot> { symbolKey(it.symbol) }.thenBy { it.symbol })
+        .toList()
+}
+
+fun resolveAuthoritativeMarketSymbols(
+    txBase: String,
+    exchange: String,
+    aliases: Collection<String> = emptyList(),
+    policy: TradingPolicy = ActiveTradingPolicy.current(),
+    fetchMarkets: (String, String) -> List<ExchangeMarketSnapshot> = ::fetchExchangeMarkets
+): List<String> {
+    val venue = policy.findVenueForExchange(exchange, aliases)
+        ?: error("No trading policy venue configured for exchange=$exchange aliases=${aliases.joinToString(",")}")
+    return when (venue.universe.selectionMode) {
+        UniverseSelectionMode.STATIC -> {
+            val symbols = filterSymbolsByUniversePolicy(venue.universe.staticSymbols, venue.universe)
+            require(symbols.isNotEmpty()) {
+                "Static universe policy resolved no symbols for venue=${venue.venueId} exchange=${venue.exchangeId}"
+            }
+            symbols
+        }
+
+        UniverseSelectionMode.EXCHANGE_CATALOG -> {
+            val markets = filterExchangeMarketsByUniversePolicy(
+                markets = fetchMarkets(txBase, venue.venueId),
+                universe = venue.universe
+            )
+            require(markets.isNotEmpty()) {
+                "Exchange catalog resolved no markets for venue=${venue.venueId} exchange=${venue.exchangeId}"
+            }
+            markets.map { it.symbol }
+        }
+    }
+}
 
 fun buildExchangePlans(catalog: List<ExchangeCatalogSnapshot>, config: ResearchConfig): List<ExchangePlan> {
     val overrideExchange = config.executionExchangeOverride.trim().lowercase()
@@ -1348,7 +1448,11 @@ fun discoverSymbols(
         barMinutes = barMinutes,
         minBars = minBars
     )
-    val markets = fetchExchangeMarkets(txBase, exchange).map { it.symbol }
+    val markets = resolveAuthoritativeMarketSymbols(
+        txBase = txBase,
+        exchange = exchange,
+        aliases = aliases
+    )
     val discovered = if (markets.isNotEmpty()) {
         val ranked = discoverSymbolsFromMarketCatalog(
             aliases = aliases,

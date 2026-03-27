@@ -7,6 +7,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import java.time.Instant
+import org.datamancy.trading.policy.DatamancyTradingPolicy
+import org.datamancy.trading.policy.UniverseSelectionMode
 
 class CrossSectionalResearchTest {
     @Test
@@ -82,6 +84,55 @@ class CrossSectionalResearchTest {
         }
 
         assertEquals(listOf("BTC", "ETH", "SOL"), ranked.map { it.symbol })
+    }
+
+    @Test
+    fun `filterExchangeMarketsByUniversePolicy excludes delisted markets and applies symbol filters`() {
+        val venue = DatamancyTradingPolicy.default().venue("hyperliquid")
+        val filtered = filterExchangeMarketsByUniversePolicy(
+            markets = listOf(
+                ExchangeMarketSnapshot(symbol = "BTC"),
+                ExchangeMarketSnapshot(symbol = "ETH"),
+                ExchangeMarketSnapshot(symbol = "AI", attributes = mapOf("isDelisted" to "true")),
+                ExchangeMarketSnapshot(symbol = "ETH")
+            ),
+            universe = venue.universe.copy(
+                includeSymbols = listOf("BTC", "ETH", "AI"),
+                excludeSymbols = listOf("ETH"),
+                includeDelisted = false
+            )
+        )
+
+        assertEquals(listOf("BTC"), filtered.map { it.symbol })
+    }
+
+    @Test
+    fun `resolveAuthoritativeMarketSymbols respects static universe policy`() {
+        val basePolicy = DatamancyTradingPolicy.default()
+        val hyperliquidVenue = basePolicy.venue("hyperliquid")
+        val policy = basePolicy.copy(
+            venues = mapOf(
+                "hyperliquid" to hyperliquidVenue.copy(
+                    universe = hyperliquidVenue.universe.copy(
+                        selectionMode = UniverseSelectionMode.STATIC,
+                        staticSymbols = listOf("ETH", "BTC", "ETH"),
+                        includeSymbols = listOf("BTC", "ETH"),
+                        excludeSymbols = listOf("ETH")
+                    )
+                )
+            )
+        )
+
+        val resolved = resolveAuthoritativeMarketSymbols(
+            txBase = "http://unused",
+            exchange = "hyperliquid",
+            aliases = listOf("hyperliquid_mainnet"),
+            policy = policy
+        ) { _, _ ->
+            error("static universe policy should not fetch market catalog")
+        }
+
+        assertEquals(listOf("BTC"), resolved)
     }
 
     @Test

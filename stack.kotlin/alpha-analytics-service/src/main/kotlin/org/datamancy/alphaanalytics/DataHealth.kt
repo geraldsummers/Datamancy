@@ -2,6 +2,7 @@ package org.datamancy.alphaanalytics
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.datamancy.trading.analytics.crosssectional.resolveAuthoritativeMarketSymbols
 import org.datamancy.trading.policy.ActiveTradingPolicy
 import org.datamancy.trading.policy.RequirementLevel
 import org.datamancy.trading.policy.TradingPolicy
@@ -170,15 +171,22 @@ private data class DataHealthSymbolRow(
 
 class DataHealthService(
     private val dataSource: DataSource,
-    private val policyProvider: () -> TradingPolicy = ActiveTradingPolicy::current
+    private val policyProvider: () -> TradingPolicy = ActiveTradingPolicy::current,
+    private val txGatewayUrlProvider: () -> String = {
+        System.getenv("TX_GATEWAY_URL")?.trim()?.takeIf { it.isNotEmpty() } ?: "http://tx-gateway:8080"
+    }
 ) {
     private val database by lazy { Database.connect(dataSource) }
 
     suspend fun loadSummary(exchange: String? = null, barMinutes: Int = 1): DataHealthSummary = withContext(Dispatchers.IO) {
         require(barMinutes == 1) { "data health currently supports only barMinutes=1" }
-        val resolvedExchange = resolveExchange(exchange)
-        val thresholds = thresholdsFor(resolvedExchange, barMinutes)
-        val rows = loadRows(resolvedExchange)
+        val policy = policyProvider()
+        val resolvedExchange = resolveExchange(exchange, policy)
+        val thresholds = thresholdsFor(policy, resolvedExchange, barMinutes)
+        val rows = loadRows(
+            exchange = resolvedExchange,
+            authoritativeSymbols = resolveAuthoritativeSymbols(resolvedExchange, policy)
+        )
         val activeRows = rows.filter { it.activeRecent }
         val evaluated = activeRows.map { evaluate(it, thresholds) }
 
@@ -232,9 +240,13 @@ class DataHealthService(
         includeHealthy: Boolean = false
     ): DataHealthIssuesResponse = withContext(Dispatchers.IO) {
         require(barMinutes == 1) { "data health currently supports only barMinutes=1" }
-        val resolvedExchange = resolveExchange(exchange)
-        val thresholds = thresholdsFor(resolvedExchange, barMinutes)
-        val issues = loadRows(resolvedExchange)
+        val policy = policyProvider()
+        val resolvedExchange = resolveExchange(exchange, policy)
+        val thresholds = thresholdsFor(policy, resolvedExchange, barMinutes)
+        val issues = loadRows(
+            exchange = resolvedExchange,
+            authoritativeSymbols = resolveAuthoritativeSymbols(resolvedExchange, policy)
+        )
             .map { evaluate(it, thresholds) }
             .filter { includeInactive || it.status != DataHealthStatus.INACTIVE }
             .filter { includeHealthy || it.status != DataHealthStatus.HEALTHY }
@@ -255,8 +267,7 @@ class DataHealthService(
         )
     }
 
-    private fun resolveExchange(exchange: String?): String {
-        val policy = policyProvider()
+    private fun resolveExchange(exchange: String?, policy: TradingPolicy): String {
         val configured = exchange?.trim().orEmpty()
         if (configured.isNotEmpty()) return configured
         return policy.research.crossSectional.marketExchange.ifBlank {
@@ -264,8 +275,7 @@ class DataHealthService(
         }
     }
 
-    private fun thresholdsFor(exchange: String, barMinutes: Int): DataHealthThresholds {
-        val policy = policyProvider()
+    private fun thresholdsFor(policy: TradingPolicy, exchange: String, barMinutes: Int): DataHealthThresholds {
         val venue = policy.venues.values.firstOrNull { it.exchangeId == exchange } ?: policy.venues.values.firstOrNull()
         val rawSync = venue?.rawSync
         val featurePolicy = venue?.features?.freshness
@@ -290,14 +300,25 @@ class DataHealthService(
         )
     }
 
-    private fun loadRows(exchange: String): List<DataHealthSymbolRow> {
+    private fun resolveAuthoritativeSymbols(exchange: String, policy: TradingPolicy): List<String> =
+        resolveAuthoritativeMarketSymbols(
+            txBase = txGatewayUrlProvider(),
+            exchange = exchange,
+            policy = policy
+        )
+
+    private fun loadRows(exchange: String, authoritativeSymbols: List<String>): List<DataHealthSymbolRow> {
         val asOf = Instant.now()
-        return transaction(database) {
+        val rowsBySymbol = transaction(database) {
             DataHealthSymbol1mTable
                 .selectAll()
                 .andWhere { DataHealthSymbol1mTable.exchange eq exchange }
                 .orderBy(DataHealthSymbol1mTable.symbol to SortOrder.ASC)
                 .map { it.toDataHealthSymbolRow(asOf) }
+                .associateBy { it.symbol }
+        }
+        return authoritativeSymbols.map { symbol ->
+            rowsBySymbol[symbol] ?: emptyDataHealthSymbolRow(exchange = exchange, symbol = symbol)
         }
     }
 
@@ -441,6 +462,40 @@ class DataHealthService(
         }
     }
 }
+
+private fun emptyDataHealthSymbolRow(exchange: String, symbol: String): DataHealthSymbolRow =
+    DataHealthSymbolRow(
+        exchange = exchange,
+        symbol = symbol,
+        activeRecent = false,
+        latestAnyRawTime = null,
+        candleLatestRawTime = null,
+        tradeLatestRawTime = null,
+        orderbookLatestRawTime = null,
+        fundingLatestRawTime = null,
+        openInterestLatestRawTime = null,
+        candleRawLagSeconds = null,
+        tradeRawLagSeconds = null,
+        orderbookRawLagSeconds = null,
+        fundingRawLagSeconds = null,
+        openInterestRawLagSeconds = null,
+        latestFeatureTime = null,
+        finalizedThrough = null,
+        featureLagSeconds = null,
+        finalizedLagMinutes = null,
+        featureRows = 0L,
+        materializerLagSeconds = null,
+        coverageRatio = 0.0,
+        finalizedRatio = 0.0,
+        expectedBars = 0,
+        observedBars = 0,
+        finalizedBars = 0,
+        recentFeatureRows24h = 0,
+        recentTradeObservedShare24h = 0.0,
+        recentOrderbookObservedShare24h = 0.0,
+        recentExecutionObservedShare24h = 0.0,
+        recentFinalizedShare24h = 0.0
+    )
 
 private fun effectiveBarCloseLagSeconds(
     bucketStartTime: Instant?,

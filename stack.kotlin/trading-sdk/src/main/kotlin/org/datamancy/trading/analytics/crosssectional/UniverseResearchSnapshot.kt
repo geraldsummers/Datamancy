@@ -57,6 +57,7 @@ data class UniverseSnapshotCacheStatus(
 
 private data class UniverseSnapshotKey(
     val aliasesKey: String,
+    val symbolsKey: String,
     val barMinutes: Int
 )
 
@@ -84,8 +85,15 @@ private class UniverseSnapshotCache(
         if (!enabled) return null
         val normalizedAliases = aliases.map(String::trim).filter(String::isNotEmpty).distinct()
         if (normalizedAliases.isEmpty()) return null
+        val authoritativeSymbols = resolveAuthoritativeMarketSymbols(
+            txBase = env("TX_GATEWAY_URL", "http://tx-gateway:8080"),
+            exchange = normalizedAliases.first(),
+            aliases = normalizedAliases
+        )
+        if (authoritativeSymbols.isEmpty()) return null
         val key = UniverseSnapshotKey(
             aliasesKey = normalizedAliases.sorted().joinToString(","),
+            symbolsKey = authoritativeSymbols.joinToString(","),
             barMinutes = max(barMinutes, 1)
         )
         val now = Instant.now()
@@ -106,6 +114,7 @@ private class UniverseSnapshotCache(
             val startedAt = System.nanoTime()
             val snapshot = loadUniverseSnapshotFromFeatures(
                 aliases = normalizedAliases,
+                symbols = authoritativeSymbols,
                 lookbackHours = lookbackHours,
                 barMinutes = barMinutes,
                 loadedAt = now
@@ -164,11 +173,25 @@ private val universeSnapshotCache = UniverseSnapshotCache(
 
 private fun loadUniverseSnapshotFromFeatures(
     aliases: List<String>,
+    symbols: List<String>,
     lookbackHours: Int,
     barMinutes: Int,
     loadedAt: Instant
 ): UniverseSnapshot {
+    if (symbols.isEmpty()) {
+        return UniverseSnapshot(
+            aliases = aliases,
+            barMinutes = max(barMinutes, 1),
+            lookbackHours = lookbackHours,
+            loadedAt = loadedAt,
+            barsBySymbol = emptyMap(),
+            totalBars = 0,
+            firstBarTime = null,
+            lastBarTime = null
+        )
+    }
     val aliasSql = sqlList(aliases)
+    val symbolSql = sqlList(symbols)
     val preferredAlias = aliases.first()
     val window = alignedResearchWindowBounds(
         lookbackHours = lookbackHours,
@@ -193,6 +216,7 @@ private fun loadUniverseSnapshotFromFeatures(
             WHERE exchange IN ($aliasSql)
               AND time >= ?
               AND time < ?
+              AND symbol IN ($symbolSql)
               AND candle_observed
             ORDER BY
                 symbol,
