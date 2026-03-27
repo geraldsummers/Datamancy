@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicLong
 private val minuteStagingLogger = KotlinLogging.logger {}
 private const val DEFAULT_MINUTE_STAGING_BOOTSTRAP_HOURS = 72L
 private const val DEFAULT_MINUTE_STAGING_BOOTSTRAP_CHUNK_HOURS = 2L
+private const val DEFAULT_MINUTE_STAGING_BOOTSTRAP_LIVE_OVERLAP_MINUTES = 5L
 private const val DEFAULT_MINUTE_STAGING_TRADE_WORKERS = 4
 private const val DEFAULT_MINUTE_STAGING_ORDERBOOK_WORKERS = 2
 private const val DEFAULT_MINUTE_STAGING_ASSET_CONTEXT_WORKERS = 1
@@ -31,6 +32,7 @@ private const val DEFAULT_MINUTE_STAGING_STATS_INTERVAL_MS = 60_000L
 internal data class MinuteStagingConfig(
     val bootstrapHours: Long,
     val bootstrapChunkHours: Long,
+    val bootstrapLiveOverlapMinutes: Long,
     val tradeWorkers: Int,
     val orderbookWorkers: Int,
     val assetContextWorkers: Int
@@ -77,6 +79,8 @@ internal fun loadMinuteStagingConfig(): MinuteStagingConfig = MinuteStagingConfi
         ?: DEFAULT_MINUTE_STAGING_BOOTSTRAP_HOURS,
     bootstrapChunkHours = System.getenv("MINUTE_STAGING_BOOTSTRAP_CHUNK_HOURS")?.toLongOrNull()
         ?: DEFAULT_MINUTE_STAGING_BOOTSTRAP_CHUNK_HOURS,
+    bootstrapLiveOverlapMinutes = System.getenv("MINUTE_STAGING_BOOTSTRAP_LIVE_OVERLAP_MINUTES")?.toLongOrNull()
+        ?: DEFAULT_MINUTE_STAGING_BOOTSTRAP_LIVE_OVERLAP_MINUTES,
     tradeWorkers = System.getenv("MINUTE_STAGING_TRADE_WORKERS")?.toIntOrNull()
         ?: DEFAULT_MINUTE_STAGING_TRADE_WORKERS,
     orderbookWorkers = System.getenv("MINUTE_STAGING_ORDERBOOK_WORKERS")?.toIntOrNull()
@@ -117,9 +121,18 @@ internal class MinuteStagingStore(
     private val assetContextUpserts = AtomicLong(0)
     private val bootstrapChunks = AtomicLong(0)
 
-    suspend fun bootstrapRecent(bootstrapHours: Long, chunkHours: Long) = withContext(Dispatchers.IO) {
-        val endExclusive = Instant.now().truncatedTo(ChronoUnit.MINUTES)
+    suspend fun bootstrapRecent(
+        bootstrapHours: Long,
+        chunkHours: Long,
+        liveOverlapMinutes: Long
+    ) = withContext(Dispatchers.IO) {
+        val endExclusive = Instant.now()
+            .truncatedTo(ChronoUnit.MINUTES)
+            .minus(liveOverlapMinutes.coerceAtLeast(0L), ChronoUnit.MINUTES)
         val startInclusive = endExclusive.minus(bootstrapHours.coerceAtLeast(1L), ChronoUnit.HOURS)
+        if (!startInclusive.isBefore(endExclusive)) {
+            return@withContext
+        }
         var chunkEndExclusive = endExclusive
         while (chunkEndExclusive.isAfter(startInclusive)) {
             val chunkStartInclusive = laterInstant(
@@ -694,13 +707,14 @@ class MinuteStagingRunner internal constructor(
             }
         }
         minuteStagingLogger.info {
-            "Starting market-data-minute-staging exchange=${config.exchangeId} bootstrapHours=${stagingConfig.bootstrapHours} chunkHours=${stagingConfig.bootstrapChunkHours}"
+            "Starting market-data-minute-staging exchange=${config.exchangeId} bootstrapHours=${stagingConfig.bootstrapHours} chunkHours=${stagingConfig.bootstrapChunkHours} liveOverlapMinutes=${stagingConfig.bootstrapLiveOverlapMinutes}"
         }
         bootstrapJob = scope.launch {
             try {
                 store.bootstrapRecent(
                     bootstrapHours = stagingConfig.bootstrapHours,
-                    chunkHours = stagingConfig.bootstrapChunkHours
+                    chunkHours = stagingConfig.bootstrapChunkHours,
+                    liveOverlapMinutes = stagingConfig.bootstrapLiveOverlapMinutes
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled
