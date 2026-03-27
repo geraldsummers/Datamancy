@@ -118,17 +118,45 @@ remote_exec() {
   ssh "$server" "cd $stack_path && $1"
 }
 
+parse_remote_http_response() {
+  local response="$1"
+  local marker=$'\n__HTTP_STATUS__='
+  if [[ "$response" != *"$marker"* ]]; then
+    printf '%s\n' "$response" >&2
+    return 1
+  fi
+
+  REMOTE_HTTP_STATUS="${response##*${marker}}"
+  REMOTE_HTTP_BODY="${response%${marker}*}"
+}
+
 remote_http_get() {
   local path="$1"
-  remote_exec "docker exec $container sh -lc 'curl -fsS \"http://localhost:8080$path\"'"
+  local response
+  response="$(remote_exec "docker exec $container sh -lc 'tmp=\$(mktemp); status=\$(curl -sS -o \"\$tmp\" -w \"%{http_code}\" \"http://localhost:8080$path\"); cat \"\$tmp\"; printf \"\n__HTTP_STATUS__=%s\" \"\$status\"; rm -f \"\$tmp\"'")"
+  parse_remote_http_response "$response"
+  if [[ ! "$REMOTE_HTTP_STATUS" =~ ^2[0-9][0-9]$ ]]; then
+    printf '[remote-http-error] method=GET path=%s status=%s\n' "$path" "$REMOTE_HTTP_STATUS" >&2
+    printf '%s\n' "$REMOTE_HTTP_BODY" >&2
+    return 22
+  fi
+  printf '%s' "$REMOTE_HTTP_BODY"
 }
 
 remote_http_post() {
   local path="$1"
   local body="$2"
   local body_b64
+  local response
   body_b64="$(printf '%s' "$body" | base64 | tr -d '\n')"
-  remote_exec "docker exec $container sh -lc 'printf %s \"$body_b64\" | base64 -d | curl -fsS -X POST -H \"Content-Type: application/json\" --data-binary @- \"http://localhost:8080$path\"'"
+  response="$(remote_exec "docker exec $container sh -lc 'tmp=\$(mktemp); status=\$(printf %s \"$body_b64\" | base64 -d | curl -sS -o \"\$tmp\" -w \"%{http_code}\" -X POST -H \"Content-Type: application/json\" --data-binary @- \"http://localhost:8080$path\"); cat \"\$tmp\"; printf \"\n__HTTP_STATUS__=%s\" \"\$status\"; rm -f \"\$tmp\"'")"
+  parse_remote_http_response "$response"
+  if [[ ! "$REMOTE_HTTP_STATUS" =~ ^2[0-9][0-9]$ ]]; then
+    printf '[remote-http-error] method=POST path=%s status=%s\n' "$path" "$REMOTE_HTTP_STATUS" >&2
+    printf '%s\n' "$REMOTE_HTTP_BODY" >&2
+    return 22
+  fi
+  printf '%s' "$REMOTE_HTTP_BODY"
 }
 
 if [[ "$skip_readiness" != "1" ]]; then

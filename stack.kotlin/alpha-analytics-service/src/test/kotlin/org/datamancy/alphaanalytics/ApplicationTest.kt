@@ -23,6 +23,7 @@ import org.datamancy.trading.analytics.crosssectional.ExchangePlan
 import org.datamancy.trading.analytics.crosssectional.PortfolioConstraintSnapshot
 import org.datamancy.trading.analytics.crosssectional.PortfolioProfileSnapshot
 import org.datamancy.trading.analytics.crosssectional.ResearchCoverageSnapshot
+import org.datamancy.trading.analytics.crosssectional.ResearchCoverageException
 import org.datamancy.trading.analytics.crosssectional.ResearchConfig
 import org.datamancy.trading.analytics.crosssectional.ResearchDataKey
 import org.datamancy.trading.analytics.crosssectional.ResearchDiagnostics
@@ -236,6 +237,38 @@ class ApplicationTest {
     }
 
     @Test
+    fun `run endpoint returns coverage contract failure instead of opaque 500`() = testApplication {
+        application {
+            configureAlphaAnalyticsApp(
+                runAnalysis = {
+                    throw ResearchCoverageException(
+                        "coverage gate failed exchange=hyperliquid eligible=0/168 requiredMinSymbols=12 requiredBars=288"
+                    )
+                },
+                runSearch = { fakeSearchResult(it) }
+            )
+        }
+
+        val response = client.post("/api/v1/alpha/cross-sectional/run") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "barMinutes": 15,
+                  "lookbackHours": 72,
+                  "forwardHours": 24
+                }
+                """.trimIndent()
+            )
+        }
+
+        assertEquals(HttpStatusCode.Conflict, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"code\": \"research_coverage_blocked\""), body)
+        assertTrue(body.contains("analysis blocked"), body)
+    }
+
+    @Test
     fun `search default config endpoint exposes breathing search defaults`() = testApplication {
         application {
             configureAlphaAnalyticsApp(
@@ -288,6 +321,30 @@ class ApplicationTest {
         assertTrue(body.contains("\"topTrendConfigs\""), body)
         assertTrue(body.contains("\"passesFilters\": true"), body)
         assertTrue(body.contains("\"enablePaperOrders\": false"), body)
+    }
+
+    @Test
+    fun `search run endpoint returns coverage contract failure instead of opaque 500`() = testApplication {
+        application {
+            configureAlphaAnalyticsApp(
+                runAnalysis = { fakeResult(it) },
+                runSearch = {
+                    throw ResearchCoverageException(
+                        "coverage gate failed exchange=hyperliquid eligible=0/168 requiredMinSymbols=12 requiredBars=288"
+                    )
+                }
+            )
+        }
+
+        val response = client.post("/api/v1/alpha/cross-sectional/search/run") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"barMinutes":[15],"lookbackHours":[72],"forwardHours":[24]}""")
+        }
+
+        assertEquals(HttpStatusCode.Conflict, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"code\": \"research_coverage_blocked\""), body)
+        assertTrue(body.contains("search blocked"), body)
     }
 
     @Test

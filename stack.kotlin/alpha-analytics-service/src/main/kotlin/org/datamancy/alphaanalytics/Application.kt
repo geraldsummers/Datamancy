@@ -21,6 +21,7 @@ import org.datamancy.trading.analytics.crosssectional.CrossSectionalSearchConfig
 import org.datamancy.trading.analytics.crosssectional.CrossSectionalSearchResult
 import org.datamancy.trading.analytics.crosssectional.CrossSectionalResearchReadiness
 import org.datamancy.trading.analytics.crosssectional.CrossSectionalResearchResult
+import org.datamancy.trading.analytics.crosssectional.ResearchCoverageException
 import org.datamancy.trading.analytics.crosssectional.ResearchConfig
 import org.datamancy.trading.analytics.crosssectional.UniverseSnapshotCacheStatus
 import org.datamancy.trading.analytics.crosssectional.crossSectionalUniverseSnapshotCacheStatus
@@ -48,7 +49,8 @@ private val requestJson = Json {
 }
 
 private data class ErrorResponse(
-    val error: String
+    val error: String,
+    val code: String? = null
 )
 
 private data class RootResponse(
@@ -56,6 +58,18 @@ private data class RootResponse(
     val version: String,
     val endpoints: List<String>
 )
+
+private fun researchFailure(prefix: String, ex: Throwable): Pair<HttpStatusCode, ErrorResponse> =
+    when (ex) {
+        is ResearchCoverageException -> HttpStatusCode.Conflict to ErrorResponse(
+            error = "$prefix blocked: ${ex.message ?: "coverage gate failed"}",
+            code = "research_coverage_blocked"
+        )
+        else -> HttpStatusCode.InternalServerError to ErrorResponse(
+            error = "$prefix failed: ${ex.message ?: ex::class.simpleName}",
+            code = "internal_error"
+        )
+    }
 
 fun main() {
     val port = System.getenv("PORT")?.toIntOrNull() ?: 8080
@@ -373,10 +387,11 @@ fun Application.configureAlphaAnalyticsApp(
             val result = runCatching { runAnalysis(config) }
                 .onFailure { logger.warn("Cross-sectional analytics run failed", it) }
                 .getOrElse { ex ->
+                    val (status, error) = researchFailure("analysis", ex)
                     call.respondText(
-                        responseGson.toJson(ErrorResponse("analysis failed: ${ex.message ?: ex::class.simpleName}")),
+                        responseGson.toJson(error),
                         ContentType.Application.Json,
-                        HttpStatusCode.InternalServerError
+                        status
                     )
                     return@post
                 }
@@ -415,10 +430,11 @@ fun Application.configureAlphaAnalyticsApp(
             val result = runCatching { runSearch(config) }
                 .onFailure { logger.warn("Cross-sectional search run failed", it) }
                 .getOrElse { ex ->
+                    val (status, error) = researchFailure("search", ex)
                     call.respondText(
-                        responseGson.toJson(ErrorResponse("search failed: ${ex.message ?: ex::class.simpleName}")),
+                        responseGson.toJson(error),
                         ContentType.Application.Json,
-                        HttpStatusCode.InternalServerError
+                        status
                     )
                     return@post
                 }
