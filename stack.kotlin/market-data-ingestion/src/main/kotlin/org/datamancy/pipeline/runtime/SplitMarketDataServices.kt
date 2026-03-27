@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.nats.client.Connection
 import io.nats.client.JetStream
 import io.nats.client.JetStreamManagement
+import io.nats.client.Message
 import io.nats.client.Nats
 import io.nats.client.Options
 import io.nats.client.PullSubscribeOptions
@@ -380,6 +381,10 @@ internal data class MarketDataServiceConfig(
     val orderbookPersistWorkers: Int,
     val assetContextPersistWorkers: Int,
     val flushIntervalSeconds: Long,
+    val persistTradesToPostgres: Boolean,
+    val persistCandlesToPostgres: Boolean,
+    val persistOrderbooksToPostgres: Boolean,
+    val persistAssetContextToPostgres: Boolean,
     val exchangeId: String,
     val mainnet: Boolean,
     val wsUrl: String,
@@ -433,6 +438,13 @@ internal fun loadMarketDataServiceConfig(): MarketDataServiceConfig {
         orderbookPersistWorkers = System.getenv("ORDERBOOK_PERSIST_WORKERS")?.toIntOrNull() ?: 1,
         assetContextPersistWorkers = System.getenv("ASSET_CONTEXT_PERSIST_WORKERS")?.toIntOrNull() ?: 2,
         flushIntervalSeconds = System.getenv("MARKET_DATA_FLUSH_SECONDS")?.toLongOrNull() ?: 10L,
+        persistTradesToPostgres = System.getenv("PERSIST_TRADES_TO_POSTGRES")?.toBooleanStrictOrNull() ?: true,
+        persistCandlesToPostgres = System.getenv("PERSIST_CANDLES_TO_POSTGRES")?.toBooleanStrictOrNull() ?: true,
+        persistOrderbooksToPostgres = System.getenv("PERSIST_ORDERBOOKS_TO_POSTGRES")?.toBooleanStrictOrNull()
+            ?: true,
+        persistAssetContextToPostgres = System.getenv("PERSIST_ASSET_CONTEXT_TO_POSTGRES")
+            ?.toBooleanStrictOrNull()
+            ?: true,
         exchangeId = hyperliquidPolicy.exchangeId,
         mainnet = hyperliquidPolicy.mainnet,
         wsUrl = resolveHyperliquidWsUrl(
@@ -808,6 +820,12 @@ internal interface RawMarketDataTransport : AutoCloseable {
         deliverPolicy: DeliverPolicy = DeliverPolicy.All,
         handler: suspend (RawMarketDataEnvelope) -> Unit
     )
+    suspend fun consumeBatch(
+        subjectFilter: String,
+        durableName: String,
+        deliverPolicy: DeliverPolicy = DeliverPolicy.All,
+        handler: suspend (List<RawMarketDataEnvelope>) -> Unit
+    )
 }
 
 internal class NatsJetStreamRawMarketDataTransport(
@@ -816,6 +834,10 @@ internal class NatsJetStreamRawMarketDataTransport(
 ) : RawMarketDataTransport {
     private val logger = KotlinLogging.logger {}
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private data class DecodedRawMarketDataMessage(
+        val message: Message,
+        val payload: RawMarketDataEnvelope
+    )
     private val connection: Connection = Nats.connect(
         Options.builder()
             .server(config.url)
@@ -871,6 +893,9 @@ internal class NatsJetStreamRawMarketDataTransport(
                 for (message in messages) {
                     currentCoroutineContext().ensureActive()
                     if (message.data == null || message.data.isEmpty()) {
+                        withContext(Dispatchers.IO) {
+                            message.ack()
+                        }
                         continue
                     }
                     val payload = json.decodeFromString(
@@ -891,6 +916,86 @@ internal class NatsJetStreamRawMarketDataTransport(
                         withContext(Dispatchers.IO) {
                             message.ack()
                         }
+                    }
+                }
+            }
+        } finally {
+            runCatching { subscription.unsubscribe() }
+        }
+    }
+
+    override suspend fun consumeBatch(
+        subjectFilter: String,
+        durableName: String,
+        deliverPolicy: DeliverPolicy,
+        handler: suspend (List<RawMarketDataEnvelope>) -> Unit
+    ) {
+        val consumerConfiguration = ConsumerConfiguration.builder()
+            .durable(durableName)
+            .deliverPolicy(deliverPolicy)
+            .ackPolicy(AckPolicy.Explicit)
+            .filterSubject(subjectFilter)
+            .ackWait(Duration.ofMinutes(DEFAULT_RAW_EVENT_ACK_WAIT_MINUTES))
+            .maxAckPending(config.maxAckPending)
+            .build()
+        runCatching {
+            jetStreamManagement.addOrUpdateConsumer(config.stream, consumerConfiguration)
+        }.onFailure { ex ->
+            logger.warn(ex) { "Failed to add or update consumer $durableName for $subjectFilter" }
+        }
+
+        val subscription = jetStream.subscribe(
+            subjectFilter,
+            PullSubscribeOptions.builder()
+                .stream(config.stream)
+                .durable(durableName)
+                .configuration(consumerConfiguration)
+                .build()
+        )
+        try {
+            while (currentCoroutineContext().isActive) {
+                val fetchedMessages = withContext(Dispatchers.IO) {
+                    subscription.fetch(config.fetchBatch, Duration.ofMillis(config.fetchExpiresMs))
+                }
+                val decoded = mutableListOf<DecodedRawMarketDataMessage>()
+                for (message in fetchedMessages) {
+                    currentCoroutineContext().ensureActive()
+                    val data = message.data
+                    if (data == null || data.isEmpty()) {
+                        withContext(Dispatchers.IO) {
+                            message.ack()
+                        }
+                        continue
+                    }
+                    try {
+                        decoded += DecodedRawMarketDataMessage(
+                            message = message,
+                            payload = json.decodeFromString(
+                                RawMarketDataEnvelope.serializer(),
+                                data.decodeToString()
+                            )
+                        )
+                    } catch (ex: Exception) {
+                        logger.error(ex) { "Failed to decode raw market data message; acknowledging malformed payload" }
+                        withContext(Dispatchers.IO) {
+                            message.ack()
+                        }
+                    }
+                }
+                if (decoded.isEmpty()) {
+                    continue
+                }
+                try {
+                    handler(decoded.map { it.payload })
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (ex: Exception) {
+                    logger.error(ex) {
+                        "Failed to process raw market data batch size=${decoded.size}; acknowledging to avoid replay storms"
+                    }
+                } finally {
+                    withContext(Dispatchers.IO) {
+                        decoded.forEach { it.message.ack() }
                     }
                 }
             }
@@ -1080,6 +1185,11 @@ private fun buildPersistRunnerDependencies(): PersistRunnerDependencies {
                 batchSize = config.batchSize,
                 orderbookBatchSize = config.orderbookBatchSize,
                 assetContextBatchSize = config.assetContextBatchSize,
+                rawSyncStateStore = RawSyncStateStore(dataSource, config.exchangeId),
+                persistTradesToPostgres = config.persistTradesToPostgres,
+                persistCandlesToPostgres = config.persistCandlesToPostgres,
+                persistOrderbooksToPostgres = config.persistOrderbooksToPostgres,
+                persistAssetContextsToPostgres = config.persistAssetContextToPostgres,
                 exchangeId = config.exchangeId
             )
         }

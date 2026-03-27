@@ -2277,7 +2277,8 @@ private fun LatestQuote.isFreshSnapshot(
 }
 
 private fun LatestQuote.isOrderbookBacked(): Boolean {
-    return source.lowercase().startsWith("orderbook_data")
+    val normalized = source.lowercase()
+    return normalized.startsWith("orderbook_data") || normalized.startsWith("minute_orderbook_state")
 }
 
 private fun Map<String, Any>.executedNotionalUsd(

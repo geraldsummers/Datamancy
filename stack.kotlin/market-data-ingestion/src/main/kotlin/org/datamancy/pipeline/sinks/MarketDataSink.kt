@@ -6,6 +6,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.datamancy.pipeline.core.Sink
+import org.datamancy.pipeline.runners.RawSyncStateStore
 import org.datamancy.pipeline.sources.HyperliquidAssetContext
 import org.datamancy.pipeline.sources.HyperliquidCandle
 import org.datamancy.pipeline.sources.HyperliquidMarketData
@@ -83,11 +84,16 @@ internal fun normalizeCandleFlushBatch(candles: List<HyperliquidCandle>): List<H
  * @see org.datamancy.pipeline.sources.HyperliquidSource
  * @see org.datamancy.trading.data.MarketDataRepository
  */
-class MarketDataSink(
+internal class MarketDataSink(
     private val dataSource: DataSource,
     private val batchSize: Int = 1000,
     private val orderbookBatchSize: Int = batchSize,
     private val assetContextBatchSize: Int = batchSize,
+    private val rawSyncStateStore: RawSyncStateStore? = null,
+    private val persistTradesToPostgres: Boolean = true,
+    private val persistCandlesToPostgres: Boolean = true,
+    private val persistOrderbooksToPostgres: Boolean = true,
+    private val persistAssetContextsToPostgres: Boolean = true,
     exchangeId: String = "hyperliquid"
 ) : Sink<HyperliquidMarketData> {
 
@@ -219,20 +225,23 @@ class MarketDataSink(
             dataSource.connection.use { conn ->
                 conn.autoCommit = false
                 try {
-                    conn.prepareStatement(sql).use { stmt ->
-                        trades.forEach { trade ->
-                            stmt.setTimestamp(1, Timestamp.from(trade.time))
-                            stmt.setString(2, trade.symbol)
-                            stmt.setString(3, exchange)
-                            stmt.setString(4, trade.tradeId)
-                            stmt.setBigDecimal(5, BigDecimal.valueOf(trade.price))
-                            stmt.setBigDecimal(6, BigDecimal.valueOf(trade.size))
-                            stmt.setString(7, trade.side.lowercase())
-                            stmt.setBoolean(8, false) // Hyperliquid doesn't provide liquidation flag in trades channel
-                            stmt.addBatch()
+                    if (persistTradesToPostgres) {
+                        conn.prepareStatement(sql).use { stmt ->
+                            trades.forEach { trade ->
+                                stmt.setTimestamp(1, Timestamp.from(trade.time))
+                                stmt.setString(2, trade.symbol)
+                                stmt.setString(3, exchange)
+                                stmt.setString(4, trade.tradeId)
+                                stmt.setBigDecimal(5, BigDecimal.valueOf(trade.price))
+                                stmt.setBigDecimal(6, BigDecimal.valueOf(trade.size))
+                                stmt.setString(7, trade.side.lowercase())
+                                stmt.setBoolean(8, false) // Hyperliquid doesn't provide liquidation flag in trades channel
+                                stmt.addBatch()
+                            }
+                            stmt.executeBatch()
                         }
-                        stmt.executeBatch()
                     }
+                    rawSyncStateStore?.recordTrades(conn, trades)
                     conn.commit()
                     tradeCount += trades.size
                     logger.debug { "Flushed ${trades.size} trades to market_data (total: $tradeCount)" }
@@ -278,23 +287,26 @@ class MarketDataSink(
                 dataSource.connection.use { conn ->
                     conn.autoCommit = false
                     try {
-                        conn.prepareStatement(sql).use { stmt ->
-                            normalizedCandles.forEach { candle ->
-                                val dataType = "candle_${candle.interval}" // e.g., 'candle_1m', 'candle_5m'
-                                stmt.setTimestamp(1, Timestamp.from(candle.time))
-                                stmt.setString(2, candle.symbol)
-                                stmt.setString(3, exchange)
-                                stmt.setString(4, dataType)
-                                stmt.setBigDecimal(5, BigDecimal.valueOf(candle.open))
-                                stmt.setBigDecimal(6, BigDecimal.valueOf(candle.high))
-                                stmt.setBigDecimal(7, BigDecimal.valueOf(candle.low))
-                                stmt.setBigDecimal(8, BigDecimal.valueOf(candle.close))
-                                stmt.setBigDecimal(9, BigDecimal.valueOf(candle.volume))
-                                stmt.setInt(10, candle.numTrades)
-                                stmt.addBatch()
+                        if (persistCandlesToPostgres) {
+                            conn.prepareStatement(sql).use { stmt ->
+                                normalizedCandles.forEach { candle ->
+                                    val dataType = "candle_${candle.interval}"
+                                    stmt.setTimestamp(1, Timestamp.from(candle.time))
+                                    stmt.setString(2, candle.symbol)
+                                    stmt.setString(3, exchange)
+                                    stmt.setString(4, dataType)
+                                    stmt.setBigDecimal(5, BigDecimal.valueOf(candle.open))
+                                    stmt.setBigDecimal(6, BigDecimal.valueOf(candle.high))
+                                    stmt.setBigDecimal(7, BigDecimal.valueOf(candle.low))
+                                    stmt.setBigDecimal(8, BigDecimal.valueOf(candle.close))
+                                    stmt.setBigDecimal(9, BigDecimal.valueOf(candle.volume))
+                                    stmt.setInt(10, candle.numTrades)
+                                    stmt.addBatch()
+                                }
+                                stmt.executeBatch()
+                            }
                         }
-                        stmt.executeBatch()
-                    }
+                        rawSyncStateStore?.recordCandles(conn, normalizedCandles)
                     conn.commit()
                     candleCount += normalizedCandles.size
                     logger.debug {
@@ -342,27 +354,30 @@ class MarketDataSink(
             dataSource.connection.use { conn ->
                 conn.autoCommit = false
                 try {
-                    ensureScalarMarketDataSchema(conn)
-                    conn.prepareStatement(fundingSql).use { fundingStmt ->
-                        assetContexts.forEach { assetContext ->
-                            fundingStmt.setTimestamp(1, Timestamp.from(assetContext.time))
-                            fundingStmt.setString(2, assetContext.symbol)
-                            fundingStmt.setString(3, exchange)
-                            fundingStmt.setBigDecimal(4, BigDecimal.valueOf(assetContext.fundingRate))
-                            fundingStmt.addBatch()
+                    if (persistAssetContextsToPostgres) {
+                        ensureScalarMarketDataSchema(conn)
+                        conn.prepareStatement(fundingSql).use { fundingStmt ->
+                            assetContexts.forEach { assetContext ->
+                                fundingStmt.setTimestamp(1, Timestamp.from(assetContext.time))
+                                fundingStmt.setString(2, assetContext.symbol)
+                                fundingStmt.setString(3, exchange)
+                                fundingStmt.setBigDecimal(4, BigDecimal.valueOf(assetContext.fundingRate))
+                                fundingStmt.addBatch()
+                            }
+                            fundingStmt.executeBatch()
                         }
-                        fundingStmt.executeBatch()
-                    }
-                    conn.prepareStatement(openInterestSql).use { openInterestStmt ->
-                        assetContexts.forEach { assetContext ->
-                            openInterestStmt.setTimestamp(1, Timestamp.from(assetContext.time))
-                            openInterestStmt.setString(2, assetContext.symbol)
-                            openInterestStmt.setString(3, exchange)
-                            openInterestStmt.setBigDecimal(4, BigDecimal.valueOf(assetContext.openInterest))
-                            openInterestStmt.addBatch()
+                        conn.prepareStatement(openInterestSql).use { openInterestStmt ->
+                            assetContexts.forEach { assetContext ->
+                                openInterestStmt.setTimestamp(1, Timestamp.from(assetContext.time))
+                                openInterestStmt.setString(2, assetContext.symbol)
+                                openInterestStmt.setString(3, exchange)
+                                openInterestStmt.setBigDecimal(4, BigDecimal.valueOf(assetContext.openInterest))
+                                openInterestStmt.addBatch()
+                            }
+                            openInterestStmt.executeBatch()
                         }
-                        openInterestStmt.executeBatch()
                     }
+                    rawSyncStateStore?.recordAssetContexts(conn, assetContexts)
                     conn.commit()
                     fundingCount += assetContexts.size
                     openInterestCount += assetContexts.size
@@ -399,24 +414,26 @@ class MarketDataSink(
                 dataSource.connection.use { conn ->
                     conn.autoCommit = false
                     try {
-                        val writeMode = orderbookWriteMode ?: detectOrderbookWriteMode(conn).also {
-                            orderbookWriteMode = it
-                            logger.info { "Detected orderbook_data write mode: $it" }
-                            if (it != OrderbookWriteMode.JSON_DEPTH_CANONICAL) {
-                                logger.warn {
-                                    "orderbook_data schema is $it; runtime DDL is disabled, so canonical depth " +
-                                        "columns must be added by init-market-data-schema.sql or " +
-                                        "reconcile-datamancy-schema.sh"
+                        if (persistOrderbooksToPostgres) {
+                            val writeMode = orderbookWriteMode ?: detectOrderbookWriteMode(conn).also {
+                                orderbookWriteMode = it
+                                logger.info { "Detected orderbook_data write mode: $it" }
+                                if (it != OrderbookWriteMode.JSON_DEPTH_CANONICAL) {
+                                    logger.warn {
+                                        "orderbook_data schema is $it; runtime DDL is disabled, so canonical depth " +
+                                            "columns must be added by init-market-data-schema.sql or " +
+                                            "reconcile-datamancy-schema.sh"
+                                    }
                                 }
                             }
-                        }
 
-                        when (writeMode) {
-                            OrderbookWriteMode.TOP_OF_BOOK_LEGACY -> flushOrderbooksTopOfBook(conn, orderbooks)
-                            OrderbookWriteMode.JSON_DEPTH_LEGACY -> flushOrderbooksJsonLegacy(conn, orderbooks)
-                            OrderbookWriteMode.JSON_DEPTH_CANONICAL -> flushOrderbooksJsonCanonical(conn, orderbooks)
+                            when (writeMode) {
+                                OrderbookWriteMode.TOP_OF_BOOK_LEGACY -> flushOrderbooksTopOfBook(conn, orderbooks)
+                                OrderbookWriteMode.JSON_DEPTH_LEGACY -> flushOrderbooksJsonLegacy(conn, orderbooks)
+                                OrderbookWriteMode.JSON_DEPTH_CANONICAL -> flushOrderbooksJsonCanonical(conn, orderbooks)
+                            }
                         }
-
+                        rawSyncStateStore?.recordOrderbooks(conn, orderbooks)
                         conn.commit()
                         orderbookCount += orderbooks.size
                         logger.debug { "Flushed ${orderbooks.size} orderbooks to orderbook_data (total: $orderbookCount)" }

@@ -23,11 +23,12 @@ pipeline:
         let is_orderbook = $chan == "orderbook_l2"
         let is_asset_context = $chan == "asset_context"
         let event_second = this.eventTime.string().slice(0, 19) + "Z"
+        let event_ten_second = this.eventTime.string().slice(0, 17) + this.eventTime.string().slice(17, 18) + "0Z"
         meta exchange = $exch
         meta channel = $chan
         meta lane = $lane_value
         meta dedupe_key = if $is_asset_context || $is_orderbook {
-          $exch + "|" + $lane_value + "|" + $chan + "|" + this.symbol.string() + "|" + $event_second
+          $exch + "|" + $lane_value + "|" + $chan + "|" + this.symbol.string() + "|" + if $is_orderbook { $event_ten_second } else { $event_second }
         } else {
           ""
         }
@@ -52,7 +53,7 @@ pipeline:
                 operator: add
                 key: ${! meta("dedupe_key") }
                 value: "1"
-                ttl: 3s
+                ttl: 10s
             - mapping: |
                 root = if errored() { deleted() }
         - check: meta("channel") == "asset_context"

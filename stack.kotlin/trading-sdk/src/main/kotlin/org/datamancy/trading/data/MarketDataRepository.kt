@@ -146,6 +146,15 @@ class MarketDataRepository(
         depth: Int = 20,
         exchange: String = "hyperliquid"
     ): Orderbook? = withContext(Dispatchers.IO) {
+        val minuteSql = """
+            SELECT COALESCE(last_event_time, time) AS observed_time, symbol, exchange, best_bid, best_ask
+            FROM minute_orderbook_state
+            WHERE symbol = ? AND exchange = ?
+              AND best_bid IS NOT NULL
+              AND best_ask IS NOT NULL
+            ORDER BY time DESC
+            LIMIT 1
+        """.trimIndent()
         val canonicalSql = """
             SELECT time, symbol, exchange, bids::text, asks::text
             FROM orderbook_data
@@ -162,6 +171,24 @@ class MarketDataRepository(
         """.trimIndent()
 
         dataSource.connection.use { conn ->
+            val minute = runCatching {
+                conn.prepareStatement(minuteSql).use { stmt ->
+                    stmt.setString(1, symbol)
+                    stmt.setString(2, exchange)
+                    stmt.executeQuery().use { rs ->
+                        if (!rs.next()) return@use null
+                        val bidPrice = rs.getBigDecimal("best_bid") ?: return@use null
+                        val askPrice = rs.getBigDecimal("best_ask") ?: return@use null
+                        Orderbook(
+                            time = rs.getTimestamp("observed_time").toInstant(),
+                            symbol = rs.getString("symbol"),
+                            exchange = rs.getString("exchange"),
+                            bids = listOf(OrderbookLevel(bidPrice, BigDecimal.ZERO)),
+                            asks = listOf(OrderbookLevel(askPrice, BigDecimal.ZERO))
+                        )
+                    }
+                }
+            }.getOrNull()
             val canonical = runCatching {
                 conn.prepareStatement(canonicalSql).use { stmt ->
                     stmt.setString(1, symbol)
@@ -190,9 +217,8 @@ class MarketDataRepository(
                     }
                 }
             }.getOrNull()
-            if (canonical != null) return@withContext canonical
-
-            runCatching {
+            return@withContext listOfNotNull(canonical, minute).maxByOrNull { it.time }
+                ?: runCatching {
                 conn.prepareStatement(topOfBookSql).use { stmt ->
                     stmt.setString(1, symbol)
                     stmt.setString(2, exchange)
@@ -232,25 +258,38 @@ class MarketDataRepository(
             ORDER BY time DESC
             LIMIT 1
         """.trimIndent()
+        val minuteSql = """
+            SELECT COALESCE(last_event_time, time) AS observed_time, symbol, exchange, funding_rate
+            FROM minute_asset_context
+            WHERE symbol = ? AND exchange = ?
+              AND funding_rate IS NOT NULL
+            ORDER BY time DESC
+            LIMIT 1
+        """.trimIndent()
 
         dataSource.connection.use { conn ->
-            conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, symbol)
-                stmt.setString(2, exchange)
+            fun query(query: String, timeColumn: String): FundingRate? =
+                conn.prepareStatement(query).use { stmt ->
+                    stmt.setString(1, symbol)
+                    stmt.setString(2, exchange)
 
-                stmt.executeQuery().use { result ->
-                    if (result.next()) {
-                        FundingRate(
-                            time = result.getTimestamp("time").toInstant(),
-                            symbol = result.getString("symbol"),
-                            exchange = result.getString("exchange"),
-                            rate = result.getBigDecimal("funding_rate")
-                        )
-                    } else {
-                        null
+                    stmt.executeQuery().use { result ->
+                        if (result.next()) {
+                            FundingRate(
+                                time = result.getTimestamp(timeColumn).toInstant(),
+                                symbol = result.getString("symbol"),
+                                exchange = result.getString("exchange"),
+                                rate = result.getBigDecimal("funding_rate")
+                            )
+                        } else {
+                            null
+                        }
                     }
                 }
-            }
+            listOfNotNull(
+                runCatching { query(sql, "time") }.getOrNull(),
+                runCatching { query(minuteSql, "observed_time") }.getOrNull()
+            ).maxByOrNull { it.time }
         }
     }
 
@@ -270,25 +309,38 @@ class MarketDataRepository(
             ORDER BY time DESC
             LIMIT 1
         """.trimIndent()
+        val minuteSql = """
+            SELECT COALESCE(last_event_time, time) AS observed_time, symbol, exchange, open_interest
+            FROM minute_asset_context
+            WHERE symbol = ? AND exchange = ?
+              AND open_interest IS NOT NULL
+            ORDER BY time DESC
+            LIMIT 1
+        """.trimIndent()
 
         dataSource.connection.use { conn ->
-            conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, symbol)
-                stmt.setString(2, exchange)
+            fun query(query: String, timeColumn: String): OpenInterest? =
+                conn.prepareStatement(query).use { stmt ->
+                    stmt.setString(1, symbol)
+                    stmt.setString(2, exchange)
 
-                stmt.executeQuery().use { result ->
-                    if (result.next()) {
-                        OpenInterest(
-                            time = result.getTimestamp("time").toInstant(),
-                            symbol = result.getString("symbol"),
-                            exchange = result.getString("exchange"),
-                            value = result.getBigDecimal("open_interest")
-                        )
-                    } else {
-                        null
+                    stmt.executeQuery().use { result ->
+                        if (result.next()) {
+                            OpenInterest(
+                                time = result.getTimestamp(timeColumn).toInstant(),
+                                symbol = result.getString("symbol"),
+                                exchange = result.getString("exchange"),
+                                value = result.getBigDecimal("open_interest")
+                            )
+                        } else {
+                            null
+                        }
                     }
                 }
-            }
+            listOfNotNull(
+                runCatching { query(sql, "time") }.getOrNull(),
+                runCatching { query(minuteSql, "observed_time") }.getOrNull()
+            ).maxByOrNull { it.time }
         }
     }
 

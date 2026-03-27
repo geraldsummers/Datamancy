@@ -1796,6 +1796,16 @@ class DatabaseService(
     }
 
     private fun queryOrderbookQuote(exchange: String, symbol: String): LatestQuote? {
+        val minuteSql = """
+            SELECT symbol, best_bid AS bid, best_ask AS ask, mid_price, COALESCE(last_event_time, time) AS time
+            FROM minute_orderbook_state
+            WHERE exchange = ?
+              AND symbol = ?
+              AND best_bid IS NOT NULL
+              AND best_ask IS NOT NULL
+            ORDER BY time DESC
+            LIMIT 1
+        """.trimIndent()
         val canonicalSql = """
             SELECT symbol, best_bid AS bid, best_ask AS ask, mid_price, time
             FROM orderbook_data
@@ -1817,17 +1827,26 @@ class DatabaseService(
             LIMIT 1
         """.trimIndent()
 
-        return runOrderbookQuoteQuery(
-            exchange = exchange,
-            symbol = symbol,
-            sql = canonicalSql,
-            sourceLabel = "orderbook_data:canonical"
-        ) ?: runOrderbookQuoteQuery(
-            exchange = exchange,
-            symbol = symbol,
-            sql = topOfBookSql,
-            sourceLabel = "orderbook_data:top_of_book_legacy"
-        )
+        return listOfNotNull(
+            runOrderbookQuoteQuery(
+                exchange = exchange,
+                symbol = symbol,
+                sql = minuteSql,
+                sourceLabel = "minute_orderbook_state"
+            ),
+            runOrderbookQuoteQuery(
+                exchange = exchange,
+                symbol = symbol,
+                sql = canonicalSql,
+                sourceLabel = "orderbook_data:canonical"
+            ),
+            runOrderbookQuoteQuery(
+                exchange = exchange,
+                symbol = symbol,
+                sql = topOfBookSql,
+                sourceLabel = "orderbook_data:top_of_book_legacy"
+            )
+        ).maxByOrNull { it.timestamp }
     }
 
     private fun runOrderbookQuoteQuery(

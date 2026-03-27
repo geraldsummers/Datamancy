@@ -96,6 +96,53 @@ class MinuteStagingServicesTest {
     }
 
     @Test
+    fun `orderbook batch summary collapses same minute to latest state and sample count`() {
+        val updates = summarizeOrderbookStageUpdates(
+            listOf(
+                RawMarketDataEnvelope(
+                    eventId = "evt-early",
+                    exchange = "hyperliquid_mainnet",
+                    symbol = "ETH",
+                    channel = "orderbook_l2",
+                    lane = RawEventLane.LIVE,
+                    source = "test",
+                    eventTime = "2026-03-27T01:02:11Z",
+                    publishedAt = "2026-03-27T01:02:12Z",
+                    orderbook = OrderbookPayload(
+                        time = "2026-03-27T01:02:11Z",
+                        symbol = "ETH",
+                        bids = listOf(OrderbookLevelPayload(price = 200.0, size = 1.0)),
+                        asks = listOf(OrderbookLevelPayload(price = 201.0, size = 2.0))
+                    )
+                ),
+                RawMarketDataEnvelope(
+                    eventId = "evt-late",
+                    exchange = "hyperliquid_mainnet",
+                    symbol = "ETH",
+                    channel = "orderbook_l2",
+                    lane = RawEventLane.LIVE,
+                    source = "test",
+                    eventTime = "2026-03-27T01:02:49Z",
+                    publishedAt = "2026-03-27T01:02:50Z",
+                    orderbook = OrderbookPayload(
+                        time = "2026-03-27T01:02:49Z",
+                        symbol = "ETH",
+                        bids = listOf(OrderbookLevelPayload(price = 202.0, size = 3.0)),
+                        asks = listOf(OrderbookLevelPayload(price = 203.0, size = 4.0))
+                    )
+                )
+            )
+        )
+
+        assertEquals(1, updates.size)
+        assertEquals(Instant.parse("2026-03-27T01:02:00Z"), updates.single().bucketTime)
+        assertEquals(202.0, updates.single().bestBid)
+        assertEquals(203.0, updates.single().bestAsk)
+        assertEquals(2, updates.single().orderbookSamples)
+        assertEquals(Instant.parse("2026-03-27T01:02:49Z"), updates.single().lastEventTime)
+    }
+
+    @Test
     fun `asset context stage summary buckets by minute`() {
         val update = summarizeAssetContextStageUpdate(
             RawMarketDataEnvelope(
@@ -120,5 +167,50 @@ class MinuteStagingServicesTest {
         assertEquals(Instant.parse("2026-03-27T01:03:00Z"), update.bucketTime)
         assertEquals(0.001, update.fundingRate)
         assertEquals(12345.0, update.openInterest)
+    }
+
+    @Test
+    fun `asset context batch summary keeps latest value per minute`() {
+        val updates = summarizeAssetContextStageUpdates(
+            listOf(
+                RawMarketDataEnvelope(
+                    eventId = "evt-early",
+                    exchange = "hyperliquid_mainnet",
+                    symbol = "SOL",
+                    channel = "asset_context",
+                    lane = RawEventLane.LIVE,
+                    source = "test",
+                    eventTime = "2026-03-27T01:03:10Z",
+                    publishedAt = "2026-03-27T01:03:11Z",
+                    assetContext = AssetContextPayload(
+                        time = "2026-03-27T01:03:10Z",
+                        symbol = "SOL",
+                        fundingRate = 0.001,
+                        openInterest = 100.0
+                    )
+                ),
+                RawMarketDataEnvelope(
+                    eventId = "evt-late",
+                    exchange = "hyperliquid_mainnet",
+                    symbol = "SOL",
+                    channel = "asset_context",
+                    lane = RawEventLane.LIVE,
+                    source = "test",
+                    eventTime = "2026-03-27T01:03:44Z",
+                    publishedAt = "2026-03-27T01:03:45Z",
+                    assetContext = AssetContextPayload(
+                        time = "2026-03-27T01:03:44Z",
+                        symbol = "SOL",
+                        fundingRate = 0.002,
+                        openInterest = 12345.0
+                    )
+                )
+            )
+        )
+
+        assertEquals(1, updates.size)
+        assertEquals(0.002, updates.single().fundingRate)
+        assertEquals(12345.0, updates.single().openInterest)
+        assertEquals(Instant.parse("2026-03-27T01:03:44Z"), updates.single().lastEventTime)
     }
 }

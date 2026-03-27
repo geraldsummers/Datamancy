@@ -131,6 +131,10 @@ internal class MinuteStagingStore(
         chunkMinutes: Long,
         liveOverlapMinutes: Long
     ) = withContext(Dispatchers.IO) {
+        if (bootstrapHours <= 0L) {
+            minuteStagingLogger.info { "minute-staging bootstrap skipped exchange=$exchangeId bootstrapHours=$bootstrapHours" }
+            return@withContext
+        }
         val endExclusive = Instant.now()
             .truncatedTo(ChronoUnit.MINUTES)
             .minus(liveOverlapMinutes.coerceAtLeast(0L), ChronoUnit.MINUTES)
@@ -176,8 +180,28 @@ internal class MinuteStagingStore(
             try {
                 when (envelope.channel) {
                     "trade" -> upsertTrades(conn, aggregateTradeStageUpdates(envelope))
-                    "orderbook_l2" -> upsertOrderbook(conn, summarizeOrderbookStageUpdate(envelope))
-                    "asset_context" -> upsertAssetContext(conn, summarizeAssetContextStageUpdate(envelope))
+                    "orderbook_l2" -> upsertOrderbook(conn, listOfNotNull(summarizeOrderbookStageUpdate(envelope)))
+                    "asset_context" -> upsertAssetContext(conn, listOfNotNull(summarizeAssetContextStageUpdate(envelope)))
+                }
+                conn.commit()
+            } catch (ex: Exception) {
+                conn.rollback()
+                throw ex
+            }
+        }
+    }
+
+    suspend fun applyBatch(channel: String, envelopes: List<RawMarketDataEnvelope>) = withContext(Dispatchers.IO) {
+        if (envelopes.isEmpty()) {
+            return@withContext
+        }
+        dataSource.connection.use { conn ->
+            conn.autoCommit = false
+            try {
+                when (channel) {
+                    "trade" -> upsertTrades(conn, aggregateTradeStageUpdates(envelopes))
+                    "orderbook_l2" -> upsertOrderbook(conn, summarizeOrderbookStageUpdates(envelopes))
+                    "asset_context" -> upsertAssetContext(conn, summarizeAssetContextStageUpdates(envelopes))
                 }
                 conn.commit()
             } catch (ex: Exception) {
@@ -453,8 +477,8 @@ internal class MinuteStagingStore(
         tradeUpserts.addAndGet(updates.size.toLong())
     }
 
-    private fun upsertOrderbook(conn: Connection, update: MinuteOrderbookStageUpdate?) {
-        if (update == null) return
+    private fun upsertOrderbook(conn: Connection, updates: List<MinuteOrderbookStageUpdate>) {
+        if (updates.isEmpty()) return
         val sql = """
             INSERT INTO minute_orderbook_state (
                 time,
@@ -509,26 +533,29 @@ internal class MinuteStagingStore(
         """.trimIndent()
         conn.prepareStatement(sql).use { stmt ->
             val sourceUpdatedAt = Timestamp.from(Instant.now())
-            stmt.setTimestamp(1, Timestamp.from(update.bucketTime))
-            stmt.setString(2, update.symbol)
-            stmt.setString(3, update.exchange)
-            setNullableDouble(stmt, 4, update.bestBid)
-            setNullableDouble(stmt, 5, update.bestAsk)
-            stmt.setDouble(6, update.spread)
-            setNullableDouble(stmt, 7, update.spreadPct)
-            setNullableDouble(stmt, 8, update.midPrice)
-            stmt.setDouble(9, update.bidDepth10)
-            stmt.setDouble(10, update.askDepth10)
-            stmt.setInt(11, update.orderbookSamples)
-            stmt.setTimestamp(12, Timestamp.from(update.lastEventTime))
-            stmt.setTimestamp(13, sourceUpdatedAt)
-            stmt.executeUpdate()
+            updates.forEach { update ->
+                stmt.setTimestamp(1, Timestamp.from(update.bucketTime))
+                stmt.setString(2, update.symbol)
+                stmt.setString(3, update.exchange)
+                setNullableDouble(stmt, 4, update.bestBid)
+                setNullableDouble(stmt, 5, update.bestAsk)
+                stmt.setDouble(6, update.spread)
+                setNullableDouble(stmt, 7, update.spreadPct)
+                setNullableDouble(stmt, 8, update.midPrice)
+                stmt.setDouble(9, update.bidDepth10)
+                stmt.setDouble(10, update.askDepth10)
+                stmt.setInt(11, update.orderbookSamples)
+                stmt.setTimestamp(12, Timestamp.from(update.lastEventTime))
+                stmt.setTimestamp(13, sourceUpdatedAt)
+                stmt.addBatch()
+            }
+            stmt.executeBatch()
         }
-        orderbookUpserts.incrementAndGet()
+        orderbookUpserts.addAndGet(updates.size.toLong())
     }
 
-    private fun upsertAssetContext(conn: Connection, update: MinuteAssetContextStageUpdate?) {
-        if (update == null) return
+    private fun upsertAssetContext(conn: Connection, updates: List<MinuteAssetContextStageUpdate>) {
+        if (updates.isEmpty()) return
         val sql = """
             INSERT INTO minute_asset_context (
                 time,
@@ -555,16 +582,20 @@ internal class MinuteStagingStore(
                 source_updated_at = GREATEST(minute_asset_context.source_updated_at, EXCLUDED.source_updated_at)
         """.trimIndent()
         conn.prepareStatement(sql).use { stmt ->
-            stmt.setTimestamp(1, Timestamp.from(update.bucketTime))
-            stmt.setString(2, update.symbol)
-            stmt.setString(3, update.exchange)
-            stmt.setDouble(4, update.fundingRate)
-            stmt.setDouble(5, update.openInterest)
-            stmt.setTimestamp(6, Timestamp.from(update.lastEventTime))
-            stmt.setTimestamp(7, Timestamp.from(Instant.now()))
-            stmt.executeUpdate()
+            val sourceUpdatedAt = Timestamp.from(Instant.now())
+            updates.forEach { update ->
+                stmt.setTimestamp(1, Timestamp.from(update.bucketTime))
+                stmt.setString(2, update.symbol)
+                stmt.setString(3, update.exchange)
+                stmt.setDouble(4, update.fundingRate)
+                stmt.setDouble(5, update.openInterest)
+                stmt.setTimestamp(6, Timestamp.from(update.lastEventTime))
+                stmt.setTimestamp(7, sourceUpdatedAt)
+                stmt.addBatch()
+            }
+            stmt.executeBatch()
         }
-        assetContextUpserts.incrementAndGet()
+        assetContextUpserts.addAndGet(updates.size.toLong())
     }
 }
 
@@ -576,91 +607,135 @@ internal data class MinuteStagingStats(
 )
 
 internal fun aggregateTradeStageUpdates(envelope: RawMarketDataEnvelope): List<MinuteTradeStageUpdate> {
-    val exchange = envelope.exchange
+    return aggregateTradeStageUpdates(listOf(envelope))
+}
+
+internal fun aggregateTradeStageUpdates(envelopes: List<RawMarketDataEnvelope>): List<MinuteTradeStageUpdate> {
     val grouped = linkedMapOf<Pair<Instant, String>, MinuteTradeStageUpdate>()
-    envelope.trades.orEmpty().forEach { trade ->
-        val tradeTime = Instant.parse(trade.time)
-        val bucketTime = tradeTime.truncatedTo(ChronoUnit.MINUTES)
-        val key = bucketTime to trade.symbol
-        val existing = grouped[key]
-        val tradeVolume = trade.size
-        val buyVolume = if (trade.side.equals("buy", ignoreCase = true)) trade.size else 0.0
-        val sellVolume = if (trade.side.equals("sell", ignoreCase = true)) trade.size else 0.0
-        val tradeNotional = trade.price * trade.size
-        grouped[key] = if (existing == null) {
-            MinuteTradeStageUpdate(
-                bucketTime = bucketTime,
-                symbol = trade.symbol,
-                exchange = exchange,
-                tradeVolume = tradeVolume,
-                buyVolume = buyVolume,
-                sellVolume = sellVolume,
-                tradeCount = 1,
-                tradeNotional = tradeNotional,
-                lastEventTime = tradeTime
-            )
-        } else {
-            existing.copy(
-                tradeVolume = existing.tradeVolume + tradeVolume,
-                buyVolume = existing.buyVolume + buyVolume,
-                sellVolume = existing.sellVolume + sellVolume,
-                tradeCount = existing.tradeCount + 1,
-                tradeNotional = existing.tradeNotional + tradeNotional,
-                lastEventTime = laterInstant(existing.lastEventTime, tradeTime)
-            )
+    envelopes.forEach { envelope ->
+        val exchange = envelope.exchange
+        envelope.trades.orEmpty().forEach { trade ->
+            val tradeTime = Instant.parse(trade.time)
+            val bucketTime = tradeTime.truncatedTo(ChronoUnit.MINUTES)
+            val key = bucketTime to trade.symbol
+            val existing = grouped[key]
+            val tradeVolume = trade.size
+            val buyVolume = if (trade.side.equals("buy", ignoreCase = true)) trade.size else 0.0
+            val sellVolume = if (trade.side.equals("sell", ignoreCase = true)) trade.size else 0.0
+            val tradeNotional = trade.price * trade.size
+            grouped[key] = if (existing == null) {
+                MinuteTradeStageUpdate(
+                    bucketTime = bucketTime,
+                    symbol = trade.symbol,
+                    exchange = exchange,
+                    tradeVolume = tradeVolume,
+                    buyVolume = buyVolume,
+                    sellVolume = sellVolume,
+                    tradeCount = 1,
+                    tradeNotional = tradeNotional,
+                    lastEventTime = tradeTime
+                )
+            } else {
+                existing.copy(
+                    tradeVolume = existing.tradeVolume + tradeVolume,
+                    buyVolume = existing.buyVolume + buyVolume,
+                    sellVolume = existing.sellVolume + sellVolume,
+                    tradeCount = existing.tradeCount + 1,
+                    tradeNotional = existing.tradeNotional + tradeNotional,
+                    lastEventTime = laterInstant(existing.lastEventTime, tradeTime)
+                )
+            }
         }
     }
-    return grouped.values.toList()
+    return grouped.values.sortedWith(
+        compareBy<MinuteTradeStageUpdate>({ it.bucketTime }, { it.symbol }, { it.exchange })
+    )
 }
 
 internal fun summarizeOrderbookStageUpdate(envelope: RawMarketDataEnvelope): MinuteOrderbookStageUpdate? {
-    val orderbook = envelope.orderbook ?: return null
-    val eventTime = Instant.parse(orderbook.time)
-    val sortedBids = orderbook.bids.sortedByDescending { it.price }
-    val sortedAsks = orderbook.asks.sortedBy { it.price }
-    val bestBid = sortedBids.firstOrNull()?.price
-    val bestAsk = sortedAsks.firstOrNull()?.price
-    val spread = if (bestBid != null && bestAsk != null) {
-        (bestAsk - bestBid).coerceAtLeast(0.0)
-    } else {
-        0.0
+    return summarizeOrderbookStageUpdates(listOf(envelope)).firstOrNull()
+}
+
+internal fun summarizeOrderbookStageUpdates(envelopes: List<RawMarketDataEnvelope>): List<MinuteOrderbookStageUpdate> {
+    val grouped = linkedMapOf<Pair<Instant, String>, MinuteOrderbookStageUpdate>()
+    envelopes.forEach { envelope ->
+        val orderbook = envelope.orderbook ?: return@forEach
+        val eventTime = Instant.parse(orderbook.time)
+        val sortedBids = orderbook.bids.sortedByDescending { it.price }
+        val sortedAsks = orderbook.asks.sortedBy { it.price }
+        val bestBid = sortedBids.firstOrNull()?.price
+        val bestAsk = sortedAsks.firstOrNull()?.price
+        val spread = if (bestBid != null && bestAsk != null) {
+            (bestAsk - bestBid).coerceAtLeast(0.0)
+        } else {
+            0.0
+        }
+        val midPrice = if (bestBid != null && bestAsk != null) {
+            (bestAsk + bestBid) / 2.0
+        } else {
+            null
+        }
+        val spreadPct = if (midPrice != null && midPrice > 0.0) {
+            (spread / midPrice) * 100.0
+        } else {
+            null
+        }
+        val bucketTime = eventTime.truncatedTo(ChronoUnit.MINUTES)
+        val key = bucketTime to orderbook.symbol
+        val next = MinuteOrderbookStageUpdate(
+            bucketTime = bucketTime,
+            symbol = orderbook.symbol,
+            exchange = envelope.exchange,
+            bestBid = bestBid,
+            bestAsk = bestAsk,
+            spread = spread,
+            spreadPct = spreadPct,
+            midPrice = midPrice,
+            bidDepth10 = depth(sortedBids),
+            askDepth10 = depth(sortedAsks),
+            orderbookSamples = 1,
+            lastEventTime = eventTime
+        )
+        val existing = grouped[key]
+        grouped[key] = if (existing == null) {
+            next
+        } else if (eventTime >= existing.lastEventTime) {
+            next.copy(orderbookSamples = existing.orderbookSamples + 1)
+        } else {
+            existing.copy(orderbookSamples = existing.orderbookSamples + 1)
+        }
     }
-    val midPrice = if (bestBid != null && bestAsk != null) {
-        (bestAsk + bestBid) / 2.0
-    } else {
-        null
-    }
-    val spreadPct = if (midPrice != null && midPrice > 0.0) {
-        (spread / midPrice) * 100.0
-    } else {
-        null
-    }
-    return MinuteOrderbookStageUpdate(
-        bucketTime = eventTime.truncatedTo(ChronoUnit.MINUTES),
-        symbol = orderbook.symbol,
-        exchange = envelope.exchange,
-        bestBid = bestBid,
-        bestAsk = bestAsk,
-        spread = spread,
-        spreadPct = spreadPct,
-        midPrice = midPrice,
-        bidDepth10 = depth(sortedBids),
-        askDepth10 = depth(sortedAsks),
-        orderbookSamples = 1,
-        lastEventTime = eventTime
+    return grouped.values.sortedWith(
+        compareBy<MinuteOrderbookStageUpdate>({ it.bucketTime }, { it.symbol }, { it.exchange })
     )
 }
 
 internal fun summarizeAssetContextStageUpdate(envelope: RawMarketDataEnvelope): MinuteAssetContextStageUpdate? {
-    val assetContext = envelope.assetContext ?: return null
-    val eventTime = Instant.parse(assetContext.time)
-    return MinuteAssetContextStageUpdate(
-        bucketTime = eventTime.truncatedTo(ChronoUnit.MINUTES),
-        symbol = assetContext.symbol,
-        exchange = envelope.exchange,
-        fundingRate = assetContext.fundingRate,
-        openInterest = assetContext.openInterest,
-        lastEventTime = eventTime
+    return summarizeAssetContextStageUpdates(listOf(envelope)).firstOrNull()
+}
+
+internal fun summarizeAssetContextStageUpdates(envelopes: List<RawMarketDataEnvelope>): List<MinuteAssetContextStageUpdate> {
+    val grouped = linkedMapOf<Pair<Instant, String>, MinuteAssetContextStageUpdate>()
+    envelopes.forEach { envelope ->
+        val assetContext = envelope.assetContext ?: return@forEach
+        val eventTime = Instant.parse(assetContext.time)
+        val bucketTime = eventTime.truncatedTo(ChronoUnit.MINUTES)
+        val key = bucketTime to assetContext.symbol
+        val next = MinuteAssetContextStageUpdate(
+            bucketTime = bucketTime,
+            symbol = assetContext.symbol,
+            exchange = envelope.exchange,
+            fundingRate = assetContext.fundingRate,
+            openInterest = assetContext.openInterest,
+            lastEventTime = eventTime
+        )
+        val existing = grouped[key]
+        if (existing == null || eventTime >= existing.lastEventTime) {
+            grouped[key] = next
+        }
+    }
+    return grouped.values.sortedWith(
+        compareBy<MinuteAssetContextStageUpdate>({ it.bucketTime }, { it.symbol }, { it.exchange })
     )
 }
 
@@ -748,17 +823,23 @@ class MinuteStagingRunner internal constructor(
 
     private fun launchConsumers(channel: String, workerCount: Int): List<Job> = List(workerCount.coerceAtLeast(1)) {
         scope.launch {
-            transport.consume(
+            transport.consumeBatch(
                 subjectFilter = config.rawEventTransport.persistSubject(
                     exchangeId = config.exchangeId,
                     channel = channel,
                     lane = RawEventLane.LIVE
                 ),
-                durableName = "market-data-minute-staging-v1-${sanitizeSubjectToken(config.exchangeId)}-${sanitizeSubjectToken(channel)}",
+                durableName = "market-data-minute-staging-${minuteStagingDurableVersion(channel)}-${sanitizeSubjectToken(config.exchangeId)}-${sanitizeSubjectToken(channel)}",
                 deliverPolicy = persistDeliverPolicy(RawEventLane.LIVE)
-            ) { envelope ->
-                store.apply(envelope)
+            ) { batch ->
+                store.applyBatch(channel, batch)
             }
         }
     }
+}
+
+private fun minuteStagingDurableVersion(channel: String): String = when (channel) {
+    "orderbook_l2" -> "v2"
+    "asset_context" -> "v2"
+    else -> "v1"
 }
