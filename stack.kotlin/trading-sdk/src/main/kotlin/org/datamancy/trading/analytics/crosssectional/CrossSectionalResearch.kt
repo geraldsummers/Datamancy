@@ -73,7 +73,7 @@ internal data class ResearchWindowBounds(
 internal fun alignedResearchWindowBounds(
     lookbackHours: Int,
     barMinutes: Int,
-    lagMinutes: Long = crossSectionalPolicy().coverage.maxFinalizedLagMinutes,
+    lagMinutes: Long = 0L,
     now: Instant = Instant.now()
 ): ResearchWindowBounds {
     val normalizedBarMinutes = max(barMinutes, 1)

@@ -38,6 +38,26 @@ class CrossSectionalResearchTest {
     }
 
     @Test
+    fun `alignedResearchWindowBounds keeps requested frontier unless caller adds explicit lag`() {
+        val now = Instant.parse("2026-03-28T00:35:38Z")
+
+        val defaultWindow = alignedResearchWindowBounds(
+            lookbackHours = 48,
+            barMinutes = 30,
+            now = now
+        )
+        val laggedWindow = alignedResearchWindowBounds(
+            lookbackHours = 48,
+            barMinutes = 30,
+            lagMinutes = 34,
+            now = now
+        )
+
+        assertEquals(Instant.parse("2026-03-28T00:30:00Z"), defaultWindow.endExclusive)
+        assertEquals(Instant.parse("2026-03-28T00:00:00Z"), laggedWindow.endExclusive)
+    }
+
+    @Test
     fun `computeResearchCoverageSnapshotsFromUniverseSnapshot derives exact target-bar coverage`() {
         val snapshot = UniverseSnapshot(
             aliases = listOf("hyperliquid_mainnet"),
@@ -115,16 +135,16 @@ class CrossSectionalResearchTest {
         val coverage = snapshots.single()
         assertEquals("BTC", coverage.symbol)
         assertEquals(4, coverage.expectedBars)
-        assertEquals(3, coverage.observedBars)
+        assertEquals(4, coverage.observedBars)
         assertEquals(2, coverage.finalizedBars)
-        assertEquals(2, coverage.executionObservedBars)
-        assertEquals(0.75, coverage.coverageRatio)
+        assertEquals(3, coverage.executionObservedBars)
+        assertEquals(1.0, coverage.coverageRatio)
         assertEquals(0.5, coverage.finalizedRatio)
-        assertEquals(0.5, coverage.executionObservedRatio)
-        assertEquals(Instant.parse("2026-03-27T05:00:00Z"), coverage.latestFeatureTime)
+        assertEquals(0.75, coverage.executionObservedRatio)
+        assertEquals(Instant.parse("2026-03-27T05:30:00Z"), coverage.latestFeatureTime)
         assertEquals(Instant.parse("2026-03-27T04:30:00Z"), coverage.finalizedThrough)
-        assertEquals(Instant.parse("2026-03-27T04:30:00Z"), coverage.latestExecutionObservedTime)
-        assertEquals(3_600L, coverage.latestExecutionObservedLagSeconds)
+        assertEquals(Instant.parse("2026-03-27T05:30:00Z"), coverage.latestExecutionObservedTime)
+        assertEquals(0L, coverage.latestExecutionObservedLagSeconds)
     }
 
     @Test
