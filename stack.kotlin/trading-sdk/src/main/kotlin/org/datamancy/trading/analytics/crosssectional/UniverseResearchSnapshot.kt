@@ -19,7 +19,11 @@ internal data class UniverseSnapshotBar(
     val midPrice: Double,
     val executionObserved: Boolean,
     val finalized: Boolean,
-    val latestExecutionObservedTime: Instant? = null
+    val latestExecutionObservedTime: Instant? = null,
+    val fundingRate: Double? = null,
+    val openInterest: Double? = null,
+    val assetContextObserved: Boolean = false,
+    val latestCrowdingObservedTime: Instant? = null
 )
 
 internal data class UniverseSnapshot(
@@ -225,6 +229,9 @@ private fun loadUniverseSnapshotFromFeatures(
                 COALESCE(bid_depth_10, 0) AS bid_depth_10,
                 COALESCE(ask_depth_10, 0) AS ask_depth_10,
                 COALESCE(NULLIF(mid_price, 0), close) AS mid_price,
+                funding_rate,
+                open_interest,
+                asset_context_observed,
                 orderbook_observed,
                 is_finalized,
                 exchange
@@ -250,6 +257,9 @@ private fun loadUniverseSnapshotFromFeatures(
                 bid_depth_10,
                 ask_depth_10,
                 mid_price,
+                funding_rate,
+                open_interest,
+                asset_context_observed,
                 orderbook_observed,
                 is_finalized
             FROM minute_rows
@@ -284,6 +294,18 @@ private fun loadUniverseSnapshotFromFeatures(
             WHERE orderbook_observed
             ORDER BY symbol, bucket_time, time DESC
         ),
+        bucket_asset_context AS (
+            SELECT DISTINCT ON (symbol, bucket_time)
+                symbol,
+                bucket_time,
+                funding_rate,
+                open_interest,
+                asset_context_observed,
+                time AS latest_crowding_observed_time
+            FROM bucketed
+            WHERE asset_context_observed
+            ORDER BY symbol, bucket_time, time DESC
+        ),
         bucket_finalization AS (
             SELECT
                 symbol,
@@ -303,7 +325,11 @@ private fun loadUniverseSnapshotFromFeatures(
             COALESCE(o.mid_price, c.close) AS mid_price,
             CASE WHEN o.symbol IS NULL THEN FALSE ELSE TRUE END AS execution_observed,
             COALESCE(f.finalized, FALSE) AS finalized,
-            o.latest_execution_observed_time
+            o.latest_execution_observed_time,
+            a.funding_rate,
+            a.open_interest,
+            CASE WHEN a.symbol IS NULL THEN FALSE ELSE TRUE END AS asset_context_observed,
+            a.latest_crowding_observed_time
         FROM bucket_close c
         JOIN bucket_volume v
           ON v.symbol = c.symbol
@@ -311,6 +337,9 @@ private fun loadUniverseSnapshotFromFeatures(
         LEFT JOIN bucket_orderbook o
           ON o.symbol = c.symbol
          AND o.bucket_time = c.bucket_time
+        LEFT JOIN bucket_asset_context a
+          ON a.symbol = c.symbol
+         AND a.bucket_time = c.bucket_time
         JOIN bucket_finalization f
           ON f.symbol = c.symbol
          AND f.bucket_time = c.bucket_time
@@ -336,7 +365,11 @@ private fun loadUniverseSnapshotFromFeatures(
                                 midPrice = rs.getDouble("mid_price"),
                                 executionObserved = rs.getBoolean("execution_observed"),
                                 finalized = rs.getBoolean("finalized"),
-                                latestExecutionObservedTime = rs.getTimestamp("latest_execution_observed_time")?.toInstant()
+                                latestExecutionObservedTime = rs.getTimestamp("latest_execution_observed_time")?.toInstant(),
+                                fundingRate = rs.doubleOrNull("funding_rate"),
+                                openInterest = rs.doubleOrNull("open_interest"),
+                                assetContextObserved = rs.getBoolean("asset_context_observed"),
+                                latestCrowdingObservedTime = rs.getTimestamp("latest_crowding_observed_time")?.toInstant()
                             )
                         )
                     }
@@ -387,7 +420,11 @@ internal fun loadUniverseSnapshotBars(
                         askDepth10 = bar.askDepth10,
                         midPrice = bar.midPrice,
                         executionObserved = bar.executionObserved,
-                        finalized = bar.finalized
+                        finalized = bar.finalized,
+                        fundingRate = bar.fundingRate,
+                        openInterest = bar.openInterest,
+                        assetContextObserved = bar.assetContextObserved,
+                        latestCrowdingObservedTime = bar.latestCrowdingObservedTime
                     )
                 }
         }

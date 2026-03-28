@@ -37,6 +37,7 @@ import java.time.temporal.ChronoUnit
 import java.util.LinkedHashMap
 import kotlin.math.abs
 import kotlin.math.ceil
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -63,6 +64,24 @@ private const val DEFAULT_RESEARCH_QUERY_PARALLELISM = 4
 private fun crossSectionalPolicy() = ActiveTradingPolicy.current().research.crossSectional
 
 private fun crossSectionalSearchPolicy() = crossSectionalPolicy().search
+
+@Serializable
+enum class ResearchFeatureContext {
+    PRICE,
+    CROWDING,
+    EXECUTION
+}
+
+private val defaultSignalFeatureContexts = listOf(
+    ResearchFeatureContext.PRICE,
+    ResearchFeatureContext.CROWDING
+)
+private val defaultExecutionFeatureContexts = listOf(ResearchFeatureContext.EXECUTION)
+private val defaultPromotionFeatureContexts = listOf(
+    ResearchFeatureContext.PRICE,
+    ResearchFeatureContext.CROWDING,
+    ResearchFeatureContext.EXECUTION
+)
 
 internal data class ResearchWindowBounds(
     val startInclusive: Instant,
@@ -124,6 +143,15 @@ internal fun effectiveCoverageMaxExecutionLagSeconds(
     coveragePolicy: CoverageContractPolicy,
     barMinutes: Int
 ): Long = effectiveCoverageMaxFeatureLagSeconds(coveragePolicy, barMinutes)
+
+internal fun effectiveCoverageMaxCrowdingLagSeconds(
+    coveragePolicy: CoverageContractPolicy,
+    barMinutes: Int
+): Long =
+    max(
+        effectiveCoverageMaxFeatureLagSeconds(coveragePolicy, barMinutes),
+        max(7_200L, max(barMinutes, 1).toLong() * 120L)
+    )
 
 internal fun effectiveCoverageMaxFinalizedLagMinutes(
     coveragePolicy: CoverageContractPolicy,
@@ -319,6 +347,31 @@ fun JsonObject.obj(name: String): JsonObject? =
 fun JsonObject.array(name: String): JsonArray? =
     getAsJsonArray(name)
 
+internal fun ResultSet.doubleOrNull(name: String): Double? {
+    val value = getDouble(name)
+    return if (wasNull()) null else value
+}
+
+private fun normalizeResearchFeatureContexts(
+    requested: List<ResearchFeatureContext>,
+    fallback: List<ResearchFeatureContext>
+): Set<ResearchFeatureContext> =
+    (requested.ifEmpty { fallback })
+        .ifEmpty { fallback }
+        .toCollection(LinkedHashSet())
+
+private fun contextNames(contexts: Set<ResearchFeatureContext>): List<String> =
+    contexts.map { it.name.lowercase() }.sorted()
+
+private fun signalFeatureContexts(config: ResearchConfig): Set<ResearchFeatureContext> =
+    normalizeResearchFeatureContexts(config.requiredSignalContexts, defaultSignalFeatureContexts)
+
+private fun executionFeatureContexts(config: ResearchConfig): Set<ResearchFeatureContext> =
+    normalizeResearchFeatureContexts(config.requiredExecutionContexts, defaultExecutionFeatureContexts)
+
+private fun promotionFeatureContexts(config: ResearchConfig): Set<ResearchFeatureContext> =
+    normalizeResearchFeatureContexts(config.requiredPromotionContexts, defaultPromotionFeatureContexts)
+
 data class CandleSource(
     val intervalLabel: String,
     val minutes: Int
@@ -510,7 +563,10 @@ data class ResearchConfig(
     val persistBacktest: Boolean = crossSectionalPolicy().persistBacktest,
     val persistForward: Boolean = crossSectionalPolicy().persistForward,
     val enablePaperOrders: Boolean = crossSectionalPolicy().enablePaperOrders,
-    val paperExecutionMode: String = crossSectionalPolicy().paperExecutionMode
+    val paperExecutionMode: String = crossSectionalPolicy().paperExecutionMode,
+    val requiredSignalContexts: List<ResearchFeatureContext> = defaultSignalFeatureContexts,
+    val requiredExecutionContexts: List<ResearchFeatureContext> = defaultExecutionFeatureContexts,
+    val requiredPromotionContexts: List<ResearchFeatureContext> = defaultPromotionFeatureContexts
 )
 
 @Serializable
@@ -591,7 +647,11 @@ data class Bar(
     val askDepth10: Double,
     val midPrice: Double,
     val executionObserved: Boolean = true,
-    val finalized: Boolean = true
+    val finalized: Boolean = true,
+    val fundingRate: Double? = null,
+    val openInterest: Double? = null,
+    val assetContextObserved: Boolean = false,
+    val latestCrowdingObservedTime: Instant? = null
 )
 
 data class BasePoint(
@@ -609,7 +669,14 @@ data class BasePoint(
     val depthUsd: Double,
     val ret1m: Double,
     val vol30: Double,
-    val executionObserved: Boolean = true
+    val executionObserved: Boolean = true,
+    val fundingRate: Double = 0.0,
+    val fundingChange: Double = 0.0,
+    val openInterest: Double = 0.0,
+    val openInterestNotionalUsd: Double = 0.0,
+    val oiChange: Double = 0.0,
+    val oiAcceleration: Double = 0.0,
+    val assetContextObserved: Boolean = false
 )
 
 data class UnrankedFeature(
@@ -656,7 +723,14 @@ data class UnrankedFeature(
     val trendExpectedGrossEdgeBps: Double,
     val reversionExpectedGrossEdgeBps: Double,
     val liquid: Boolean,
-    val executionObserved: Boolean = true
+    val executionObserved: Boolean = true,
+    val fundingRate: Double = 0.0,
+    val fundingChange: Double = 0.0,
+    val openInterest: Double = 0.0,
+    val openInterestNotionalUsd: Double = 0.0,
+    val oiChange: Double = 0.0,
+    val oiAcceleration: Double = 0.0,
+    val assetContextObserved: Boolean = false
 )
 
 data class FeatureRow(
@@ -712,7 +786,19 @@ data class FeatureRow(
     val trendShortRank: Int,
     val reversionLongRank: Int,
     val reversionShortRank: Int,
-    val executionObserved: Boolean = true
+    val executionObserved: Boolean = true,
+    val fundingRate: Double = 0.0,
+    val fundingZ: Double = 0.0,
+    val fundingChangeZ: Double = 0.0,
+    val openInterest: Double = 0.0,
+    val openInterestNotionalUsd: Double = 0.0,
+    val oiChange: Double = 0.0,
+    val oiChangeZ: Double = 0.0,
+    val oiAccelerationZ: Double = 0.0,
+    val oiNotionalZ: Double = 0.0,
+    val crowdingScore: Double = 0.0,
+    val participationScore: Double = 0.0,
+    val assetContextObserved: Boolean = false
 )
 
 data class SignalSnapshot(
@@ -742,7 +828,11 @@ data class SignalSnapshot(
     val calibrationSamples: Int,
     val calibrationLowerBoundBps: Double,
     val liquid: Boolean,
-    val action: String
+    val action: String,
+    val fundingZ: Double = 0.0,
+    val oiChangeZ: Double = 0.0,
+    val crowdingScore: Double = 0.0,
+    val participationScore: Double = 0.0
 )
 
 data class ExecutionEstimate(
@@ -1908,6 +1998,9 @@ private fun queryBarsFromFeatures(
                 COALESCE(bid_depth_10, 0) AS bid_depth_10,
                 COALESCE(ask_depth_10, 0) AS ask_depth_10,
                 COALESCE(NULLIF(mid_price, 0), close) AS mid_price,
+                funding_rate,
+                open_interest,
+                asset_context_observed,
                 orderbook_observed,
                 exchange
             FROM research_features_1m
@@ -1931,6 +2024,9 @@ private fun queryBarsFromFeatures(
                 bid_depth_10,
                 ask_depth_10,
                 mid_price,
+                funding_rate,
+                open_interest,
+                asset_context_observed,
                 orderbook_observed
             FROM minute_rows
         ),
@@ -1962,6 +2058,18 @@ private fun queryBarsFromFeatures(
             FROM bucketed
             WHERE orderbook_observed
             ORDER BY symbol, bucket_time, time DESC
+        ),
+        bucket_asset_context AS (
+            SELECT DISTINCT ON (symbol, bucket_time)
+                symbol,
+                bucket_time,
+                funding_rate,
+                open_interest,
+                asset_context_observed,
+                time AS latest_crowding_observed_time
+            FROM bucketed
+            WHERE asset_context_observed
+            ORDER BY symbol, bucket_time, time DESC
         )
         SELECT
             c.symbol,
@@ -1972,7 +2080,11 @@ private fun queryBarsFromFeatures(
             COALESCE(o.bid_depth_10, 0) AS bid_depth_10,
             COALESCE(o.ask_depth_10, 0) AS ask_depth_10,
             COALESCE(o.mid_price, c.close) AS mid_price,
-            CASE WHEN o.symbol IS NULL THEN FALSE ELSE TRUE END AS execution_observed
+            CASE WHEN o.symbol IS NULL THEN FALSE ELSE TRUE END AS execution_observed,
+            a.funding_rate,
+            a.open_interest,
+            CASE WHEN a.symbol IS NULL THEN FALSE ELSE TRUE END AS asset_context_observed,
+            a.latest_crowding_observed_time
         FROM bucket_close c
         JOIN bucket_volume v
           ON v.symbol = c.symbol
@@ -1980,6 +2092,9 @@ private fun queryBarsFromFeatures(
         LEFT JOIN bucket_orderbook o
           ON o.symbol = c.symbol
          AND o.bucket_time = c.bucket_time
+        LEFT JOIN bucket_asset_context a
+          ON a.symbol = c.symbol
+         AND a.bucket_time = c.bucket_time
         ORDER BY c.bucket_time ASC, c.symbol ASC
     """.trimIndent()
 
@@ -2002,7 +2117,11 @@ private fun queryBarsFromFeatures(
                                     bidDepth10 = rs.getDouble("bid_depth_10"),
                                     askDepth10 = rs.getDouble("ask_depth_10"),
                                     midPrice = rs.getDouble("mid_price"),
-                                    executionObserved = rs.getBoolean("execution_observed")
+                                    executionObserved = rs.getBoolean("execution_observed"),
+                                    fundingRate = rs.doubleOrNull("funding_rate"),
+                                    openInterest = rs.doubleOrNull("open_interest"),
+                                    assetContextObserved = rs.getBoolean("asset_context_observed"),
+                                    latestCrowdingObservedTime = rs.getTimestamp("latest_crowding_observed_time")?.toInstant()
                                 )
                             )
                         }
@@ -2084,6 +2203,11 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
     val baseByKey = seriesByKey.mapValues { (key, series) ->
         val returns = ArrayDeque<Double>()
         val executionProxy = executionProxyByKey[key] ?: marketExecutionProxy
+        var latestFundingRate: Double? = null
+        var latestOpenInterest: Double? = null
+        var previousFundingRate = 0.0
+        var previousOpenInterest = 0.0
+        var previousOiChange = 0.0
         series.mapIndexed { index, bar ->
             val previous = series.getOrNull(index - 1)
             val ret1m = if (previous == null || previous.close <= 0.0) 0.0 else (bar.close / previous.close) - 1.0
@@ -2102,11 +2226,28 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 volumeUsd * executionProxy.depthToVolumeRatio
             )
             val proxyDepthUnits = proxyDepthUsd / max(midPrice, 1e-6)
+            if (bar.assetContextObserved) {
+                if (bar.fundingRate != null) latestFundingRate = bar.fundingRate
+                if (bar.openInterest != null) latestOpenInterest = max(bar.openInterest, 0.0)
+            }
+            val fundingRate = latestFundingRate ?: 0.0
+            val openInterest = max(latestOpenInterest ?: 0.0, 0.0)
+            val openInterestNotionalUsd = openInterest * max(midPrice, 0.0)
+            val oiChange = if (previousOpenInterest > 0.0 && openInterest > 0.0) {
+                clamp((openInterest / previousOpenInterest) - 1.0, -0.95, 8.0)
+            } else {
+                0.0
+            }
+            val oiAcceleration = clamp(oiChange - previousOiChange, -1.5, 1.5)
             val spreadBps = if (executionObserved) rawSpreadBps else executionProxy.spreadBps
             val spreadPct = if (executionObserved) max(bar.spreadPct, 0.0) else executionProxy.spreadBps / 10000.0
             val bidDepth10 = if (executionObserved) max(bar.bidDepth10, 0.0) else proxyDepthUnits / 2.0
             val askDepth10 = if (executionObserved) max(bar.askDepth10, 0.0) else proxyDepthUnits / 2.0
             val depthUsd = if (executionObserved) rawDepthUsd else proxyDepthUsd
+            val fundingChange = clamp(fundingRate - previousFundingRate, -0.02, 0.02)
+            previousFundingRate = fundingRate
+            previousOpenInterest = openInterest
+            previousOiChange = oiChange
             BasePoint(
                 exchange = key.first,
                 symbol = key.second,
@@ -2122,7 +2263,14 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 depthUsd = depthUsd,
                 ret1m = ret1m,
                 vol30 = vol30,
-                executionObserved = executionObserved
+                executionObserved = executionObserved,
+                fundingRate = fundingRate,
+                fundingChange = fundingChange,
+                openInterest = openInterest,
+                openInterestNotionalUsd = openInterestNotionalUsd,
+                oiChange = oiChange,
+                oiAcceleration = oiAcceleration,
+                assetContextObserved = bar.assetContextObserved
             )
         }
     }
@@ -2306,7 +2454,14 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 trendExpectedGrossEdgeBps = trendExpectedGrossEdgeBps,
                 reversionExpectedGrossEdgeBps = reversionExpectedGrossEdgeBps,
                 liquid = liquid,
-                executionObserved = point.executionObserved
+                executionObserved = point.executionObserved,
+                fundingRate = point.fundingRate,
+                fundingChange = point.fundingChange,
+                openInterest = point.openInterest,
+                openInterestNotionalUsd = point.openInterestNotionalUsd,
+                oiChange = point.oiChange,
+                oiAcceleration = point.oiAcceleration,
+                assetContextObserved = point.assetContextObserved
             )
         }
     }
@@ -2324,6 +2479,11 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
         val comparableCohorts = bucket.groupBy(::reversionUniverseBucket)
         val minimumCohortSize = min(max(bucket.size / 8, 6), max(bucket.size, 1))
         val residualCrossSectionalZByRow = mutableMapOf<UnrankedFeature, Double>()
+        val fundingZByRow = mutableMapOf<UnrankedFeature, Double>()
+        val fundingChangeZByRow = mutableMapOf<UnrankedFeature, Double>()
+        val oiChangeZByRow = mutableMapOf<UnrankedFeature, Double>()
+        val oiAccelerationZByRow = mutableMapOf<UnrankedFeature, Double>()
+        val oiNotionalZByRow = mutableMapOf<UnrankedFeature, Double>()
 
         bucket.forEach { row ->
             val cohort = comparableCohorts[reversionUniverseBucket(row)].orEmpty()
@@ -2335,6 +2495,62 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 value = row.residualRet,
                 values = residualRetUniverse,
                 fallbackScale = fallbackScale
+            )
+            val fundingUniverse = cohort.map { it.fundingRate }
+            val fundingChangeUniverse = cohort.map { it.fundingChange }
+            val oiChangeUniverse = cohort.map { it.oiChange }
+            val oiAccelerationUniverse = cohort.map { it.oiAcceleration }
+            val oiNotionalUniverse = cohort.map { ln(max(it.openInterestNotionalUsd, 0.0) + 1.0) }
+            fundingZByRow[row] = robustZScore(
+                value = row.fundingRate,
+                values = fundingUniverse,
+                fallbackScale = max(stdev(fundingUniverse), 1e-4)
+            )
+            fundingChangeZByRow[row] = robustZScore(
+                value = row.fundingChange,
+                values = fundingChangeUniverse,
+                fallbackScale = max(stdev(fundingChangeUniverse), 5e-5)
+            )
+            oiChangeZByRow[row] = robustZScore(
+                value = row.oiChange,
+                values = oiChangeUniverse,
+                fallbackScale = max(stdev(oiChangeUniverse), 0.01)
+            )
+            oiAccelerationZByRow[row] = robustZScore(
+                value = row.oiAcceleration,
+                values = oiAccelerationUniverse,
+                fallbackScale = max(stdev(oiAccelerationUniverse), 0.01)
+            )
+            oiNotionalZByRow[row] = robustZScore(
+                value = ln(max(row.openInterestNotionalUsd, 0.0) + 1.0),
+                values = oiNotionalUniverse,
+                fallbackScale = max(stdev(oiNotionalUniverse), 0.1)
+            )
+        }
+
+        fun trendReference(row: UnrankedFeature): Double =
+            if (abs(row.mediumTrendScore) > abs(row.rawTrend)) row.mediumTrendScore else row.rawTrend
+
+        fun participationScore(row: UnrankedFeature): Double {
+            val trendDirection = direction(trendReference(row))
+            return clamp(
+                (trendDirection * (oiChangeZByRow[row] ?: 0.0) * 0.85) +
+                    (trendDirection * (oiAccelerationZByRow[row] ?: 0.0) * 0.45) +
+                    (trendDirection * (fundingChangeZByRow[row] ?: 0.0) * 0.25),
+                -6.0,
+                6.0
+            )
+        }
+
+        fun crowdingScore(row: UnrankedFeature): Double {
+            val trendDirection = direction(trendReference(row))
+            return clamp(
+                participationScore(row) +
+                    (trendDirection * (fundingZByRow[row] ?: 0.0) * 0.35) +
+                    (max(0.0, oiNotionalZByRow[row] ?: 0.0) * 0.18) -
+                    (max(0.0, abs(fundingZByRow[row] ?: 0.0) - 1.8) * 0.55),
+                -6.0,
+                6.0
             )
         }
 
@@ -2366,9 +2582,11 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
 
         val trendScores = bucket.associateWith { row ->
             val mediumDirection = direction(row.mediumTrendScore)
-            val trendReference = if (abs(row.mediumTrendScore) > abs(row.rawTrend)) row.mediumTrendScore else row.rawTrend
-            val flowAlignment = direction(trendReference) * row.flowSignal
-            val breadthAlignment = direction(trendReference) * breadthTilt
+            val reference = trendReference(row)
+            val flowAlignment = direction(reference) * row.flowSignal
+            val breadthAlignment = direction(reference) * breadthTilt
+            val participation = participationScore(row)
+            val crowding = crowdingScore(row)
             row.rawTrend +
                 (row.mediumTrendScore * 0.85) +
                 (mediumDirection * max(0.0, row.trendPersistence - 0.5) * 0.70) +
@@ -2376,6 +2594,10 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 (breadthAlignment * 0.9) +
                 (max(0.0, flowAlignment) * 0.65) -
                 (max(0.0, -flowAlignment) * 1.0) +
+                (max(0.0, participation) * 0.58) -
+                (max(0.0, -participation) * 0.82) +
+                (max(0.0, crowding) * 0.28) -
+                (max(0.0, -crowding) * 0.45) +
                 min(max(0.0, row.depthRatio - 1.0) * 0.35, 0.55) +
                 (max(0.0, min(row.volumeRatio, 3.0) - 1.0) * 0.22) -
                 (max(0.0, row.trendExhaustion - 1.1) * 0.55) -
@@ -2399,9 +2621,15 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 (max(0.0, row.volRegime - 1.55) * 0.60)
         }
         val trendExpectedEdges = bucket.associateWith { row ->
-            val breadthAlignment = direction(if (abs(row.mediumTrendScore) > abs(row.rawTrend)) row.mediumTrendScore else row.rawTrend) * breadthTilt
+            val breadthAlignment = direction(trendReference(row)) * breadthTilt
+            val participation = participationScore(row)
+            val crowding = crowdingScore(row)
             clamp(
                 row.trendExpectedGrossEdgeBps +
+                    (max(0.0, participation) * 6.5) -
+                    (max(0.0, -participation) * 8.0) +
+                    (max(0.0, crowding) * 3.5) -
+                    (max(0.0, -crowding) * 5.0) +
                     (max(0.0, breadthAlignment) * 6.0) -
                     (max(0.0, -breadthAlignment) * 8.0) -
                     (max(0.0, marketStress - 1.6) * 5.0),
@@ -2501,7 +2729,19 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 trendShortRank = trendShortRanks[row] ?: Int.MAX_VALUE,
                 reversionLongRank = reversionLongRanks[row] ?: Int.MAX_VALUE,
                 reversionShortRank = reversionShortRanks[row] ?: Int.MAX_VALUE,
-                executionObserved = row.executionObserved
+                executionObserved = row.executionObserved,
+                fundingRate = row.fundingRate,
+                fundingZ = (fundingZByRow[row] ?: 0.0).round(6),
+                fundingChangeZ = (fundingChangeZByRow[row] ?: 0.0).round(6),
+                openInterest = row.openInterest,
+                openInterestNotionalUsd = row.openInterestNotionalUsd.round(4),
+                oiChange = row.oiChange.round(6),
+                oiChangeZ = (oiChangeZByRow[row] ?: 0.0).round(6),
+                oiAccelerationZ = (oiAccelerationZByRow[row] ?: 0.0).round(6),
+                oiNotionalZ = (oiNotionalZByRow[row] ?: 0.0).round(6),
+                crowdingScore = crowdingScore(row).round(6),
+                participationScore = participationScore(row).round(6),
+                assetContextObserved = row.assetContextObserved
             )
             val trendSide = direction(provisionalRow.trendScore).toInt()
             val reversionSide = (-direction(provisionalRow.reversionState)).toInt()
@@ -3310,7 +3550,11 @@ fun latestSignalSnapshots(
                     1 -> "LONG"
                     -1 -> "SHORT"
                     else -> "FLAT"
-                }
+                },
+                fundingZ = row.fundingZ.round(4),
+                oiChangeZ = row.oiChangeZ.round(4),
+                crowdingScore = row.crowdingScore.round(4),
+                participationScore = row.participationScore.round(4)
             )
         }
         .sortedWith(
@@ -4938,7 +5182,10 @@ data class ResearchSeedSnapshot(
     val volumeRatio: Double,
     val expectedNetEdgeBps: Double,
     val expectedRoundTripCostBps: Double,
-    val targetExposureFraction: Double
+    val targetExposureFraction: Double,
+    val fundingZ: Double = 0.0,
+    val oiChangeZ: Double = 0.0,
+    val crowdingScore: Double = 0.0
 )
 
 data class ResearchDiagnostics(
@@ -5016,7 +5263,10 @@ data class ResearchDataKey(
     val lookbackHours: Int,
     val discoveryMaxSymbols: Int,
     val maxSymbols: Int,
-    val minBars: Int
+    val minBars: Int,
+    val signalContexts: List<String>,
+    val executionContexts: List<String>,
+    val promotionContexts: List<String>
 )
 
 data class ResearchDataContext(
@@ -5146,7 +5396,10 @@ fun computeResearchDiagnostics(
                 volumeRatio = it.row.volumeRatio.round(4),
                 expectedNetEdgeBps = it.expectedNetEdgeBps.round(4),
                 expectedRoundTripCostBps = it.expectedRoundTripCostBps.round(4),
-                targetExposureFraction = it.targetExposureFraction.round(4)
+                targetExposureFraction = it.targetExposureFraction.round(4),
+                fundingZ = it.row.fundingZ.round(4),
+                oiChangeZ = it.row.oiChangeZ.round(4),
+                crowdingScore = it.row.crowdingScore.round(4)
             )
         }
     )
@@ -5161,7 +5414,10 @@ fun researchDataKey(config: ResearchConfig): ResearchDataKey =
         lookbackHours = config.lookbackHours,
         discoveryMaxSymbols = config.discoveryMaxSymbols,
         maxSymbols = config.maxSymbols,
-        minBars = config.minBars
+        minBars = config.minBars,
+        signalContexts = contextNames(signalFeatureContexts(config)),
+        executionContexts = contextNames(executionFeatureContexts(config)),
+        promotionContexts = contextNames(promotionFeatureContexts(config))
     )
 
 data class ResearchCoverageSnapshot(
@@ -5178,7 +5434,11 @@ data class ResearchCoverageSnapshot(
     val latestExecutionObservedTime: Instant?,
     val latestFeatureLagSeconds: Long,
     val finalizedLagMinutes: Long?,
-    val latestExecutionObservedLagSeconds: Long?
+    val latestExecutionObservedLagSeconds: Long?,
+    val crowdingObservedBars: Int = 0,
+    val crowdingObservedRatio: Double = 0.0,
+    val latestCrowdingObservedTime: Instant? = null,
+    val latestCrowdingObservedLagSeconds: Long? = null
 )
 
 data class ResearchCoverageVerdict(
@@ -5195,7 +5455,8 @@ data class ResearchCoverageVerdict(
 internal data class ResearchCoverageLagMetrics(
     val latestFeatureLagSeconds: Long,
     val finalizedLagMinutes: Long?,
-    val latestExecutionObservedLagSeconds: Long?
+    val latestExecutionObservedLagSeconds: Long?,
+    val latestCrowdingObservedLagSeconds: Long?
 )
 
 data class CrossSectionalExchangeReadiness(
@@ -5218,7 +5479,10 @@ data class CrossSectionalExchangeReadiness(
     val samplePromotionEligibleSymbols: List<String>,
     val sampleCoverageFailures: List<ResearchCoverageSnapshot>,
     val sampleExecutionCoverageFailures: List<ResearchCoverageSnapshot>,
-    val samplePromotionCoverageFailures: List<ResearchCoverageSnapshot>
+    val samplePromotionCoverageFailures: List<ResearchCoverageSnapshot>,
+    val requiredSignalContexts: List<String> = emptyList(),
+    val requiredExecutionContexts: List<String> = emptyList(),
+    val requiredPromotionContexts: List<String> = emptyList()
 )
 
 data class CrossSectionalResearchReadiness(
@@ -5236,6 +5500,9 @@ data class CrossSectionalResearchReadiness(
     val reason: String?,
     val executionReason: String?,
     val promotionReason: String?,
+    val requiredSignalContexts: List<String> = emptyList(),
+    val requiredExecutionContexts: List<String> = emptyList(),
+    val requiredPromotionContexts: List<String> = emptyList(),
     val exchanges: List<CrossSectionalExchangeReadiness>
 )
 
@@ -5250,11 +5517,19 @@ private data class PreparedResearchUniverse(
     val requiredCoverageBars: Int,
     val discoveredUniverse: Map<String, List<String>>,
     val signalCoverageVerdicts: Map<String, ResearchCoverageVerdict>,
-    val executionCoverageVerdicts: Map<String, ResearchCoverageVerdict>
+    val executionCoverageVerdicts: Map<String, ResearchCoverageVerdict>,
+    val promotionCoverageVerdicts: Map<String, ResearchCoverageVerdict>
 )
 
-private fun signalCoveragePolicy(coveragePolicy: CoverageContractPolicy): CoverageContractPolicy =
-    coveragePolicy.copy(requireExecutionObserved = false)
+private fun signalCoveragePolicy(
+    coveragePolicy: CoverageContractPolicy,
+    requiredContexts: Set<ResearchFeatureContext>
+): CoverageContractPolicy =
+    if (ResearchFeatureContext.EXECUTION in requiredContexts) {
+        coveragePolicy
+    } else {
+        coveragePolicy.copy(requireExecutionObserved = false)
+    }
 
 private fun expectedCoverageBars(lookbackHours: Int, barMinutes: Int, minBars: Int): Int {
     return requiredResearchWindowBars(
@@ -5304,6 +5579,9 @@ internal fun computeResearchCoverageSnapshotsFromUniverseSnapshot(
             } else {
                 val latestFeatureTime = bars.maxOfOrNull { it.time }
                 val finalizedThrough = bars.filter { it.finalized }.maxOfOrNull { it.time }
+                val latestCrowdingObservedTime = bars
+                    .filter { it.assetContextObserved }
+                    .maxOfOrNull { it.latestCrowdingObservedTime ?: it.time }
                 val executionCoverage = computeExecutionObservationCoverage(
                     bars = bars.map { bar ->
                         ExecutionCoverageBar(
@@ -5320,6 +5598,7 @@ internal fun computeResearchCoverageSnapshotsFromUniverseSnapshot(
                     latestFeatureTime = latestFeatureTime,
                     finalizedThrough = finalizedThrough,
                     latestExecutionObservedTime = latestExecutionObservedTime,
+                    latestCrowdingObservedTime = latestCrowdingObservedTime,
                     referenceTime = referenceTime,
                     bucketSeconds = window.bucketSeconds.toLong()
                 )
@@ -5338,7 +5617,11 @@ internal fun computeResearchCoverageSnapshotsFromUniverseSnapshot(
                     latestExecutionObservedTime = latestExecutionObservedTime,
                     latestFeatureLagSeconds = lagMetrics.latestFeatureLagSeconds,
                     finalizedLagMinutes = lagMetrics.finalizedLagMinutes,
-                    latestExecutionObservedLagSeconds = lagMetrics.latestExecutionObservedLagSeconds
+                    latestExecutionObservedLagSeconds = lagMetrics.latestExecutionObservedLagSeconds,
+                    crowdingObservedBars = bars.count { it.assetContextObserved },
+                    crowdingObservedRatio = clamp(bars.count { it.assetContextObserved }.toDouble() / max(expectedBars, 1).toDouble(), 0.0, 1.0),
+                    latestCrowdingObservedTime = latestCrowdingObservedTime,
+                    latestCrowdingObservedLagSeconds = lagMetrics.latestCrowdingObservedLagSeconds
                 )
             }
         }
@@ -5349,6 +5632,7 @@ internal fun computeResearchCoverageLagMetrics(
     latestFeatureTime: Instant?,
     finalizedThrough: Instant?,
     latestExecutionObservedTime: Instant?,
+    latestCrowdingObservedTime: Instant? = null,
     referenceTime: Instant,
     bucketSeconds: Long
 ): ResearchCoverageLagMetrics = ResearchCoverageLagMetrics(
@@ -5364,6 +5648,16 @@ internal fun computeResearchCoverageLagMetrics(
     ),
     latestExecutionObservedLagSeconds = alignTimeToBucketStart(
         time = latestExecutionObservedTime,
+        bucketSeconds = bucketSeconds
+    )?.let {
+        barCloseLagSeconds(
+            bucketStartTime = it,
+            referenceTime = referenceTime,
+            bucketSeconds = bucketSeconds
+        )
+    },
+    latestCrowdingObservedLagSeconds = alignTimeToBucketStart(
+        time = latestCrowdingObservedTime,
         bucketSeconds = bucketSeconds
     )?.let {
         barCloseLagSeconds(
@@ -5418,6 +5712,7 @@ private fun computeResearchCoverageSnapshots(
                 symbol,
                 time,
                 orderbook_observed,
+                asset_context_observed,
                 is_finalized,
                 exchange
             FROM research_features_1m
@@ -5434,7 +5729,9 @@ private fun computeResearchCoverageSnapshots(
             SELECT
                 symbol,
                 to_timestamp(floor(extract(epoch from time) / $bucketSeconds) * $bucketSeconds) AS bucket_time,
+                time,
                 orderbook_observed,
+                asset_context_observed,
                 is_finalized
             FROM minute_rows
         ),
@@ -5443,7 +5740,9 @@ private fun computeResearchCoverageSnapshots(
                 symbol,
                 bucket_time,
                 BOOL_AND(is_finalized) AS finalized,
-                MAX(time) FILTER (WHERE orderbook_observed) AS latest_execution_observed_time
+                MAX(time) FILTER (WHERE orderbook_observed) AS latest_execution_observed_time,
+                MAX(time) FILTER (WHERE asset_context_observed) AS latest_crowding_observed_time,
+                BOOL_OR(asset_context_observed) AS crowding_observed
             FROM bucketed
             GROUP BY symbol, bucket_time
         ),
@@ -5462,6 +5761,8 @@ private fun computeResearchCoverageSnapshots(
             b.bucket_time,
             b.finalized,
             b.latest_execution_observed_time,
+            b.latest_crowding_observed_time,
+            b.crowding_observed,
             f.latest_feature_time,
             f.finalized_through
         FROM bucket_rollup b
@@ -5475,6 +5776,8 @@ private fun computeResearchCoverageSnapshots(
         val bucketTime: Instant,
         val finalized: Boolean,
         val latestExecutionObservedTime: Instant?,
+        val latestCrowdingObservedTime: Instant?,
+        val crowdingObserved: Boolean,
         val latestFeatureTime: Instant?,
         val finalizedThrough: Instant?
     )
@@ -5492,6 +5795,8 @@ private fun computeResearchCoverageSnapshots(
                                 bucketTime = rs.getTimestamp("bucket_time").toInstant(),
                                 finalized = rs.getBoolean("finalized"),
                                 latestExecutionObservedTime = rs.getTimestamp("latest_execution_observed_time")?.toInstant(),
+                                latestCrowdingObservedTime = rs.getTimestamp("latest_crowding_observed_time")?.toInstant(),
+                                crowdingObserved = rs.getBoolean("crowding_observed"),
                                 latestFeatureTime = rs.getTimestamp("latest_feature_time")?.toInstant(),
                                 finalizedThrough = rs.getTimestamp("finalized_through")?.toInstant()
                             )
@@ -5525,13 +5830,17 @@ private fun computeResearchCoverageSnapshots(
             val latestFeatureTime = symbolRows.firstOrNull()?.latestFeatureTime
             val finalizedThrough = symbolRows.firstOrNull()?.finalizedThrough
             val latestExecutionObservedTime = executionCoverage.latestExecutionObservedTime
+            val latestCrowdingObservedTime = symbolRows.maxOfOrNull { it.latestCrowdingObservedTime ?: Instant.MIN }
+                ?.takeIf { it != Instant.MIN }
             val lagMetrics = computeResearchCoverageLagMetrics(
                 latestFeatureTime = latestFeatureTime,
                 finalizedThrough = finalizedThrough,
                 latestExecutionObservedTime = latestExecutionObservedTime,
+                latestCrowdingObservedTime = latestCrowdingObservedTime,
                 referenceTime = referenceTime,
                 bucketSeconds = bucketSeconds.toLong()
             )
+            val crowdingObservedBars = symbolRows.count { it.crowdingObserved }
 
             ResearchCoverageSnapshot(
                 symbol = symbol,
@@ -5547,7 +5856,11 @@ private fun computeResearchCoverageSnapshots(
                 latestExecutionObservedTime = latestExecutionObservedTime,
                 latestFeatureLagSeconds = lagMetrics.latestFeatureLagSeconds,
                 finalizedLagMinutes = lagMetrics.finalizedLagMinutes,
-                latestExecutionObservedLagSeconds = lagMetrics.latestExecutionObservedLagSeconds
+                latestExecutionObservedLagSeconds = lagMetrics.latestExecutionObservedLagSeconds,
+                crowdingObservedBars = crowdingObservedBars,
+                crowdingObservedRatio = clamp(crowdingObservedBars.toDouble() / max(expectedBars, 1).toDouble(), 0.0, 1.0),
+                latestCrowdingObservedTime = latestCrowdingObservedTime,
+                latestCrowdingObservedLagSeconds = lagMetrics.latestCrowdingObservedLagSeconds
             )
         }
         .sortedBy { it.symbol }
@@ -5560,6 +5873,7 @@ internal fun buildResearchCoverageVerdict(
     requiredBars: Int,
     coveragePolicy: CoverageContractPolicy,
     barMinutes: Int,
+    requiredContexts: Set<ResearchFeatureContext> = setOf(ResearchFeatureContext.PRICE),
     gateName: String = "coverage"
 ): ResearchCoverageVerdict {
     val maxFeatureLagSeconds = effectiveCoverageMaxFeatureLagSeconds(
@@ -5574,6 +5888,12 @@ internal fun buildResearchCoverageVerdict(
         coveragePolicy = coveragePolicy,
         barMinutes = barMinutes
     )
+    val maxCrowdingLagSeconds = effectiveCoverageMaxCrowdingLagSeconds(
+        coveragePolicy = coveragePolicy,
+        barMinutes = barMinutes
+    )
+    val requiresExecution = ResearchFeatureContext.EXECUTION in requiredContexts && coveragePolicy.requireExecutionObserved
+    val requiresCrowding = ResearchFeatureContext.CROWDING in requiredContexts
     val eligibleSymbols = snapshots
         .filter { snapshot ->
             snapshot.observedBars >= requiredBars &&
@@ -5582,10 +5902,17 @@ internal fun buildResearchCoverageVerdict(
                 snapshot.latestFeatureLagSeconds <= maxFeatureLagSeconds &&
                 (snapshot.finalizedLagMinutes ?: Long.MAX_VALUE) <= maxFinalizedLagMinutes &&
                 (
-                    !coveragePolicy.requireExecutionObserved ||
+                    !requiresExecution ||
                         (
                             snapshot.executionObservedRatio >= coveragePolicy.minExecutionObservedRatio &&
                                 (snapshot.latestExecutionObservedLagSeconds ?: Long.MAX_VALUE) <= maxExecutionLagSeconds
+                            )
+                    ) &&
+                (
+                    !requiresCrowding ||
+                        (
+                            snapshot.crowdingObservedBars > 0 &&
+                                (snapshot.latestCrowdingObservedLagSeconds ?: Long.MAX_VALUE) <= maxCrowdingLagSeconds
                             )
                     )
         }
@@ -5603,16 +5930,22 @@ internal fun buildResearchCoverageVerdict(
                 "${snapshot.symbol}:cov=${snapshot.coverageRatio.round(3)} " +
                     "fin=${snapshot.finalizedRatio.round(3)} " +
                     "exec=${snapshot.executionObservedRatio.round(3)} " +
+                    "crowd=${snapshot.crowdingObservedRatio.round(3)} " +
                     "execLag=${snapshot.latestExecutionObservedLagSeconds ?: Long.MAX_VALUE}s " +
+                    "crowdLag=${snapshot.latestCrowdingObservedLagSeconds ?: Long.MAX_VALUE}s " +
                     "featLag=${snapshot.latestFeatureLagSeconds}s " +
                     "finLag=${snapshot.finalizedLagMinutes ?: Long.MAX_VALUE}m"
             }
             val thresholdSummary = buildString {
                 append("cov>=${coveragePolicy.minCoverageRatio.round(3)} ")
                 append("fin>=${coveragePolicy.minFinalizedRatio.round(3)} ")
-                if (coveragePolicy.requireExecutionObserved) {
+                if (requiresExecution) {
                     append("exec>=${coveragePolicy.minExecutionObservedRatio.round(3)} ")
                     append("execLag<=${maxExecutionLagSeconds}s ")
+                }
+                if (requiresCrowding) {
+                    append("crowd>0 ")
+                    append("crowdLag<=${maxCrowdingLagSeconds}s ")
                 }
                 append("featLag<=${maxFeatureLagSeconds}s ")
                 append("finLag<=${maxFinalizedLagMinutes}m")
@@ -5648,7 +5981,10 @@ private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUni
         minBars = config.minBars
     )
     val coveragePolicy = crossSectionalPolicy().coverage
-    val signalCoveragePolicy = signalCoveragePolicy(coveragePolicy)
+    val signalContexts = signalFeatureContexts(config)
+    val executionContexts = executionFeatureContexts(config)
+    val promotionContexts = promotionFeatureContexts(config)
+    val signalCoveragePolicy = signalCoveragePolicy(coveragePolicy, signalContexts)
 
     val (discoveredUniverse, discoveryMs) = timedMillis {
         parallelMapBlocking(
@@ -5681,26 +6017,37 @@ private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUni
             minBars = config.minBars,
             coveragePolicy = coveragePolicy
         )
-        plan.exchange to Pair(
-            buildResearchCoverageVerdict(
-                exchange = plan.exchange,
-                symbols = symbols,
-                snapshots = snapshots,
-                requiredBars = requiredCoverageBars,
-                coveragePolicy = signalCoveragePolicy,
-                barMinutes = config.barMinutes,
-                gateName = "signal_coverage"
-            ),
-            buildResearchCoverageVerdict(
-                exchange = plan.exchange,
-                symbols = symbols,
-                snapshots = snapshots,
-                requiredBars = requiredCoverageBars,
-                coveragePolicy = coveragePolicy,
-                barMinutes = config.barMinutes,
-                gateName = "promotion_coverage"
-            )
+        val signalVerdict = buildResearchCoverageVerdict(
+            exchange = plan.exchange,
+            symbols = symbols,
+            snapshots = snapshots,
+            requiredBars = requiredCoverageBars,
+            coveragePolicy = signalCoveragePolicy,
+            barMinutes = config.barMinutes,
+            requiredContexts = signalContexts,
+            gateName = "signal_coverage"
         )
+        val executionVerdict = buildResearchCoverageVerdict(
+            exchange = plan.exchange,
+            symbols = symbols,
+            snapshots = snapshots,
+            requiredBars = requiredCoverageBars,
+            coveragePolicy = coveragePolicy,
+            barMinutes = config.barMinutes,
+            requiredContexts = executionContexts,
+            gateName = "execution_coverage"
+        )
+        val promotionVerdict = buildResearchCoverageVerdict(
+            exchange = plan.exchange,
+            symbols = symbols,
+            snapshots = snapshots,
+            requiredBars = requiredCoverageBars,
+            coveragePolicy = coveragePolicy,
+            barMinutes = config.barMinutes,
+            requiredContexts = promotionContexts,
+            gateName = "promotion_coverage"
+        )
+        plan.exchange to Triple(signalVerdict, executionVerdict, promotionVerdict)
     }.toMap(LinkedHashMap())
 
     return PreparedResearchUniverse(
@@ -5712,16 +6059,21 @@ private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUni
         requiredCoverageBars = requiredCoverageBars,
         discoveredUniverse = discoveredUniverse,
         signalCoverageVerdicts = coverageVerdicts.mapValues { it.value.first },
-        executionCoverageVerdicts = coverageVerdicts.mapValues { it.value.second }
+        executionCoverageVerdicts = coverageVerdicts.mapValues { it.value.second },
+        promotionCoverageVerdicts = coverageVerdicts.mapValues { it.value.third }
     )
 }
 
 fun evaluateCrossSectionalReadiness(config: ResearchConfig): CrossSectionalResearchReadiness {
     val prepared = prepareResearchUniverse(config)
     val coveragePolicy = crossSectionalPolicy().coverage
+    val signalContexts = contextNames(signalFeatureContexts(config))
+    val executionContexts = contextNames(executionFeatureContexts(config))
+    val promotionContexts = contextNames(promotionFeatureContexts(config))
     val exchanges = prepared.exchangePlans.map { plan ->
         val signalVerdict = prepared.signalCoverageVerdicts.getValue(plan.exchange)
         val executionVerdict = prepared.executionCoverageVerdicts.getValue(plan.exchange)
+        val promotionVerdict = prepared.promotionCoverageVerdicts.getValue(plan.exchange)
         val signalFailingSamples = signalVerdict.snapshots
             .filterNot { it.symbol in signalVerdict.eligibleSymbols }
             .sortedWith(
@@ -5742,31 +6094,46 @@ fun evaluateCrossSectionalReadiness(config: ResearchConfig): CrossSectionalResea
                     .thenBy { it.symbol }
             )
             .take(5)
+        val promotionFailingSamples = promotionVerdict.snapshots
+            .filterNot { it.symbol in promotionVerdict.eligibleSymbols }
+            .sortedWith(
+                compareBy<ResearchCoverageSnapshot> { it.coverageRatio }
+                    .thenBy { it.finalizedRatio }
+                    .thenBy { it.crowdingObservedRatio }
+                    .thenBy { it.executionObservedRatio }
+                    .thenByDescending { it.latestFeatureLagSeconds }
+                    .thenBy { it.symbol }
+            )
+            .take(5)
         CrossSectionalExchangeReadiness(
             exchange = plan.exchange,
             marketAliases = plan.marketAliases,
             discoveredSymbols = prepared.discoveredUniverse[plan.exchange].orEmpty().size,
             eligibleSymbols = signalVerdict.eligibleSymbols.size,
             executionEligibleSymbols = executionVerdict.eligibleSymbols.size,
-            promotionEligibleSymbols = executionVerdict.eligibleSymbols.size,
+            promotionEligibleSymbols = promotionVerdict.eligibleSymbols.size,
             requiredBars = signalVerdict.requiredBars,
             minimumEligibleSymbols = signalVerdict.minimumEligibleSymbols,
             passed = signalVerdict.passed,
             executionPassed = executionVerdict.passed,
-            promotionPassed = executionVerdict.passed,
+            promotionPassed = promotionVerdict.passed,
             reason = signalVerdict.reason,
             executionReason = executionVerdict.reason,
-            promotionReason = executionVerdict.reason,
+            promotionReason = promotionVerdict.reason,
             sampleEligibleSymbols = signalVerdict.eligibleSymbols.take(12),
             sampleExecutionEligibleSymbols = executionVerdict.eligibleSymbols.take(12),
-            samplePromotionEligibleSymbols = executionVerdict.eligibleSymbols.take(12),
+            samplePromotionEligibleSymbols = promotionVerdict.eligibleSymbols.take(12),
             sampleCoverageFailures = signalFailingSamples,
             sampleExecutionCoverageFailures = executionFailingSamples,
-            samplePromotionCoverageFailures = executionFailingSamples
+            samplePromotionCoverageFailures = promotionFailingSamples,
+            requiredSignalContexts = signalContexts,
+            requiredExecutionContexts = executionContexts,
+            requiredPromotionContexts = promotionContexts
         )
     }
     val signalFailure = exchanges.firstOrNull { !it.passed }
     val executionFailure = exchanges.firstOrNull { !it.executionPassed }
+    val promotionFailure = exchanges.firstOrNull { !it.promotionPassed }
     return CrossSectionalResearchReadiness(
         config = config,
         exchangeCatalog = prepared.exchangeCatalog,
@@ -5778,10 +6145,13 @@ fun evaluateCrossSectionalReadiness(config: ResearchConfig): CrossSectionalResea
         minimumEligibleSymbols = coveragePolicy.minUniverseSymbols,
         passed = signalFailure == null,
         executionPassed = executionFailure == null,
-        promotionPassed = executionFailure == null,
+        promotionPassed = promotionFailure == null,
         reason = signalFailure?.reason,
         executionReason = executionFailure?.executionReason,
-        promotionReason = executionFailure?.promotionReason,
+        promotionReason = promotionFailure?.promotionReason,
+        requiredSignalContexts = signalContexts,
+        requiredExecutionContexts = executionContexts,
+        requiredPromotionContexts = promotionContexts,
         exchanges = exchanges
     )
 }
@@ -5796,6 +6166,7 @@ fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
     val discoveredUniverse = prepared.discoveredUniverse
     val signalCoverageVerdicts = prepared.signalCoverageVerdicts
     val executionCoverageVerdicts = prepared.executionCoverageVerdicts
+    val promotionCoverageVerdicts = prepared.promotionCoverageVerdicts
 
     signalCoverageVerdicts.values.forEach { verdict ->
         println(
@@ -5808,6 +6179,14 @@ fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
     executionCoverageVerdicts.values.forEach { verdict ->
         println(
             "Cross-sectional execution coverage exchange=${verdict.exchange} " +
+                "eligible=${verdict.eligibleSymbols.size}/${verdict.requestedSymbols} " +
+                "requiredBars=${verdict.requiredBars} passed=${verdict.passed} " +
+                "reason=${verdict.reason ?: "ok"}"
+        )
+    }
+    promotionCoverageVerdicts.values.forEach { verdict ->
+        println(
+            "Cross-sectional promotion coverage exchange=${verdict.exchange} " +
                 "eligible=${verdict.eligibleSymbols.size}/${verdict.requestedSymbols} " +
                 "requiredBars=${verdict.requiredBars} passed=${verdict.passed} " +
                 "reason=${verdict.reason ?: "ok"}"
@@ -6518,6 +6897,11 @@ fun computeStrategySearchFitness(
         ((backtest?.maxDrawdownPct ?: 0.0) * 0.45) +
             ((forward?.maxDrawdownPct ?: 0.0) * 1.1)
     val fillPenalty = max(0.0, searchConfig.minSearchFillRatio - realizedFill) * 45.0
+    val emptyTradePenalty = when {
+        backtestTrades + forwardTrades == 0 -> 180.0
+        backtestTrades == 0 || forwardTrades == 0 -> 90.0
+        else -> 0.0
+    }
     val driftPenalty = max(
         0.0,
         (backtest?.avgEdgeAfterCostBps ?: 0.0) - (forward?.avgEdgeAfterCostBps ?: backtest?.avgEdgeAfterCostBps ?: 0.0)
@@ -6549,6 +6933,7 @@ fun computeStrategySearchFitness(
             costPenalty -
             drawdownPenalty -
             fillPenalty -
+            emptyTradePenalty -
             driftPenalty -
             concentrationPenalty -
             fragilityPenalty -
@@ -6627,7 +7012,10 @@ fun researchConfigFingerprint(config: ResearchConfig): String =
         config.maxConcurrentShorts,
         config.maxNetExposureFraction.round(6),
         config.maxPortfolioBetaBtcAbs.round(6),
-        config.maxPortfolioBetaEthAbs.round(6)
+        config.maxPortfolioBetaEthAbs.round(6),
+        contextNames(signalFeatureContexts(config)).joinToString(","),
+        contextNames(executionFeatureContexts(config)).joinToString(","),
+        contextNames(promotionFeatureContexts(config)).joinToString(",")
     ).joinToString("|")
 
 private fun buildSearchEvaluation(

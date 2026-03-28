@@ -801,7 +801,10 @@ class ApplicationTest {
                 lookbackHours = candidateConfig.lookbackHours,
                 discoveryMaxSymbols = candidateConfig.discoveryMaxSymbols,
                 maxSymbols = candidateConfig.maxSymbols,
-                minBars = candidateConfig.minBars
+                minBars = candidateConfig.minBars,
+                signalContexts = listOf("price", "crowding"),
+                executionContexts = listOf("execution"),
+                promotionContexts = listOf("price", "crowding", "execution")
             ),
             evaluatedAt = Instant.parse("2026-03-24T01:00:00Z"),
             barsLoaded = 420,

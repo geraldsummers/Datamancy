@@ -249,6 +249,81 @@ class CrossSectionalResearchTest {
     }
 
     @Test
+    fun `computeResearchCoverageSnapshotsFromUniverseSnapshot tracks crowding observations separately from execution`() {
+        val snapshot = UniverseSnapshot(
+            aliases = listOf("hyperliquid_mainnet"),
+            barMinutes = 60,
+            lookbackHours = 3,
+            loadedAt = Instant.parse("2026-03-27T03:05:00Z"),
+            barsBySymbol = mapOf(
+                "BTC" to listOf(
+                    UniverseSnapshotBar(
+                        symbol = "BTC",
+                        time = Instant.parse("2026-03-27T00:00:00Z"),
+                        close = 100.0,
+                        volume = 1_000.0,
+                        spreadPct = 0.001,
+                        bidDepth10 = 50_000.0,
+                        askDepth10 = 50_000.0,
+                        midPrice = 100.0,
+                        executionObserved = true,
+                        finalized = true,
+                        latestExecutionObservedTime = Instant.parse("2026-03-27T00:59:00Z"),
+                        openInterest = 100_000.0,
+                        assetContextObserved = true,
+                        latestCrowdingObservedTime = Instant.parse("2026-03-27T00:58:00Z")
+                    ),
+                    UniverseSnapshotBar(
+                        symbol = "BTC",
+                        time = Instant.parse("2026-03-27T01:00:00Z"),
+                        close = 101.0,
+                        volume = 1_100.0,
+                        spreadPct = 0.001,
+                        bidDepth10 = 51_000.0,
+                        askDepth10 = 51_000.0,
+                        midPrice = 101.0,
+                        executionObserved = false,
+                        finalized = true,
+                        fundingRate = 0.0003,
+                        assetContextObserved = true,
+                        latestCrowdingObservedTime = Instant.parse("2026-03-27T01:30:00Z")
+                    ),
+                    UniverseSnapshotBar(
+                        symbol = "BTC",
+                        time = Instant.parse("2026-03-27T02:00:00Z"),
+                        close = 102.0,
+                        volume = 1_200.0,
+                        spreadPct = 0.001,
+                        bidDepth10 = 52_000.0,
+                        askDepth10 = 52_000.0,
+                        midPrice = 102.0,
+                        executionObserved = false,
+                        finalized = true
+                    )
+                )
+            ),
+            totalBars = 3,
+            firstBarTime = Instant.parse("2026-03-27T00:00:00Z"),
+            lastBarTime = Instant.parse("2026-03-27T02:00:00Z")
+        )
+
+        val coverage = computeResearchCoverageSnapshotsFromUniverseSnapshot(
+            exchange = "hyperliquid",
+            snapshot = snapshot,
+            symbols = listOf("BTC"),
+            lookbackHours = 3,
+            barMinutes = 60,
+            minBars = 3,
+            referenceTime = Instant.parse("2026-03-27T03:05:00Z")
+        ).single()
+
+        assertEquals(2, coverage.crowdingObservedBars)
+        assertEquals(2.0 / 3.0, coverage.crowdingObservedRatio)
+        assertEquals(Instant.parse("2026-03-27T01:30:00Z"), coverage.latestCrowdingObservedTime)
+        assertEquals(3900L, coverage.latestCrowdingObservedLagSeconds)
+    }
+
+    @Test
     fun `buildResearchCoverageVerdict rejects stale execution frontier even when execution ratio passes`() {
         val coveragePolicy = CoverageContractPolicy(
             minCoverageRatio = 0.98,
@@ -282,7 +357,8 @@ class CrossSectionalResearchTest {
             snapshots = listOf(snapshot),
             requiredBars = 96,
             coveragePolicy = coveragePolicy,
-            barMinutes = 30
+            barMinutes = 30,
+            requiredContexts = setOf(ResearchFeatureContext.PRICE, ResearchFeatureContext.EXECUTION)
         )
 
         assertFalse(verdict.passed)
@@ -910,6 +986,73 @@ class CrossSectionalResearchTest {
     }
 
     @Test
+    fun `search fitness ranks tradeful losing configs ahead of zero trade configs`() {
+        val searchConfig = CrossSectionalSearchConfig(
+            minBacktestTrades = 4,
+            minForwardTrades = 2
+        )
+
+        val empty = computeStrategySearchFitness(
+            searchConfig = searchConfig,
+            kind = StrategyKind.TREND,
+            backtest = StrategyAggregateSnapshot(
+                exchanges = listOf("hyperliquid"),
+                trades = 0,
+                winRate = 0.0,
+                netReturnPct = 0.0,
+                maxDrawdownPct = 0.0,
+                sharpe = 0.0,
+                avgEdgeAfterCostBps = 0.0,
+                avgTotalCostBps = 0.0,
+                avgFillRatio = 0.0,
+                avgSubmitToFillMs = 0.0
+            ),
+            forward = StrategyAggregateSnapshot(
+                exchanges = listOf("hyperliquid"),
+                trades = 0,
+                winRate = 0.0,
+                netReturnPct = 0.0,
+                maxDrawdownPct = 0.0,
+                sharpe = 0.0,
+                avgEdgeAfterCostBps = 0.0,
+                avgTotalCostBps = 0.0,
+                avgFillRatio = 0.0,
+                avgSubmitToFillMs = 0.0
+            )
+        )
+        val tradefulLoser = computeStrategySearchFitness(
+            searchConfig = searchConfig,
+            kind = StrategyKind.TREND,
+            backtest = StrategyAggregateSnapshot(
+                exchanges = listOf("hyperliquid"),
+                trades = 6,
+                winRate = 0.4,
+                netReturnPct = -0.8,
+                maxDrawdownPct = 1.2,
+                sharpe = -0.2,
+                avgEdgeAfterCostBps = -15.0,
+                avgTotalCostBps = 8.0,
+                avgFillRatio = 0.82,
+                avgSubmitToFillMs = 180.0
+            ),
+            forward = StrategyAggregateSnapshot(
+                exchanges = listOf("hyperliquid"),
+                trades = 3,
+                winRate = 0.33,
+                netReturnPct = -0.3,
+                maxDrawdownPct = 0.9,
+                sharpe = -0.1,
+                avgEdgeAfterCostBps = -8.0,
+                avgTotalCostBps = 9.0,
+                avgFillRatio = 0.79,
+                avgSubmitToFillMs = 210.0
+            )
+        )
+
+        assertTrue(tradefulLoser.score > empty.score)
+    }
+
+    @Test
     fun `search engine evaluates short horizon exit overlay seeds under tight budgets`() {
         val baseConfig = ResearchConfig(
             marketExchange = "hyperliquid_mainnet",
@@ -1271,6 +1414,69 @@ class CrossSectionalResearchTest {
         assertFalse(proxied.executionObserved)
         assertTrue(proxied.spreadBps > 0.0)
         assertTrue(proxied.depthUsd > config.notionalUsd)
+    }
+
+    @Test
+    fun `engineerFeatures weaves funding and open interest into crowding scores`() {
+        val config = ResearchConfig(
+            betaLookbackBars = 4,
+            trendLookbackBars = 2,
+            trendSlowBars = 4,
+            reversionLookbackBars = 2,
+            minDepthMultiple = 1.0,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val start = Instant.parse("2026-03-20T00:00:00Z")
+        val bars = buildList {
+            repeat(18) { index ->
+                val time = start.plusSeconds(index * 3_600L)
+                add(
+                    bar(
+                        symbol = "BTC",
+                        time = time,
+                        close = 100.0 + (index * 0.15),
+                        volume = 5_000.0,
+                        spreadPct = 0.01,
+                        depthUnitsPerSide = 500.0,
+                        fundingRate = 0.0001,
+                        openInterest = 1_000_000.0 + (index * 5_000.0)
+                    )
+                )
+                add(
+                    bar(
+                        symbol = "ETH",
+                        time = time,
+                        close = 80.0 + (index * 0.10),
+                        volume = 4_000.0,
+                        spreadPct = 0.01,
+                        depthUnitsPerSide = 450.0,
+                        fundingRate = 0.00008,
+                        openInterest = 800_000.0 + (index * 4_000.0)
+                    )
+                )
+                add(
+                    bar(
+                        symbol = "SOL",
+                        time = time,
+                        close = 20.0 + (index * 0.6),
+                        volume = 8_000.0,
+                        spreadPct = 0.02,
+                        depthUnitsPerSide = 1_500.0,
+                        fundingRate = 0.00025 + (index * 0.00001),
+                        openInterest = 300_000.0 + (index * 18_000.0)
+                    )
+                )
+            }
+        }
+
+        val latest = engineerFeatures(bars, config).last { it.symbol == "SOL" }
+
+        assertTrue(latest.assetContextObserved)
+        assertTrue(latest.openInterest > 0.0)
+        assertTrue(latest.fundingZ > 0.0)
+        assertTrue(latest.oiChangeZ > 0.0)
+        assertTrue(latest.crowdingScore != 0.0)
     }
 
     @Test
@@ -2143,7 +2349,10 @@ class CrossSectionalResearchTest {
         volume: Double,
         spreadPct: Double = 0.0,
         depthUnitsPerSide: Double = 0.0,
-        executionObserved: Boolean = true
+        executionObserved: Boolean = true,
+        fundingRate: Double? = null,
+        openInterest: Double? = null,
+        assetContextObserved: Boolean = fundingRate != null || openInterest != null
     ) = Bar(
         exchange = "hyperliquid",
         symbol = symbol,
@@ -2154,7 +2363,11 @@ class CrossSectionalResearchTest {
         bidDepth10 = depthUnitsPerSide,
         askDepth10 = depthUnitsPerSide,
         midPrice = close,
-        executionObserved = executionObserved
+        executionObserved = executionObserved,
+        fundingRate = fundingRate,
+        openInterest = openInterest,
+        assetContextObserved = assetContextObserved,
+        latestCrowdingObservedTime = if (assetContextObserved) time else null
     )
 
     private fun tradeRecord(
@@ -2228,7 +2441,10 @@ class CrossSectionalResearchTest {
             lookbackHours = 240,
             discoveryMaxSymbols = 0,
             maxSymbols = 8,
-            minBars = 360
+            minBars = 360,
+            signalContexts = listOf("price", "crowding"),
+            executionContexts = listOf("execution"),
+            promotionContexts = listOf("price", "crowding", "execution")
         ),
         exchangeCatalog = emptyList(),
         exchangePlans = emptyList(),
