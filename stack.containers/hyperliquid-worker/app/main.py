@@ -203,6 +203,22 @@ def submit_market_order(
     reduce_only: bool,
     slippage: float | None = None
 ):
+    if reduce_only and hasattr(exchange, "market_close"):
+        market_kwargs = {"sz": size_float}
+        if slippage is not None and _supports_param(exchange.market_close, "slippage"):
+            market_kwargs["slippage"] = slippage
+        symbol_keys = ["coin", "name", "symbol"]
+        last_type_error = None
+        for symbol_key in symbol_keys:
+            kwargs = dict(market_kwargs)
+            kwargs[symbol_key] = symbol
+            try:
+                return exchange.market_close(**kwargs)
+            except TypeError as exc:
+                last_type_error = exc
+        if last_type_error is not None:
+            raise last_type_error
+
     # Slippage-constrained market orders are executed as IOC limit orders for deterministic bounds.
     if slippage is not None and hasattr(exchange, "order"):
         slippage_bps = Decimal(str(slippage)) * Decimal("10000")
@@ -221,22 +237,6 @@ def submit_market_order(
             order_type={"limit": {"tif": "Ioc"}},
             reduce_only=reduce_only
         )
-
-    if reduce_only and hasattr(exchange, "market_close"):
-        market_kwargs = {"sz": size_float}
-        if slippage is not None and _supports_param(exchange.market_close, "slippage"):
-            market_kwargs["slippage"] = slippage
-        symbol_keys = ["coin", "name", "symbol"]
-        last_type_error = None
-        for symbol_key in symbol_keys:
-            kwargs = dict(market_kwargs)
-            kwargs[symbol_key] = symbol
-            try:
-                return exchange.market_close(**kwargs)
-            except TypeError as exc:
-                last_type_error = exc
-        if last_type_error is not None:
-            raise last_type_error
 
     if hasattr(exchange, "market_order"):
         market_kwargs = {
@@ -291,6 +291,14 @@ def parse_hyperliquid_status(status_info: dict) -> str:
     if isinstance(status_info.get("resting"), dict):
         return "PENDING"
     return "UNKNOWN"
+
+
+def extract_status_error(status_info: dict):
+    raw_error = status_info.get("error")
+    if raw_error is None:
+        return None
+    normalized = str(raw_error).strip()
+    return normalized or None
 
 
 def parse_order_id(status_info: dict, filled: dict) -> str:
@@ -679,6 +687,15 @@ def submit_order():
             statuses = response.get('data', {}).get('statuses', [])
             if statuses:
                 status_info = statuses[0] if isinstance(statuses[0], dict) else {}
+                status_error = extract_status_error(status_info)
+                if status_error is not None:
+                    return jsonify({
+                        "error": "Order failed",
+                        "details": {
+                            "response": result,
+                            "status": status_error
+                        }
+                    }), 500
                 filled = status_info.get('filled', {})
                 parsed_status = parse_hyperliquid_status(status_info)
                 filled_size = parse_filled_size(status_info, filled, size_decimal)

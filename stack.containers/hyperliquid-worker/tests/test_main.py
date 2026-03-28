@@ -594,6 +594,60 @@ class TestFlaskEndpoints:
         assert exchange.called_kwargs['reduce_only'] is True
         assert response.get_json()['reduceOnly'] is True
 
+    @patch('main.get_info_client')
+    @patch('main.get_exchange_client')
+    def test_reduce_only_market_order_prefers_market_close_with_slippage(self, mock_get_exchange, mock_get_info, client):
+        class ExchangeStub:
+            def __init__(self):
+                self.market_close_kwargs = None
+                self.order_called = False
+
+            def market_close(self, coin, sz, slippage=None):
+                self.market_close_kwargs = {
+                    "coin": coin,
+                    "sz": sz,
+                    "slippage": slippage,
+                }
+                return {
+                    'status': 'ok',
+                    'response': {
+                        'data': {
+                            'statuses': [{
+                                'status': 'FILLED',
+                                'filled': {'oid': 779, 'px': '49990.0', 'totalSz': '0.1'}
+                            }]
+                        }
+                    }
+                }
+
+            def order(self, **kwargs):
+                self.order_called = True
+                raise AssertionError("reduce-only market_close path should bypass IOC limit fallback")
+
+        exchange = ExchangeStub()
+        mock_get_exchange.return_value = exchange
+        mock_info = Mock()
+        mock_info.all_mids.return_value = {'BTC': '50000.0'}
+        mock_get_info.return_value = mock_info
+
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'SELL',
+            'type': 'MARKET',
+            'size': '0.1',
+            'reduceOnly': True,
+            'maxSlippageBps': '35',
+            'hyperliquidKey': 'testkey'
+        })
+
+        assert response.status_code == 200
+        assert exchange.market_close_kwargs is not None
+        assert exchange.market_close_kwargs['coin'] == 'BTC'
+        assert exchange.market_close_kwargs['slippage'] == pytest.approx(0.0035)
+        assert exchange.order_called is False
+        assert response.get_json()['reduceOnly'] is True
+
     @patch('main.get_exchange_client')
     def test_order_parses_resting_oid_and_pending_status(self, mock_get_exchange, client):
         mock_exchange = Mock()
@@ -662,6 +716,40 @@ class TestFlaskEndpoints:
         data = response.get_json()
         assert data['status'] == 'FILLED'
         assert data['filledSize'] == '0.2'
+
+    @patch('main.get_info_client')
+    @patch('main.get_exchange_client')
+    def test_order_returns_error_when_hyperliquid_status_contains_error(self, mock_get_exchange, mock_get_info, client):
+        mock_info = Mock()
+        mock_info.all_mids.return_value = {'BTC': '50000.0'}
+        mock_get_info.return_value = mock_info
+
+        mock_exchange = Mock()
+        mock_exchange.market_order.return_value = {
+            'status': 'ok',
+            'response': {
+                'data': {
+                    'statuses': [{
+                        'error': 'Order has invalid price.'
+                    }]
+                }
+            }
+        }
+        mock_get_exchange.return_value = mock_exchange
+
+        response = client.post('/order', json={
+            'username': 'testuser',
+            'symbol': 'BTC',
+            'side': 'BUY',
+            'type': 'MARKET',
+            'size': '0.1',
+            'hyperliquidKey': 'testkey'
+        })
+
+        assert response.status_code == 500
+        payload = response.get_json()
+        assert payload['error'] == 'Order failed'
+        assert payload['details']['status'] == 'Order has invalid price.'
 
     @patch('main.get_exchange_client')
     def test_cancel_order_success(self, mock_get_exchange, client):
