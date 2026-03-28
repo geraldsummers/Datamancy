@@ -119,19 +119,21 @@ data class ResearchPolicy(
     val computeCoverageBeforeRun: Boolean = true,
     val abortOnInsufficientCoverage: Boolean = true,
     val allowRawFallback: Boolean = false,
-    val crossSectional: CrossSectionalPolicy = CrossSectionalPolicy(),
+    val datasets: AlphaDatasetPolicy = AlphaDatasetPolicy(),
+    val discovery: AlphaDiscoveryPolicy = AlphaDiscoveryPolicy(),
+    val portfolio: AlphaPortfolioPolicy = AlphaPortfolioPolicy(),
+    val validation: AlphaValidationPolicy = AlphaValidationPolicy(),
+    val readiness: AlphaReadinessPolicy = AlphaReadinessPolicy(),
     val strategyFamilies: StrategyFamilyCatalog = StrategyFamilyCatalog()
 )
 
 @Serializable
 data class StrategyFamilyCatalog(
-    val crossSectionalResidualTrend: StrategyFamilyPolicy = StrategyFamilyPolicy(enabled = true, stage = "active"),
-    val crossSectionalResidualMeanReversion: StrategyFamilyPolicy = StrategyFamilyPolicy(enabled = true, stage = "active"),
-    val timeSeriesMomentumOverlay: StrategyFamilyPolicy = StrategyFamilyPolicy(enabled = false, stage = "planned"),
-    val timeSeriesReversalOverlay: StrategyFamilyPolicy = StrategyFamilyPolicy(enabled = false, stage = "planned"),
+    val interdayRelativeStrengthTrend: StrategyFamilyPolicy = StrategyFamilyPolicy(enabled = true, stage = "active"),
+    val interdayResidualReversion: StrategyFamilyPolicy = StrategyFamilyPolicy(enabled = false, stage = "parked"),
     val fundingBasisCarry: StrategyFamilyPolicy = StrategyFamilyPolicy(enabled = false, stage = "planned"),
-    val lobFlowGating: StrategyFamilyPolicy = StrategyFamilyPolicy(enabled = false, stage = "planned"),
-    val toxicityNoTradeFilter: StrategyFamilyPolicy = StrategyFamilyPolicy(enabled = false, stage = "planned"),
+    val flowConditioning: StrategyFamilyPolicy = StrategyFamilyPolicy(enabled = true, stage = "planned"),
+    val volatilityRegimeFilter: StrategyFamilyPolicy = StrategyFamilyPolicy(enabled = true, stage = "planned"),
     val multiVenueRelativeValue: StrategyFamilyPolicy = StrategyFamilyPolicy(enabled = false, stage = "deferred"),
     val triangularArbitrage: StrategyFamilyPolicy = StrategyFamilyPolicy(enabled = false, stage = "deprioritized")
 )
@@ -144,81 +146,73 @@ data class StrategyFamilyPolicy(
 )
 
 @Serializable
-data class CrossSectionalPolicy(
+data class AlphaDatasetPolicy(
     val marketExchange: String = "hyperliquid_mainnet",
-    val executionExchange: String = "hyperliquid",
-    val barMinutes: Int = 30,
-    val lookbackHours: Int = 48,
-    val forwardHours: Int = 12,
-    val betaLookbackBars: Int = 48,
-    val trendLookbackBars: Int = 12,
-    val trendSlowBars: Int = 48,
-    val trendMediumBars: Int = 144,
-    val trendLongBars: Int = 288,
-    val reversionLookbackBars: Int = 8,
-    val trendHoldBars: Int = 6,
-    val reversionHoldBars: Int = 2,
-    val topPerSide: Int = 3,
-    val notionalUsd: Double = 5_000.0,
+    val executionExchange: String = "hyperliquid_mainnet",
+    val canonicalBarMinutes: Int = 1,
+    val supportedSignalBarMinutes: List<Int> = listOf(60, 240, 1_440),
+    val defaultSignalBarMinutes: Int = 60,
+    val dailyBoundary: String = "UTC",
+    val defaultLookbackHours: Int = 1_080,
+    val defaultForwardHours: Int = 72,
+    val anchorHorizonsMinutes: List<Int> = listOf(15, 60, 240, 720),
+    val coreHorizonsDays: List<Int> = listOf(1, 3, 7, 14, 30, 60, 90),
+    val volatilityLookbackDays: List<Int> = listOf(7, 14, 30, 60),
+    val priceReferenceMode: String = "mid_vwap_hybrid",
+    val includeFunding: Boolean = true,
+    val includeOpenInterest: Boolean = true,
+    val includeTradeFlow: Boolean = true,
+    val includeOrderbookConditioning: Boolean = true,
+    val includeReceiptTimestamps: Boolean = true,
+    val requireUtcDailyBars: Boolean = true,
     val maxSymbols: Int = 0,
     val discoveryMaxSymbols: Int = 0,
-    val minBars: Int = 48,
-    val trendEntryScore: Double = 1.0,
-    val reversionZEntry: Double = 1.8,
-    val reversionZExit: Double = 0.45,
-    val reversionEntryQuantile: Double = 0.12,
-    val reversionExitQuantile: Double = 0.40,
-    val reversionCrossSectionalWeight: Double = 0.45,
-    val maxSpreadBps: Double = 11.0,
-    val minDepthMultiple: Double = 12.0,
-    val minFillRatio: Double = 0.58,
-    val minVolumeRatio: Double = 0.35,
-    val maxVolumeRatio: Double = 4.5,
-    val maxVolRegime: Double = 2.35,
-    val executionSafetyMarginBps: Double = 8.0,
-    val minExpectedNetEdgeBps: Double = 4.0,
-    val trendMinFlowAlignment: Double = 0.08,
-    val reversionMaxContinuationPressure: Double = 0.18,
-    val calibrationLookbackHours: Int = 48,
-    val minCalibrationSamples: Int = 4,
-    val strongCalibrationSamples: Int = 12,
-    val minCalibrationLowerBoundBps: Double = 0.5,
-    val minCalibrationWinRate: Double = 0.51,
-    val trendCooldownBars: Int = 4,
-    val reversionCooldownBars: Int = 2,
-    val trendTrailingStopVolMultiple: Double = 0.75,
-    val reversionTrailingStopVolMultiple: Double = 0.5,
-    val trendTakeProfitVolMultiple: Double = 2.0,
-    val reversionTakeProfitVolMultiple: Double = 1.5,
-    val minTargetExposureFraction: Double = 0.25,
-    val maxTargetExposureFraction: Double = 1.0,
-    val rebalanceTargetExposureStep: Double = 0.15,
-    val maxConcurrentPositions: Int = 12,
-    val maxConcurrentLongs: Int = 6,
-    val maxConcurrentShorts: Int = 6,
-    val maxNetExposureFraction: Double = 0.4,
-    val maxPortfolioBetaBtcAbs: Double = 0.65,
-    val maxPortfolioBetaEthAbs: Double = 0.65,
-    val persistBacktest: Boolean = true,
-    val persistForward: Boolean = true,
-    val enablePaperOrders: Boolean = false,
-    val paperExecutionMode: String = "forward_paper",
-    val coverage: CoverageContractPolicy = CoverageContractPolicy(),
     val universeCache: UniverseCachePolicy = UniverseCachePolicy(),
-    val featureCache: FeatureQueryCachePolicy = FeatureQueryCachePolicy(),
-    val search: CrossSectionalSearchPolicy = CrossSectionalSearchPolicy()
+    val featureCache: FeatureQueryCachePolicy = FeatureQueryCachePolicy()
 )
 
 @Serializable
-data class CoverageContractPolicy(
+data class SignalReadinessPolicy(
+    val defaultExchange: String = "hyperliquid_mainnet",
     val minCoverageRatio: Double = 0.98,
     val minFinalizedRatio: Double = 0.95,
-    val minExecutionObservedRatio: Double = 0.55,
-    val minTradeObservedRatioForEligibility: Double = 0.40,
     val maxFeatureLagSeconds: Long = 180L,
     val maxFinalizedLagMinutes: Long = 5L,
     val minUniverseSymbols: Int = 12,
-    val requireExecutionObserved: Boolean = true
+    val minHistoryHours: Int = 2_160,
+    val requireFundingForCarryFamilies: Boolean = false,
+    val requireOpenInterestForCarryFamilies: Boolean = false,
+    val allowPriceOnlyResearch: Boolean = true
+)
+
+@Serializable
+data class ExecutionReadinessPolicy(
+    val minExecutionObservedRatio: Double = 0.55,
+    val minTradeObservedRatioForEligibility: Double = 0.40,
+    val requireOrderbook: Boolean = true,
+    val requireFillTelemetry: Boolean = false,
+    val maxQuoteAgeSeconds: Long = 120L,
+    val maxLatencyDriftMs: Long = 5_000L
+)
+
+@Serializable
+data class PromotionReadinessPolicy(
+    val requireSignalReadiness: Boolean = true,
+    val requireExecutionReadiness: Boolean = true,
+    val requireMultiplicityControls: Boolean = true,
+    val requireSamplingRobustness: Boolean = true,
+    val minRegimeSlicePassRatio: Double = 0.7,
+    val maxLiveVsBacktestDriftBps: Double = 5.0,
+    val minSampleCount: Int = 200,
+    val minRealizedReturnPct: Double = 0.5,
+    val minNetEdgeBps: Double = 2.0
+)
+
+@Serializable
+data class AlphaReadinessPolicy(
+    val signal: SignalReadinessPolicy = SignalReadinessPolicy(),
+    val execution: ExecutionReadinessPolicy = ExecutionReadinessPolicy(),
+    val promotion: PromotionReadinessPolicy = PromotionReadinessPolicy()
 )
 
 @Serializable
@@ -235,65 +229,71 @@ data class FeatureQueryCachePolicy(
 )
 
 @Serializable
-data class CrossSectionalSearchPolicy(
+data class AlphaSearchPolicy(
     val beamWidth: Int = 6,
     val rounds: Int = 4,
-    val maxEvaluations: Int = 72,
-    val leaderboardSize: Int = 8,
-    val minBacktestTrades: Int = 8,
-    val minForwardTrades: Int = 3,
-    val minSearchFillRatio: Double = 0.6,
+    val maxEvaluations: Int = 96,
+    val leaderboardSize: Int = 12,
+    val minBacktestTrades: Int = 12,
+    val minForwardTrades: Int = 4,
+    val minNetEdgeBps: Double = 2.0,
     val maxSearchDrawdownPct: Double = 14.0,
-    val barMinutes: List<Int> = listOf(15, 30, 60),
-    val lookbackHours: List<Int> = listOf(24, 48, 72, 96),
-    val forwardHours: List<Int> = listOf(6, 12, 24),
-    val betaLookbackBars: List<Int> = listOf(24, 36, 48, 72),
-    val trendLookbackBars: List<Int> = listOf(4, 6, 12, 18, 24),
-    val trendSlowBars: List<Int> = listOf(12, 24, 36, 48, 72),
-    val trendMediumBars: List<Int> = listOf(48, 72, 144, 216),
-    val trendLongBars: List<Int> = listOf(96, 144, 288, 432),
-    val reversionLookbackBars: List<Int> = listOf(3, 4, 8, 12),
-    val trendHoldBars: List<Int> = listOf(1, 2, 3, 4, 6),
-    val reversionHoldBars: List<Int> = listOf(1, 2, 3, 4),
-    val topPerSide: List<Int> = listOf(1, 2, 3, 4),
-    val maxSymbols: List<Int> = listOf(0, 24, 48, 72, 96),
-    val discoveryMaxSymbols: List<Int> = listOf(0, 48, 96, 192),
-    val trendEntryScore: List<Double> = listOf(0.8, 1.0, 1.2, 1.4, 1.6),
-    val reversionZEntry: List<Double> = listOf(1.5, 1.8, 2.15, 2.4, 2.8),
-    val reversionZExit: List<Double> = listOf(0.25, 0.45, 0.65, 0.85, 1.05),
-    val reversionEntryQuantile: List<Double> = listOf(0.08, 0.12, 0.18),
-    val reversionExitQuantile: List<Double> = listOf(0.35, 0.40, 0.45),
-    val reversionCrossSectionalWeight: List<Double> = listOf(0.25, 0.45, 0.65),
-    val maxSpreadBps: List<Double> = listOf(6.0, 8.0, 11.0, 14.0),
-    val minDepthMultiple: List<Double> = listOf(8.0, 12.0, 16.0),
-    val minFillRatio: List<Double> = listOf(0.5, 0.58, 0.65, 0.75),
-    val minVolumeRatio: List<Double> = listOf(0.25, 0.35, 0.5),
-    val maxVolumeRatio: List<Double> = listOf(3.0, 4.5, 6.0),
-    val maxVolRegime: List<Double> = listOf(1.8, 2.35, 3.0),
-    val executionSafetyMarginBps: List<Double> = listOf(4.0, 8.0, 12.0),
-    val minExpectedNetEdgeBps: List<Double> = listOf(2.0, 4.0, 6.0, 8.0),
-    val trendMinFlowAlignment: List<Double> = listOf(0.0, 0.05, 0.08, 0.12, 0.18),
-    val reversionMaxContinuationPressure: List<Double> = listOf(0.08, 0.12, 0.18, 0.24, 0.32),
-    val calibrationLookbackHours: List<Int> = listOf(24, 48, 72, 96),
-    val minCalibrationSamples: List<Int> = listOf(4, 6, 8, 12),
-    val strongCalibrationSamples: List<Int> = listOf(12, 16, 20),
-    val minCalibrationLowerBoundBps: List<Double> = listOf(0.0, 0.5, 1.0, 2.0),
-    val minCalibrationWinRate: List<Double> = listOf(0.5, 0.52, 0.55, 0.58),
-    val trendCooldownBars: List<Int> = listOf(0, 2, 4, 8),
-    val reversionCooldownBars: List<Int> = listOf(0, 1, 2, 4),
-    val trendTrailingStopVolMultiple: List<Double> = listOf(0.0, 0.75, 1.0, 1.5, 2.0, 3.0),
-    val reversionTrailingStopVolMultiple: List<Double> = listOf(0.0, 0.5, 0.75, 1.0, 1.5, 2.0),
-    val trendTakeProfitVolMultiple: List<Double> = listOf(0.0, 1.0, 1.5, 2.0, 3.0, 4.0),
-    val reversionTakeProfitVolMultiple: List<Double> = listOf(0.0, 0.75, 1.0, 1.5, 2.0, 3.0),
-    val minTargetExposureFraction: List<Double> = listOf(0.15, 0.25, 0.35),
-    val maxTargetExposureFraction: List<Double> = listOf(0.75, 1.0, 1.25),
-    val rebalanceTargetExposureStep: List<Double> = listOf(0.10, 0.15, 0.25),
-    val maxConcurrentPositions: List<Int> = listOf(8, 12, 16, 24),
-    val maxConcurrentLongs: List<Int> = listOf(4, 6, 8, 12),
-    val maxConcurrentShorts: List<Int> = listOf(4, 6, 8, 12),
-    val maxNetExposureFraction: List<Double> = listOf(0.25, 0.4, 0.5, 0.75),
-    val maxPortfolioBetaBtcAbs: List<Double> = listOf(0.35, 0.5, 0.65, 0.9),
-    val maxPortfolioBetaEthAbs: List<Double> = listOf(0.35, 0.5, 0.65, 0.9)
+    val scorePlateauToleranceBps: Double = 1.0
+)
+
+@Serializable
+data class AlphaDiscoveryPolicy(
+    val defaultStrategyFamily: String = "interday_relative_strength_trend_v1",
+    val rebalanceCadenceHours: List<Int> = listOf(24, 72, 168),
+    val executionWindowMinutes: List<Int> = listOf(60, 120),
+    val selectionQuantiles: List<Double> = listOf(0.05, 0.10, 0.15),
+    val useRegressionSlope: Boolean = true,
+    val useAdxFilter: Boolean = true,
+    val useMovingAverageFilter: Boolean = true,
+    val useVwapDeviation: Boolean = true,
+    val useSignedVolumeImbalance: Boolean = true,
+    val includeSamplingRobustnessCheck: Boolean = true,
+    val search: AlphaSearchPolicy = AlphaSearchPolicy()
+)
+
+@Serializable
+data class AlphaPortfolioPolicy(
+    val longShort: Boolean = true,
+    val selectionMode: String = "quantile",
+    val weightingMode: String = "volatility_scaled_score",
+    val targetGrossFraction: Double = 1.0,
+    val targetNetFraction: Double = 0.0,
+    val maxWeightPerSymbol: Double = 0.08,
+    val maxTurnoverPerRebalance: Double = 1.0,
+    val turnoverPenaltyBps: Double = 3.0,
+    val maxParticipationRate: Double = 0.05,
+    val maxDepthFraction: Double = 0.15,
+    val rebalanceTargetExposureStep: Double = 0.15,
+    val minTargetExposureFraction: Double = 0.25,
+    val maxTargetExposureFraction: Double = 1.0,
+    val maxConcurrentPositions: Int = 16,
+    val maxConcurrentLongs: Int = 8,
+    val maxConcurrentShorts: Int = 8,
+    val useTrailingStops: Boolean = true,
+    val trailingStopVolMultiple: Double = 1.0,
+    val takeProfitVolMultiple: Double = 2.5,
+    val useMakerFirstExecution: Boolean = true
+)
+
+@Serializable
+data class AlphaValidationPolicy(
+    val walkForwardWindows: Int = 8,
+    val nestedCvFolds: Int = 4,
+    val purgedKFoldFolds: Int = 5,
+    val embargoBars: Int = 24,
+    val useCombinatorialPurgedCv: Boolean = true,
+    val bootstrapReplications: Int = 500,
+    val useStationaryBootstrap: Boolean = true,
+    val requireDeflatedSharpe: Boolean = true,
+    val requireWhitesRealityCheck: Boolean = true,
+    val multipleTestingCorrection: String = "holm_bh_reality_check",
+    val samplingRobustnessBarMinutes: List<Int> = listOf(1, 5, 60, 1_440),
+    val regimeSlices: List<String> = listOf("volatility", "liquidity", "funding", "open_interest")
 )
 
 @Serializable
@@ -584,10 +584,30 @@ class ResearchPolicyBuilder {
     var abortOnInsufficientCoverage: Boolean = true
     var allowRawFallback: Boolean = false
     var strategyFamilies: StrategyFamilyCatalog = StrategyFamilyCatalog()
-    private var crossSectional: CrossSectionalPolicy = CrossSectionalPolicy()
+    private var datasets: AlphaDatasetPolicy = AlphaDatasetPolicy()
+    private var discovery: AlphaDiscoveryPolicy = AlphaDiscoveryPolicy()
+    private var portfolio: AlphaPortfolioPolicy = AlphaPortfolioPolicy()
+    private var validation: AlphaValidationPolicy = AlphaValidationPolicy()
+    private var readiness: AlphaReadinessPolicy = AlphaReadinessPolicy()
 
-    fun crossSectional(block: CrossSectionalPolicyBuilder.() -> Unit) {
-        crossSectional = CrossSectionalPolicyBuilder().apply(block).build()
+    fun datasets(block: AlphaDatasetPolicyBuilder.() -> Unit) {
+        datasets = AlphaDatasetPolicyBuilder().apply(block).build()
+    }
+
+    fun discovery(block: AlphaDiscoveryPolicyBuilder.() -> Unit) {
+        discovery = AlphaDiscoveryPolicyBuilder().apply(block).build()
+    }
+
+    fun portfolio(block: AlphaPortfolioPolicyBuilder.() -> Unit) {
+        portfolio = AlphaPortfolioPolicyBuilder().apply(block).build()
+    }
+
+    fun validation(block: AlphaValidationPolicyBuilder.() -> Unit) {
+        validation = AlphaValidationPolicyBuilder().apply(block).build()
+    }
+
+    fun readiness(block: AlphaReadinessPolicyBuilder.() -> Unit) {
+        readiness = AlphaReadinessPolicyBuilder().apply(block).build()
     }
 
     fun build(): ResearchPolicy = ResearchPolicy(
@@ -595,79 +615,39 @@ class ResearchPolicyBuilder {
         computeCoverageBeforeRun = computeCoverageBeforeRun,
         abortOnInsufficientCoverage = abortOnInsufficientCoverage,
         allowRawFallback = allowRawFallback,
-        crossSectional = crossSectional,
+        datasets = datasets,
+        discovery = discovery,
+        portfolio = portfolio,
+        validation = validation,
+        readiness = readiness,
         strategyFamilies = strategyFamilies
     )
 }
 
 @TradingPolicyDsl
-class CrossSectionalPolicyBuilder {
+class AlphaDatasetPolicyBuilder {
     var marketExchange: String = "hyperliquid_mainnet"
     var executionExchange: String = "hyperliquid_mainnet"
-    var barMinutes: Int = 60
-    var lookbackHours: Int = 1_080
-    var forwardHours: Int = 72
-    var betaLookbackBars: Int = 168
-    var trendLookbackBars: Int = 24
-    var trendSlowBars: Int = 96
-    var trendMediumBars: Int = 288
-    var trendLongBars: Int = 576
-    var reversionLookbackBars: Int = 12
-    var trendHoldBars: Int = 24
-    var reversionHoldBars: Int = 8
-    var topPerSide: Int = 1
-    var notionalUsd: Double = 5_000.0
+    var canonicalBarMinutes: Int = 1
+    var supportedSignalBarMinutes: List<Int> = listOf(60, 240, 1_440)
+    var defaultSignalBarMinutes: Int = 60
+    var dailyBoundary: String = "UTC"
+    var defaultLookbackHours: Int = 1_080
+    var defaultForwardHours: Int = 72
+    var anchorHorizonsMinutes: List<Int> = listOf(15, 60, 240, 720)
+    var coreHorizonsDays: List<Int> = listOf(1, 3, 7, 14, 30, 60, 90)
+    var volatilityLookbackDays: List<Int> = listOf(7, 14, 30, 60)
+    var priceReferenceMode: String = "mid_vwap_hybrid"
+    var includeFunding: Boolean = true
+    var includeOpenInterest: Boolean = true
+    var includeTradeFlow: Boolean = true
+    var includeOrderbookConditioning: Boolean = true
+    var includeReceiptTimestamps: Boolean = true
+    var requireUtcDailyBars: Boolean = true
     var maxSymbols: Int = 0
     var discoveryMaxSymbols: Int = 0
-    var minBars: Int = 360
-    var trendEntryScore: Double = 1.05
-    var reversionZEntry: Double = 2.15
-    var reversionZExit: Double = 0.45
-    var reversionEntryQuantile: Double = 0.12
-    var reversionExitQuantile: Double = 0.40
-    var reversionCrossSectionalWeight: Double = 0.45
-    var maxSpreadBps: Double = 11.0
-    var minDepthMultiple: Double = 12.0
-    var minFillRatio: Double = 0.58
-    var minVolumeRatio: Double = 0.35
-    var maxVolumeRatio: Double = 4.5
-    var maxVolRegime: Double = 2.35
-    var executionSafetyMarginBps: Double = 8.0
-    var minExpectedNetEdgeBps: Double = 4.0
-    var trendMinFlowAlignment: Double = 0.08
-    var reversionMaxContinuationPressure: Double = 0.18
-    var calibrationLookbackHours: Int = 720
-    var minCalibrationSamples: Int = 4
-    var strongCalibrationSamples: Int = 12
-    var minCalibrationLowerBoundBps: Double = 0.5
-    var minCalibrationWinRate: Double = 0.51
-    var trendCooldownBars: Int = 8
-    var reversionCooldownBars: Int = 4
-    var trendTrailingStopVolMultiple: Double = 0.75
-    var reversionTrailingStopVolMultiple: Double = 0.5
-    var trendTakeProfitVolMultiple: Double = 2.0
-    var reversionTakeProfitVolMultiple: Double = 1.5
-    var minTargetExposureFraction: Double = 0.25
-    var maxTargetExposureFraction: Double = 1.0
-    var rebalanceTargetExposureStep: Double = 0.15
-    var maxConcurrentPositions: Int = 16
-    var maxConcurrentLongs: Int = 8
-    var maxConcurrentShorts: Int = 8
-    var maxNetExposureFraction: Double = 0.4
-    var maxPortfolioBetaBtcAbs: Double = 0.65
-    var maxPortfolioBetaEthAbs: Double = 0.65
-    var persistBacktest: Boolean = true
-    var persistForward: Boolean = true
-    var enablePaperOrders: Boolean = false
-    var paperExecutionMode: String = "forward_paper"
-    private var coverage: CoverageContractPolicy = CoverageContractPolicy()
     private var universeCache: UniverseCachePolicy = UniverseCachePolicy()
     private var featureCache: FeatureQueryCachePolicy = FeatureQueryCachePolicy()
-    var search: CrossSectionalSearchPolicy = CrossSectionalSearchPolicy()
-
-    fun coverage(block: CoverageContractPolicyBuilder.() -> Unit) {
-        coverage = CoverageContractPolicyBuilder().apply(block).build()
-    }
 
     fun universeCache(block: UniverseCachePolicyBuilder.() -> Unit) {
         universeCache = UniverseCachePolicyBuilder().apply(block).build()
@@ -677,92 +657,76 @@ class CrossSectionalPolicyBuilder {
         featureCache = FeatureQueryCachePolicyBuilder().apply(block).build()
     }
 
-    fun build(): CrossSectionalPolicy = CrossSectionalPolicy(
+    fun build(): AlphaDatasetPolicy = AlphaDatasetPolicy(
         marketExchange = marketExchange,
         executionExchange = executionExchange,
-        barMinutes = barMinutes,
-        lookbackHours = lookbackHours,
-        forwardHours = forwardHours,
-        betaLookbackBars = betaLookbackBars,
-        trendLookbackBars = trendLookbackBars,
-        trendSlowBars = trendSlowBars,
-        trendMediumBars = trendMediumBars,
-        trendLongBars = trendLongBars,
-        reversionLookbackBars = reversionLookbackBars,
-        trendHoldBars = trendHoldBars,
-        reversionHoldBars = reversionHoldBars,
-        topPerSide = topPerSide,
-        notionalUsd = notionalUsd,
+        canonicalBarMinutes = canonicalBarMinutes,
+        supportedSignalBarMinutes = supportedSignalBarMinutes,
+        defaultSignalBarMinutes = defaultSignalBarMinutes,
+        dailyBoundary = dailyBoundary,
+        defaultLookbackHours = defaultLookbackHours,
+        defaultForwardHours = defaultForwardHours,
+        anchorHorizonsMinutes = anchorHorizonsMinutes,
+        coreHorizonsDays = coreHorizonsDays,
+        volatilityLookbackDays = volatilityLookbackDays,
+        priceReferenceMode = priceReferenceMode,
+        includeFunding = includeFunding,
+        includeOpenInterest = includeOpenInterest,
+        includeTradeFlow = includeTradeFlow,
+        includeOrderbookConditioning = includeOrderbookConditioning,
+        includeReceiptTimestamps = includeReceiptTimestamps,
+        requireUtcDailyBars = requireUtcDailyBars,
         maxSymbols = maxSymbols,
         discoveryMaxSymbols = discoveryMaxSymbols,
-        minBars = minBars,
-        trendEntryScore = trendEntryScore,
-        reversionZEntry = reversionZEntry,
-        reversionZExit = reversionZExit,
-        reversionEntryQuantile = reversionEntryQuantile,
-        reversionExitQuantile = reversionExitQuantile,
-        reversionCrossSectionalWeight = reversionCrossSectionalWeight,
-        maxSpreadBps = maxSpreadBps,
-        minDepthMultiple = minDepthMultiple,
-        minFillRatio = minFillRatio,
-        minVolumeRatio = minVolumeRatio,
-        maxVolumeRatio = maxVolumeRatio,
-        maxVolRegime = maxVolRegime,
-        executionSafetyMarginBps = executionSafetyMarginBps,
-        minExpectedNetEdgeBps = minExpectedNetEdgeBps,
-        trendMinFlowAlignment = trendMinFlowAlignment,
-        reversionMaxContinuationPressure = reversionMaxContinuationPressure,
-        calibrationLookbackHours = calibrationLookbackHours,
-        minCalibrationSamples = minCalibrationSamples,
-        strongCalibrationSamples = strongCalibrationSamples,
-        minCalibrationLowerBoundBps = minCalibrationLowerBoundBps,
-        minCalibrationWinRate = minCalibrationWinRate,
-        trendCooldownBars = trendCooldownBars,
-        reversionCooldownBars = reversionCooldownBars,
-        trendTrailingStopVolMultiple = trendTrailingStopVolMultiple,
-        reversionTrailingStopVolMultiple = reversionTrailingStopVolMultiple,
-        trendTakeProfitVolMultiple = trendTakeProfitVolMultiple,
-        reversionTakeProfitVolMultiple = reversionTakeProfitVolMultiple,
-        minTargetExposureFraction = minTargetExposureFraction,
-        maxTargetExposureFraction = maxTargetExposureFraction,
-        rebalanceTargetExposureStep = rebalanceTargetExposureStep,
-        maxConcurrentPositions = maxConcurrentPositions,
-        maxConcurrentLongs = maxConcurrentLongs,
-        maxConcurrentShorts = maxConcurrentShorts,
-        maxNetExposureFraction = maxNetExposureFraction,
-        maxPortfolioBetaBtcAbs = maxPortfolioBetaBtcAbs,
-        maxPortfolioBetaEthAbs = maxPortfolioBetaEthAbs,
-        persistBacktest = persistBacktest,
-        persistForward = persistForward,
-        enablePaperOrders = enablePaperOrders,
-        paperExecutionMode = paperExecutionMode,
-        coverage = coverage,
         universeCache = universeCache,
-        featureCache = featureCache,
-        search = search
+        featureCache = featureCache
     )
 }
 
 @TradingPolicyDsl
-class CoverageContractPolicyBuilder {
+class SignalReadinessPolicyBuilder {
+    var defaultExchange: String = "hyperliquid_mainnet"
     var minCoverageRatio: Double = 0.98
     var minFinalizedRatio: Double = 0.95
-    var minExecutionObservedRatio: Double = 0.55
-    var minTradeObservedRatioForEligibility: Double = 0.40
     var maxFeatureLagSeconds: Long = 180L
     var maxFinalizedLagMinutes: Long = 5L
     var minUniverseSymbols: Int = 12
-    var requireExecutionObserved: Boolean = true
+    var minHistoryHours: Int = 2_160
+    var requireFundingForCarryFamilies: Boolean = false
+    var requireOpenInterestForCarryFamilies: Boolean = false
+    var allowPriceOnlyResearch: Boolean = true
 
-    fun build(): CoverageContractPolicy = CoverageContractPolicy(
+    fun build(): SignalReadinessPolicy = SignalReadinessPolicy(
+        defaultExchange = defaultExchange,
         minCoverageRatio = minCoverageRatio,
         minFinalizedRatio = minFinalizedRatio,
-        minExecutionObservedRatio = minExecutionObservedRatio,
-        minTradeObservedRatioForEligibility = minTradeObservedRatioForEligibility,
         maxFeatureLagSeconds = maxFeatureLagSeconds,
         maxFinalizedLagMinutes = maxFinalizedLagMinutes,
         minUniverseSymbols = minUniverseSymbols,
-        requireExecutionObserved = requireExecutionObserved
+        minHistoryHours = minHistoryHours,
+        requireFundingForCarryFamilies = requireFundingForCarryFamilies,
+        requireOpenInterestForCarryFamilies = requireOpenInterestForCarryFamilies,
+        allowPriceOnlyResearch = allowPriceOnlyResearch
+    )
+}
+
+@TradingPolicyDsl
+class ExecutionReadinessPolicyBuilder {
+    var minCoverageRatio: Double = 0.98
+    var minExecutionObservedRatio: Double = 0.55
+    var minTradeObservedRatioForEligibility: Double = 0.40
+    var requireOrderbook: Boolean = true
+    var requireFillTelemetry: Boolean = false
+    var maxQuoteAgeSeconds: Long = 120L
+    var maxLatencyDriftMs: Long = 5_000L
+
+    fun build(): ExecutionReadinessPolicy = ExecutionReadinessPolicy(
+        minExecutionObservedRatio = minExecutionObservedRatio,
+        minTradeObservedRatioForEligibility = minTradeObservedRatioForEligibility,
+        requireOrderbook = requireOrderbook,
+        requireFillTelemetry = requireFillTelemetry,
+        maxQuoteAgeSeconds = maxQuoteAgeSeconds,
+        maxLatencyDriftMs = maxLatencyDriftMs
     )
 }
 
@@ -787,6 +751,192 @@ class FeatureQueryCachePolicyBuilder {
     fun build(): FeatureQueryCachePolicy = FeatureQueryCachePolicy(
         ttlSeconds = ttlSeconds,
         maxEntries = maxEntries
+    )
+}
+
+@TradingPolicyDsl
+class PromotionReadinessPolicyBuilder {
+    var requireSignalReadiness: Boolean = true
+    var requireExecutionReadiness: Boolean = true
+    var requireMultiplicityControls: Boolean = true
+    var requireSamplingRobustness: Boolean = true
+    var minRegimeSlicePassRatio: Double = 0.7
+    var maxLiveVsBacktestDriftBps: Double = 5.0
+    var minSampleCount: Int = 200
+    var minRealizedReturnPct: Double = 0.5
+    var minNetEdgeBps: Double = 2.0
+
+    fun build(): PromotionReadinessPolicy = PromotionReadinessPolicy(
+        requireSignalReadiness = requireSignalReadiness,
+        requireExecutionReadiness = requireExecutionReadiness,
+        requireMultiplicityControls = requireMultiplicityControls,
+        requireSamplingRobustness = requireSamplingRobustness,
+        minRegimeSlicePassRatio = minRegimeSlicePassRatio,
+        maxLiveVsBacktestDriftBps = maxLiveVsBacktestDriftBps,
+        minSampleCount = minSampleCount,
+        minRealizedReturnPct = minRealizedReturnPct,
+        minNetEdgeBps = minNetEdgeBps
+    )
+}
+
+@TradingPolicyDsl
+class AlphaReadinessPolicyBuilder {
+    private var signal: SignalReadinessPolicy = SignalReadinessPolicy()
+    private var execution: ExecutionReadinessPolicy = ExecutionReadinessPolicy()
+    private var promotion: PromotionReadinessPolicy = PromotionReadinessPolicy()
+
+    fun signal(block: SignalReadinessPolicyBuilder.() -> Unit) {
+        signal = SignalReadinessPolicyBuilder().apply(block).build()
+    }
+
+    fun execution(block: ExecutionReadinessPolicyBuilder.() -> Unit) {
+        execution = ExecutionReadinessPolicyBuilder().apply(block).build()
+    }
+
+    fun promotion(block: PromotionReadinessPolicyBuilder.() -> Unit) {
+        promotion = PromotionReadinessPolicyBuilder().apply(block).build()
+    }
+
+    fun build(): AlphaReadinessPolicy = AlphaReadinessPolicy(
+        signal = signal,
+        execution = execution,
+        promotion = promotion
+    )
+}
+
+@TradingPolicyDsl
+class AlphaSearchPolicyBuilder {
+    var beamWidth: Int = 6
+    var rounds: Int = 4
+    var maxEvaluations: Int = 96
+    var leaderboardSize: Int = 12
+    var minBacktestTrades: Int = 12
+    var minForwardTrades: Int = 4
+    var minNetEdgeBps: Double = 2.0
+    var maxSearchDrawdownPct: Double = 14.0
+    var scorePlateauToleranceBps: Double = 1.0
+
+    fun build(): AlphaSearchPolicy = AlphaSearchPolicy(
+        beamWidth = beamWidth,
+        rounds = rounds,
+        maxEvaluations = maxEvaluations,
+        leaderboardSize = leaderboardSize,
+        minBacktestTrades = minBacktestTrades,
+        minForwardTrades = minForwardTrades,
+        minNetEdgeBps = minNetEdgeBps,
+        maxSearchDrawdownPct = maxSearchDrawdownPct,
+        scorePlateauToleranceBps = scorePlateauToleranceBps
+    )
+}
+
+@TradingPolicyDsl
+class AlphaDiscoveryPolicyBuilder {
+    var defaultStrategyFamily: String = "interday_relative_strength_trend_v1"
+    var rebalanceCadenceHours: List<Int> = listOf(24, 72, 168)
+    var executionWindowMinutes: List<Int> = listOf(60, 120)
+    var selectionQuantiles: List<Double> = listOf(0.05, 0.10, 0.15)
+    var useRegressionSlope: Boolean = true
+    var useAdxFilter: Boolean = true
+    var useMovingAverageFilter: Boolean = true
+    var useVwapDeviation: Boolean = true
+    var useSignedVolumeImbalance: Boolean = true
+    var includeSamplingRobustnessCheck: Boolean = true
+    private var search: AlphaSearchPolicy = AlphaSearchPolicy()
+
+    fun search(block: AlphaSearchPolicyBuilder.() -> Unit) {
+        search = AlphaSearchPolicyBuilder().apply(block).build()
+    }
+
+    fun build(): AlphaDiscoveryPolicy = AlphaDiscoveryPolicy(
+        defaultStrategyFamily = defaultStrategyFamily,
+        rebalanceCadenceHours = rebalanceCadenceHours,
+        executionWindowMinutes = executionWindowMinutes,
+        selectionQuantiles = selectionQuantiles,
+        useRegressionSlope = useRegressionSlope,
+        useAdxFilter = useAdxFilter,
+        useMovingAverageFilter = useMovingAverageFilter,
+        useVwapDeviation = useVwapDeviation,
+        useSignedVolumeImbalance = useSignedVolumeImbalance,
+        includeSamplingRobustnessCheck = includeSamplingRobustnessCheck,
+        search = search
+    )
+}
+
+@TradingPolicyDsl
+class AlphaPortfolioPolicyBuilder {
+    var longShort: Boolean = true
+    var selectionMode: String = "quantile"
+    var weightingMode: String = "volatility_scaled_score"
+    var targetGrossFraction: Double = 1.0
+    var targetNetFraction: Double = 0.0
+    var maxWeightPerSymbol: Double = 0.08
+    var maxTurnoverPerRebalance: Double = 1.0
+    var turnoverPenaltyBps: Double = 3.0
+    var maxParticipationRate: Double = 0.05
+    var maxDepthFraction: Double = 0.15
+    var rebalanceTargetExposureStep: Double = 0.15
+    var minTargetExposureFraction: Double = 0.25
+    var maxTargetExposureFraction: Double = 1.0
+    var maxConcurrentPositions: Int = 16
+    var maxConcurrentLongs: Int = 8
+    var maxConcurrentShorts: Int = 8
+    var useTrailingStops: Boolean = true
+    var trailingStopVolMultiple: Double = 1.0
+    var takeProfitVolMultiple: Double = 2.5
+    var useMakerFirstExecution: Boolean = true
+
+    fun build(): AlphaPortfolioPolicy = AlphaPortfolioPolicy(
+        longShort = longShort,
+        selectionMode = selectionMode,
+        weightingMode = weightingMode,
+        targetGrossFraction = targetGrossFraction,
+        targetNetFraction = targetNetFraction,
+        maxWeightPerSymbol = maxWeightPerSymbol,
+        maxTurnoverPerRebalance = maxTurnoverPerRebalance,
+        turnoverPenaltyBps = turnoverPenaltyBps,
+        maxParticipationRate = maxParticipationRate,
+        maxDepthFraction = maxDepthFraction,
+        rebalanceTargetExposureStep = rebalanceTargetExposureStep,
+        minTargetExposureFraction = minTargetExposureFraction,
+        maxTargetExposureFraction = maxTargetExposureFraction,
+        maxConcurrentPositions = maxConcurrentPositions,
+        maxConcurrentLongs = maxConcurrentLongs,
+        maxConcurrentShorts = maxConcurrentShorts,
+        useTrailingStops = useTrailingStops,
+        trailingStopVolMultiple = trailingStopVolMultiple,
+        takeProfitVolMultiple = takeProfitVolMultiple,
+        useMakerFirstExecution = useMakerFirstExecution
+    )
+}
+
+@TradingPolicyDsl
+class AlphaValidationPolicyBuilder {
+    var walkForwardWindows: Int = 8
+    var nestedCvFolds: Int = 4
+    var purgedKFoldFolds: Int = 5
+    var embargoBars: Int = 24
+    var useCombinatorialPurgedCv: Boolean = true
+    var bootstrapReplications: Int = 500
+    var useStationaryBootstrap: Boolean = true
+    var requireDeflatedSharpe: Boolean = true
+    var requireWhitesRealityCheck: Boolean = true
+    var multipleTestingCorrection: String = "holm_bh_reality_check"
+    var samplingRobustnessBarMinutes: List<Int> = listOf(1, 5, 60, 1_440)
+    var regimeSlices: List<String> = listOf("volatility", "liquidity", "funding", "open_interest")
+
+    fun build(): AlphaValidationPolicy = AlphaValidationPolicy(
+        walkForwardWindows = walkForwardWindows,
+        nestedCvFolds = nestedCvFolds,
+        purgedKFoldFolds = purgedKFoldFolds,
+        embargoBars = embargoBars,
+        useCombinatorialPurgedCv = useCombinatorialPurgedCv,
+        bootstrapReplications = bootstrapReplications,
+        useStationaryBootstrap = useStationaryBootstrap,
+        requireDeflatedSharpe = requireDeflatedSharpe,
+        requireWhitesRealityCheck = requireWhitesRealityCheck,
+        multipleTestingCorrection = multipleTestingCorrection,
+        samplingRobustnessBarMinutes = samplingRobustnessBarMinutes,
+        regimeSlices = regimeSlices
     )
 }
 
@@ -961,85 +1111,44 @@ object DatamancyTradingPolicy {
             abortOnInsufficientCoverage = true
             allowRawFallback = false
             strategyFamilies = StrategyFamilyCatalog(
-                crossSectionalResidualTrend = StrategyFamilyPolicy(enabled = true, stage = "active", notes = "Primary residual trend search family"),
-                crossSectionalResidualMeanReversion = StrategyFamilyPolicy(enabled = false, stage = "parked", notes = "Parked until the trend engine is stable enough to support dependent reversion work"),
-                timeSeriesMomentumOverlay = StrategyFamilyPolicy(enabled = false, stage = "planned"),
-                timeSeriesReversalOverlay = StrategyFamilyPolicy(enabled = false, stage = "planned"),
+                interdayRelativeStrengthTrend = StrategyFamilyPolicy(
+                    enabled = true,
+                    stage = "active",
+                    notes = "Primary interday cross-sectional trend search family"
+                ),
+                interdayResidualReversion = StrategyFamilyPolicy(
+                    enabled = false,
+                    stage = "parked",
+                    notes = "Removed from v1 until the trend engine and universe bounds are stable"
+                ),
                 fundingBasisCarry = StrategyFamilyPolicy(enabled = false, stage = "planned"),
-                lobFlowGating = StrategyFamilyPolicy(enabled = false, stage = "planned"),
-                toxicityNoTradeFilter = StrategyFamilyPolicy(enabled = false, stage = "planned"),
+                flowConditioning = StrategyFamilyPolicy(enabled = true, stage = "planned"),
+                volatilityRegimeFilter = StrategyFamilyPolicy(enabled = true, stage = "planned"),
                 multiVenueRelativeValue = StrategyFamilyPolicy(enabled = false, stage = "deferred"),
                 triangularArbitrage = StrategyFamilyPolicy(enabled = false, stage = "deprioritized")
             )
-            crossSectional {
+
+            datasets {
                 marketExchange = "hyperliquid_mainnet"
-                executionExchange = "hyperliquid"
-                barMinutes = 30
-                lookbackHours = 48
-                forwardHours = 12
-                betaLookbackBars = 48
-                trendLookbackBars = 12
-                trendSlowBars = 48
-                trendMediumBars = 144
-                trendLongBars = 288
-                reversionLookbackBars = 8
-                trendHoldBars = 6
-                reversionHoldBars = 2
-                topPerSide = 3
-                notionalUsd = 5_000.0
+                executionExchange = "hyperliquid_mainnet"
+                canonicalBarMinutes = 1
+                supportedSignalBarMinutes = listOf(60, 240, 1_440)
+                defaultSignalBarMinutes = 240
+                dailyBoundary = "UTC"
+                defaultLookbackHours = 1_080
+                defaultForwardHours = 72
+                anchorHorizonsMinutes = listOf(60, 240, 720, 1_440)
+                coreHorizonsDays = listOf(1, 3, 7, 14, 30, 60, 90)
+                volatilityLookbackDays = listOf(7, 14, 30, 60)
+                priceReferenceMode = "utc_close_with_intraday_vwap"
+                includeFunding = true
+                includeOpenInterest = true
+                includeTradeFlow = false
+                includeOrderbookConditioning = false
+                includeReceiptTimestamps = true
+                requireUtcDailyBars = true
                 maxSymbols = 0
                 discoveryMaxSymbols = 0
-                minBars = 48
-                trendEntryScore = 1.0
-                reversionZEntry = 1.8
-                reversionZExit = 0.45
-                reversionEntryQuantile = 0.12
-                reversionExitQuantile = 0.40
-                reversionCrossSectionalWeight = 0.45
-                maxSpreadBps = 11.0
-                minDepthMultiple = 12.0
-                minFillRatio = 0.58
-                minVolumeRatio = 0.35
-                maxVolumeRatio = 4.5
-                maxVolRegime = 2.35
-                executionSafetyMarginBps = 8.0
-                minExpectedNetEdgeBps = 4.0
-                trendMinFlowAlignment = 0.08
-                reversionMaxContinuationPressure = 0.18
-                calibrationLookbackHours = 48
-                minCalibrationSamples = 4
-                strongCalibrationSamples = 12
-                minCalibrationLowerBoundBps = 0.5
-                minCalibrationWinRate = 0.51
-                trendCooldownBars = 4
-                reversionCooldownBars = 2
-                trendTrailingStopVolMultiple = 0.75
-                reversionTrailingStopVolMultiple = 0.5
-                trendTakeProfitVolMultiple = 2.0
-                reversionTakeProfitVolMultiple = 1.5
-                minTargetExposureFraction = 0.25
-                maxTargetExposureFraction = 1.0
-                rebalanceTargetExposureStep = 0.15
-                maxConcurrentPositions = 12
-                maxConcurrentLongs = 6
-                maxConcurrentShorts = 6
-                maxNetExposureFraction = 0.4
-                maxPortfolioBetaBtcAbs = 0.65
-                maxPortfolioBetaEthAbs = 0.65
-                persistBacktest = true
-                persistForward = true
-                enablePaperOrders = false
-                paperExecutionMode = "forward_paper"
-                coverage {
-                    minCoverageRatio = 0.98
-                    minFinalizedRatio = 0.95
-                    minExecutionObservedRatio = 0.55
-                    minTradeObservedRatioForEligibility = 0.40
-                    maxFeatureLagSeconds = 180L
-                    maxFinalizedLagMinutes = 5L
-                    minUniverseSymbols = 12
-                    requireExecutionObserved = true
-                }
                 universeCache {
                     enabled = true
                     ttlSeconds = 300
@@ -1049,7 +1158,104 @@ object DatamancyTradingPolicy {
                     ttlSeconds = 60
                     maxEntries = 24
                 }
-                search = CrossSectionalSearchPolicy()
+            }
+
+            discovery {
+                defaultStrategyFamily = "interday_relative_strength_trend_v1"
+                rebalanceCadenceHours = listOf(24, 72, 168)
+                executionWindowMinutes = listOf(60, 120, 240)
+                selectionQuantiles = listOf(0.05, 0.10, 0.15)
+                useRegressionSlope = true
+                useAdxFilter = true
+                useMovingAverageFilter = true
+                useVwapDeviation = false
+                useSignedVolumeImbalance = false
+                includeSamplingRobustnessCheck = true
+                search {
+                    beamWidth = 6
+                    rounds = 4
+                    maxEvaluations = 96
+                    leaderboardSize = 12
+                    minBacktestTrades = 12
+                    minForwardTrades = 4
+                    minNetEdgeBps = 2.0
+                    maxSearchDrawdownPct = 14.0
+                    scorePlateauToleranceBps = 1.0
+                }
+            }
+
+            portfolio {
+                longShort = true
+                selectionMode = "quantile"
+                weightingMode = "volatility_scaled_score"
+                targetGrossFraction = 1.0
+                targetNetFraction = 0.0
+                maxWeightPerSymbol = 0.08
+                maxTurnoverPerRebalance = 1.0
+                turnoverPenaltyBps = 3.0
+                maxParticipationRate = 0.05
+                maxDepthFraction = 0.15
+                rebalanceTargetExposureStep = 0.15
+                minTargetExposureFraction = 0.25
+                maxTargetExposureFraction = 1.0
+                maxConcurrentPositions = 16
+                maxConcurrentLongs = 8
+                maxConcurrentShorts = 8
+                useTrailingStops = true
+                trailingStopVolMultiple = 1.0
+                takeProfitVolMultiple = 2.5
+                useMakerFirstExecution = true
+            }
+
+            validation {
+                walkForwardWindows = 8
+                nestedCvFolds = 4
+                purgedKFoldFolds = 5
+                embargoBars = 24
+                useCombinatorialPurgedCv = true
+                bootstrapReplications = 500
+                useStationaryBootstrap = true
+                requireDeflatedSharpe = true
+                requireWhitesRealityCheck = true
+                multipleTestingCorrection = "holm_bh_reality_check"
+                samplingRobustnessBarMinutes = listOf(1, 5, 60, 1_440)
+                regimeSlices = listOf("volatility", "liquidity", "funding", "open_interest")
+            }
+
+            readiness {
+                signal {
+                    defaultExchange = "hyperliquid_mainnet"
+                    minCoverageRatio = 0.98
+                    minFinalizedRatio = 0.95
+                    maxFeatureLagSeconds = 180L
+                    maxFinalizedLagMinutes = 5L
+                    minUniverseSymbols = 12
+                    minHistoryHours = 2_160
+                    requireFundingForCarryFamilies = false
+                    requireOpenInterestForCarryFamilies = false
+                    allowPriceOnlyResearch = true
+                }
+
+                execution {
+                    minExecutionObservedRatio = 0.55
+                    minTradeObservedRatioForEligibility = 0.40
+                    requireOrderbook = true
+                    requireFillTelemetry = false
+                    maxQuoteAgeSeconds = 120L
+                    maxLatencyDriftMs = 5_000L
+                }
+
+                promotion {
+                    requireSignalReadiness = true
+                    requireExecutionReadiness = true
+                    requireMultiplicityControls = true
+                    requireSamplingRobustness = true
+                    minRegimeSlicePassRatio = 0.7
+                    maxLiveVsBacktestDriftBps = 5.0
+                    minSampleCount = 200
+                    minRealizedReturnPct = 0.5
+                    minNetEdgeBps = 2.0
+                }
             }
         }
 

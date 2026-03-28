@@ -311,7 +311,7 @@ class DataHealthService(
     private fun resolveExchange(exchange: String?, policy: TradingPolicy): String {
         val configured = exchange?.trim().orEmpty()
         if (configured.isNotEmpty()) return configured
-        return policy.research.crossSectional.marketExchange.ifBlank {
+        return policy.research.datasets.marketExchange.ifBlank {
             policy.venues.values.firstOrNull()?.exchangeId ?: error("no trading policy exchanges configured")
         }
     }
@@ -320,7 +320,8 @@ class DataHealthService(
         val venue = policy.venues.values.firstOrNull { it.exchangeId == exchange } ?: policy.venues.values.firstOrNull()
         val rawSync = venue?.rawSync
         val featurePolicy = venue?.features?.freshness
-        val coverage = policy.research.crossSectional.coverage
+        val signal = policy.research.readiness.signal
+        val execution = policy.research.readiness.execution
 
         return DataHealthThresholds(
             exchange = exchange,
@@ -332,13 +333,13 @@ class DataHealthService(
                 .orEmpty(),
             rawStaleAfterSeconds = ((rawSync?.staleAfterMs ?: 120_000L) / 1_000L).coerceAtLeast(1L),
             candleRawLagMaxSeconds = featurePolicy?.maxRawLagSeconds ?: 90L,
-            featureLagMaxSeconds = featurePolicy?.maxFeatureLagSeconds ?: 180L,
-            finalizedLagMaxMinutes = featurePolicy?.maxFinalizedLagMinutes ?: 5L,
-            minCoverageRatio = coverage.minCoverageRatio,
-            minFinalizedRatio = coverage.minFinalizedRatio,
-            minExecutionObservedRatio = coverage.minExecutionObservedRatio,
-            minUniverseSymbols = coverage.minUniverseSymbols,
-            minTradeObservedRatioForEligibility = coverage.minTradeObservedRatioForEligibility
+            featureLagMaxSeconds = signal.maxFeatureLagSeconds.takeIf { it > 0 } ?: (featurePolicy?.maxFeatureLagSeconds ?: 180L),
+            finalizedLagMaxMinutes = signal.maxFinalizedLagMinutes.takeIf { it > 0 } ?: (featurePolicy?.maxFinalizedLagMinutes ?: 5L),
+            minCoverageRatio = signal.minCoverageRatio,
+            minFinalizedRatio = signal.minFinalizedRatio,
+            minExecutionObservedRatio = execution.minExecutionObservedRatio,
+            minUniverseSymbols = signal.minUniverseSymbols,
+            minTradeObservedRatioForEligibility = execution.minTradeObservedRatioForEligibility
         )
     }
 
