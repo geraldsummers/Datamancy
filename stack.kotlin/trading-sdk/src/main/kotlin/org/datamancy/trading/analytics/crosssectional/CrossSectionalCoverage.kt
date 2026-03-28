@@ -419,6 +419,7 @@ private fun computeResearchCoverageSnapshots(
     lookbackHours: Int,
     barMinutes: Int,
     minBars: Int,
+    forceFreshSnapshot: Boolean = false,
     coveragePolicy: CoverageContractPolicy = crossSectionalPolicy().coverage
 ): List<ResearchCoverageSnapshot> {
     if (symbols.isEmpty()) return emptyList()
@@ -430,7 +431,8 @@ private fun computeResearchCoverageSnapshots(
     loadUniverseSnapshot(
         aliases = aliases,
         lookbackHours = lookbackHours,
-        barMinutes = barMinutes
+        barMinutes = barMinutes,
+        forceReload = forceFreshSnapshot
     )?.let { snapshot ->
         return computeResearchCoverageSnapshotsFromUniverseSnapshot(
             exchange = exchange,
@@ -700,7 +702,10 @@ internal fun buildResearchCoverageVerdict(
     )
 }
 
-private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUniverse {
+private fun prepareResearchUniverse(
+    config: ResearchConfig,
+    forceFreshCoverageSnapshots: Boolean = false
+): PreparedResearchUniverse {
     val (exchangeCatalog, exchangeCatalogMs) = timedMillis {
         fetchExchangeCatalog(config.txGatewayUrl)
     }
@@ -746,6 +751,7 @@ private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUni
             lookbackHours = config.lookbackHours,
             barMinutes = config.barMinutes,
             minBars = config.minBars,
+            forceFreshSnapshot = forceFreshCoverageSnapshots,
             coveragePolicy = coveragePolicy
         )
         val signalVerdict = buildResearchCoverageVerdict(
@@ -796,7 +802,7 @@ private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUni
 }
 
 fun evaluateCrossSectionalReadiness(config: ResearchConfig): CrossSectionalResearchReadiness {
-    val prepared = prepareResearchUniverse(config)
+    val prepared = prepareResearchUniverse(config, forceFreshCoverageSnapshots = true)
     val coveragePolicy = crossSectionalPolicy().coverage
     val signalContexts = contextNames(signalFeatureContexts(config))
     val executionContexts = contextNames(executionFeatureContexts(config))

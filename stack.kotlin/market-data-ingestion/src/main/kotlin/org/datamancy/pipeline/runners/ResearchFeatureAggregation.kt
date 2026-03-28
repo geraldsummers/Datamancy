@@ -38,7 +38,7 @@ internal const val DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS = 30_000
 internal const val MIN_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS = 5_000L
 internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOW_MINUTES = 15L
 internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOWS_PER_CYCLE = 8
-internal const val DEFAULT_RESEARCH_FEATURES_OBSERVED_CANDLE_REPAIR_WINDOWS_PER_CYCLE = 30
+internal const val DEFAULT_RESEARCH_FEATURES_OBSERVED_CANDLE_REPAIR_WINDOWS_PER_CYCLE = 120
 
 internal fun resolveResearchFeaturesBootstrapHours(explicitHours: Long?): Long {
     val hours = explicitHours ?: DEFAULT_RESEARCH_FEATURES_BOOTSTRAP_HOURS
@@ -776,8 +776,8 @@ internal class ResearchFeatureAggregator(
             }
             val endExclusive = Instant.now().truncatedTo(ChronoUnit.HOURS)
             val startInclusive = endExclusive.minus(recentGapRepairHours(bootstrapHours), ChronoUnit.HOURS)
-            val observedRepairWindows = if (recentGapRepairPendingWindows.isEmpty()) {
-                selectObservedCandleRepairWindows(
+            val priorityCandleRepairWindows = if (recentGapRepairPendingWindows.isEmpty()) {
+                selectPriorityCandleRepairWindows(
                     conn = conn,
                     startInclusive = startInclusive,
                     endExclusive = endExclusive
@@ -785,10 +785,10 @@ internal class ResearchFeatureAggregator(
             } else {
                 emptyList()
             }
-            val usingObservedRepair = observedRepairWindows.isNotEmpty()
-            val batch = if (usingObservedRepair) {
+            val usingPriorityCandleRepair = priorityCandleRepairWindows.isNotEmpty()
+            val batch = if (usingPriorityCandleRepair) {
                 RecentGapRepairBatch(
-                    windows = observedRepairWindows,
+                    windows = priorityCandleRepairWindows,
                     nextCursorExclusive = recentGapRepairCursorExclusive ?: endExclusive,
                     reusedPendingWindows = false
                 )
@@ -828,14 +828,14 @@ internal class ResearchFeatureAggregator(
                 "research_features_1m gap_repair complete exchange=$exchangeId windows=${windows.size} " +
                 "totalRows=${result.totalRows} finalized=${result.totalFinalizedRows} " +
                     "completed=${result.completed} reusedPending=${batch.reusedPendingWindows} " +
-                    "observedRepair=$usingObservedRepair " +
+                    "priorityCandleRepair=$usingPriorityCandleRepair " +
                     "pending=${recentGapRepairPendingWindows.size} nextCursor=$recentGapRepairCursorExclusive"
             }
             return@withContext true
         }
     }
 
-    private fun selectObservedCandleRepairWindows(
+    private fun selectPriorityCandleRepairWindows(
         conn: Connection,
         startInclusive: Instant,
         endExclusive: Instant,
@@ -851,13 +851,22 @@ internal class ResearchFeatureAggregator(
               AND c.data_type = 'candle_1m'
               AND c.time >= ?
               AND c.time < ?
-              AND EXISTS (
+              AND (
+                    NOT EXISTS (
+                        SELECT 1
+                        FROM research_features_1m f
+                        WHERE f.exchange = c.exchange
+                          AND f.symbol = c.symbol
+                          AND f.time = c.time
+                    )
+                    OR EXISTS (
                     SELECT 1
                     FROM research_features_1m f
                     WHERE f.exchange = c.exchange
                       AND f.symbol = c.symbol
                       AND f.time = c.time
                       AND NOT f.candle_observed
+                    )
                 )
             GROUP BY c.time
             ORDER BY c.time DESC

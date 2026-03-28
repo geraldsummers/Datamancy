@@ -88,7 +88,12 @@ private class UniverseSnapshotCache(
     private var lastError: String? = null
     private val loadingKeys = mutableSetOf<UniverseSnapshotKey>()
 
-    fun getOrLoad(aliases: List<String>, lookbackHours: Int, barMinutes: Int): UniverseSnapshot? {
+    fun getOrLoad(
+        aliases: List<String>,
+        lookbackHours: Int,
+        barMinutes: Int,
+        forceReload: Boolean = false
+    ): UniverseSnapshot? {
         if (!enabled) return null
         val normalizedAliases = aliases.map(String::trim).filter(String::isNotEmpty).distinct()
         if (normalizedAliases.isEmpty()) return null
@@ -110,7 +115,7 @@ private class UniverseSnapshotCache(
                 val existing = entries[key]
                 if (existing != null) {
                     val fresh = Duration.between(existing.snapshot.loadedAt, now) <= ttl
-                    if (fresh && existing.snapshot.lookbackHours >= lookbackHours) {
+                    if (!forceReload && fresh && existing.snapshot.lookbackHours >= lookbackHours) {
                         hits += 1
                         return existing.snapshot
                     }
@@ -398,10 +403,16 @@ internal fun loadUniverseSnapshotBars(
     symbols: List<String>,
     lookbackHours: Int,
     barMinutes: Int,
+    forceReload: Boolean = false,
     now: Instant = Instant.now()
 ): List<Bar> {
     if (symbols.isEmpty()) return emptyList()
-    val snapshot = universeSnapshotCache.getOrLoad(aliases, lookbackHours, barMinutes) ?: return emptyList()
+    val snapshot = universeSnapshotCache.getOrLoad(
+        aliases = aliases,
+        lookbackHours = lookbackHours,
+        barMinutes = barMinutes,
+        forceReload = forceReload
+    ) ?: return emptyList()
     val window = alignedResearchWindowBounds(lookbackHours = lookbackHours, barMinutes = barMinutes, now = now)
     return symbols.asSequence()
         .distinct()
@@ -435,12 +446,14 @@ internal fun loadUniverseSnapshotBars(
 internal fun loadUniverseSnapshot(
     aliases: List<String>,
     lookbackHours: Int,
-    barMinutes: Int
+    barMinutes: Int,
+    forceReload: Boolean = false
 ): UniverseSnapshot? =
     universeSnapshotCache.getOrLoad(
         aliases = aliases,
         lookbackHours = lookbackHours,
-        barMinutes = barMinutes
+        barMinutes = barMinutes,
+        forceReload = forceReload
     )
 
 internal fun rankUniverseSnapshotLiquidity(
@@ -509,13 +522,15 @@ fun warmCrossSectionalUniverseSnapshots(config: ResearchConfig = ResearchConfig(
         universeSnapshotCache.getOrLoad(
             aliases = plan.marketAliases,
             lookbackHours = config.lookbackHours,
-            barMinutes = config.barMinutes
+            barMinutes = config.barMinutes,
+            forceReload = true
         )
         if (sourceBarMinutes != config.barMinutes) {
             universeSnapshotCache.getOrLoad(
                 aliases = plan.marketAliases,
                 lookbackHours = config.lookbackHours,
-                barMinutes = sourceBarMinutes
+                barMinutes = sourceBarMinutes,
+                forceReload = true
             )
         }
     }
