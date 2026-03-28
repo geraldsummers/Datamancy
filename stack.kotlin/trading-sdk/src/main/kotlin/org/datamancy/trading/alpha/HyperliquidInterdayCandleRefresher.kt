@@ -36,9 +36,9 @@ class HyperliquidInterdayCandleRefresher(
         .callTimeout(40, TimeUnit.SECONDS)
         .build(),
     private val concurrency: Int = 1,
-    private val requestSpacingMs: Long = 2_500,
-    private val maxRetries: Int = 5,
-    private val baseRetryDelayMs: Long = 1_000
+    private val requestSpacingMs: Long = 5_000,
+    private val maxRetries: Int = 6,
+    private val baseRetryDelayMs: Long = 5_000
 ) {
     private val requestGate = Mutex()
     private var nextRequestEarliestMs: Long = 0
