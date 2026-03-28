@@ -6125,7 +6125,7 @@ fun isValidResearchConfig(config: ResearchConfig): Boolean {
         config.trendTakeProfitVolMultiple >= 0.0 &&
         config.reversionTakeProfitVolMultiple >= 0.0 &&
         config.minTargetExposureFraction > 0.0 &&
-        config.maxTargetExposureFraction in config.minTargetExposureFraction..1.0 &&
+        config.maxTargetExposureFraction >= config.minTargetExposureFraction &&
         config.rebalanceTargetExposureStep >= 0.0 &&
         config.maxConcurrentPositions > 0 &&
         config.maxConcurrentLongs in 1..config.maxConcurrentPositions &&
@@ -6350,7 +6350,7 @@ private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List
             searchConfig.minTargetExposureFraction,
             { it.minTargetExposureFraction },
             { cfg, value -> cfg.copy(minTargetExposureFraction = value) },
-            predicate = { it > 0.0 && it <= 1.0 }
+            predicate = { it > 0.0 }
         ),
         doubleMutation(
             "maxTargetExposureFraction",
@@ -6358,7 +6358,7 @@ private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List
             searchConfig.maxTargetExposureFraction,
             { it.maxTargetExposureFraction },
             { cfg, value -> cfg.copy(maxTargetExposureFraction = value) },
-            predicate = { it > 0.0 && it <= 1.0 }
+            predicate = { it > 0.0 }
         ),
         doubleMutation(
             "rebalanceTargetExposureStep",
@@ -6866,13 +6866,13 @@ private fun buildSeedAnchorConfig(
             base.minTargetExposureFraction,
             searchConfig.minTargetExposureFraction,
             listOf(searchConfig.minTargetExposureFraction.minOrNull() ?: base.minTargetExposureFraction),
-            predicate = { it > 0.0 && it <= 1.0 }
+            predicate = { it > 0.0 }
         ),
         maxTargetExposureFraction = selectDoubleSearchValue(
             base.maxTargetExposureFraction,
             searchConfig.maxTargetExposureFraction,
             listOf(searchConfig.maxTargetExposureFraction.maxOrNull() ?: base.maxTargetExposureFraction),
-            predicate = { it > 0.0 && it <= 1.0 }
+            predicate = { it > 0.0 }
         ),
         rebalanceTargetExposureStep = selectDoubleSearchValue(
             base.rebalanceTargetExposureStep,
@@ -7198,13 +7198,13 @@ private fun buildBreadthSearchSeed(searchConfig: CrossSectionalSearchConfig): Re
             base.minTargetExposureFraction,
             searchConfig.minTargetExposureFraction,
             listOf(searchConfig.minTargetExposureFraction.minOrNull() ?: base.minTargetExposureFraction),
-            predicate = { it > 0.0 && it <= 1.0 }
+            predicate = { it > 0.0 }
         ),
         maxTargetExposureFraction = selectDoubleSearchValue(
             base.maxTargetExposureFraction,
             searchConfig.maxTargetExposureFraction,
             listOf(searchConfig.maxTargetExposureFraction.maxOrNull() ?: base.maxTargetExposureFraction),
-            predicate = { it > 0.0 && it <= 1.0 }
+            predicate = { it > 0.0 }
         ),
         rebalanceTargetExposureStep = selectDoubleSearchValue(
             base.rebalanceTargetExposureStep,
