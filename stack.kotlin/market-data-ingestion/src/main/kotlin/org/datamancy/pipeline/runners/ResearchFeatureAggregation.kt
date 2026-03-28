@@ -428,6 +428,12 @@ internal fun shouldExpandAggregationWindowsByMinute(
     return windows.all { aggregationWindowMinutes(it) <= thresholdMinutes }
 }
 
+internal fun shouldRunHistoricalCatchupAfterRecentGapRepair(
+    repairedRecentGaps: Boolean,
+    pendingRecentGapWindows: Int
+): Boolean =
+    !repairedRecentGaps || pendingRecentGapWindows <= 0
+
 internal fun mergeAggregationWindows(
     primaryWindow: AggregationWindow,
     secondaryWindow: AggregationWindow?
@@ -565,7 +571,7 @@ internal class ResearchFeatureAggregator(
         )
 
         val repairedRecentGaps = repairRecentGapWindows()
-        if (!repairedRecentGaps) {
+        if (shouldRunHistoricalCatchupAfterRecentGapRepair(repairedRecentGaps, recentGapRepairPendingWindows.size)) {
             catchUpHistoricalWindows()
         }
     }

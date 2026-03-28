@@ -218,6 +218,28 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `historical catchup runs once recent gap repair queue is clear`() {
+        assertTrue(
+            shouldRunHistoricalCatchupAfterRecentGapRepair(
+                repairedRecentGaps = true,
+                pendingRecentGapWindows = 0
+            )
+        )
+        assertFalse(
+            shouldRunHistoricalCatchupAfterRecentGapRepair(
+                repairedRecentGaps = true,
+                pendingRecentGapWindows = 3
+            )
+        )
+        assertTrue(
+            shouldRunHistoricalCatchupAfterRecentGapRepair(
+                repairedRecentGaps = false,
+                pendingRecentGapWindows = 5
+            )
+        )
+    }
+
+    @Test
     fun `aggregation window minutes measure inclusive range width in minutes`() {
         val window = AggregationWindow(
             startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
