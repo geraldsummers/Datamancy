@@ -9,6 +9,10 @@ dependencies {
     implementation(libs.bundles.ktor.server)
     implementation(libs.gson)
     implementation(libs.bundles.logging)
+    implementation(libs.aws.sdk.s3)
+    implementation(libs.aws.sdk.auth)
+    implementation(libs.aws.sdk.regions)
+    implementation(libs.commons.compress)
 
     testImplementation(libs.bundles.testing)
     testImplementation("io.ktor:ktor-server-test-host:3.0.2")

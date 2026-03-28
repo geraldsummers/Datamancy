@@ -11,8 +11,20 @@ services:
     networks:
       - trading
       - monitoring
+    depends_on:
+      market-postgres:
+        condition: service_healthy
     environment:
       PORT: 8080
+      POSTGRES_HOST: market-postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: datamancy
+      POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
+      ARCHIVE_AWS_REGION: ${ARCHIVE_AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s

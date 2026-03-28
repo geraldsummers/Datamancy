@@ -13,6 +13,7 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import org.datamancy.trading.alpha.AlphaArchiveImportPlanner
 import org.datamancy.trading.alpha.ArchiveImportPlanRequest
+import org.datamancy.trading.alpha.ArchiveImportRunRequest
 import org.datamancy.trading.alpha.http.AlphaServiceError
 import org.datamancy.trading.alpha.http.AlphaServiceJson
 import org.slf4j.LoggerFactory
@@ -28,7 +29,8 @@ fun main() {
 }
 
 fun Application.configureMarketDataArchiveImporterApp(
-    planner: AlphaArchiveImportPlanner = AlphaArchiveImportPlanner()
+    planner: AlphaArchiveImportPlanner = AlphaArchiveImportPlanner(),
+    importer: ArchiveImportService = ArchiveImportService()
 ) {
     routing {
         get("/health") {
@@ -39,7 +41,7 @@ fun Application.configureMarketDataArchiveImporterApp(
                 gson.toJson(
                     AlphaServiceJson.root(
                         service = "market-data-archive-importer",
-                        endpoints = listOf("/health", "/api/v1/archive-import/plan")
+                        endpoints = listOf("/health", "/api/v1/archive-import/plan", "/api/v1/archive-import/run")
                     )
                 ),
                 ContentType.Application.Json,
@@ -57,6 +59,21 @@ fun Application.configureMarketDataArchiveImporterApp(
                 .onFailure { logger.warn("Archive import planning failed", it) }
                 .getOrElse {
                     call.respondText(gson.toJson(AlphaServiceError("archive import planning failed: ${it.message}")), ContentType.Application.Json, HttpStatusCode.BadRequest)
+                    return@post
+                }
+            call.respondText(gson.toJson(response), ContentType.Application.Json, HttpStatusCode.OK)
+        }
+        post("/api/v1/archive-import/run") {
+            val request = runCatching { gson.fromJson(call.receiveText(), ArchiveImportRunRequest::class.java) }
+                .onFailure { logger.warn("Archive import run request parse failed", it) }
+                .getOrElse {
+                    call.respondText(gson.toJson(AlphaServiceError("invalid archive import run request")), ContentType.Application.Json, HttpStatusCode.BadRequest)
+                    return@post
+                }
+            val response = runCatching { importer.run(request) }
+                .onFailure { logger.warn("Archive import execution failed", it) }
+                .getOrElse {
+                    call.respondText(gson.toJson(AlphaServiceError("archive import failed: ${it.message}")), ContentType.Application.Json, HttpStatusCode.BadRequest)
                     return@post
                 }
             call.respondText(gson.toJson(response), ContentType.Application.Json, HttpStatusCode.OK)

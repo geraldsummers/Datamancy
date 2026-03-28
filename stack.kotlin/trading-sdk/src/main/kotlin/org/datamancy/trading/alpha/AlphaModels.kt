@@ -1,5 +1,7 @@
 package org.datamancy.trading.alpha
 
+import java.time.Instant
+
 enum class AlphaDirection {
     LONG,
     SHORT
@@ -317,5 +319,34 @@ data class ArchiveImportPlan(
     val startDate: String,
     val endDate: String,
     val windows: List<ArchiveImportWindow>,
+    val notes: List<String>
+)
+
+data class ArchiveImportRunRequest(
+    val exchange: String = "hyperliquid_mainnet",
+    val startDate: String,
+    val endDate: String,
+    val channels: List<String> = listOf("trade", "candle_1m", "funding", "open_interest"),
+    val symbols: List<String> = emptyList()
+)
+
+data class ArchiveImportChannelResult(
+    val channel: String,
+    val objectsProcessed: Int,
+    val rowsImported: Long,
+    val earliestTime: Instant?,
+    val latestTime: Instant?,
+    val symbolsImported: Int,
+    val notes: List<String> = emptyList()
+)
+
+data class ArchiveImportRunResponse(
+    val generatedAt: Instant,
+    val exchange: String,
+    val startDate: String,
+    val endDate: String,
+    val requestedChannels: List<String>,
+    val requestedSymbols: List<String>,
+    val results: List<ArchiveImportChannelResult>,
     val notes: List<String>
 )
