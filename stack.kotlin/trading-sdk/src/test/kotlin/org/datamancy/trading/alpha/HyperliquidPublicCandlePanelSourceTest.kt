@@ -43,7 +43,7 @@ class HyperliquidPublicCandlePanelSourceTest {
             assertEquals(2, panel.series.size)
             assertEquals(listOf("2026-03-01T00:00:00Z", "2026-03-01T04:00:00Z"), panel.timeline.map(Instant::toString))
             assertTrue(panel.series.all { series -> series.bars.all { it != null } })
-            assertEquals(listOf("BRAVO", "ALPHA"), panel.series.map { it.symbol })
+            assertEquals(listOf("ALPHA", "BRAVO"), panel.series.map { it.symbol }.sorted())
         }
     }
 

@@ -18,7 +18,6 @@ import org.datamancy.trading.alpha.AlphaExecutionSubmitRequest
 import org.datamancy.trading.alpha.AlphaExecutionSubmission
 import org.datamancy.trading.alpha.AlphaExecutionSubmitter
 import org.datamancy.trading.alpha.AlphaRunMode
-import org.datamancy.trading.alpha.HyperliquidPublicCandlePanelSource
 import org.datamancy.trading.alpha.http.AlphaServiceError
 import org.datamancy.trading.alpha.http.AlphaServiceJson
 import org.datamancy.trading.alpha.InterdayAlphaLeaderboardResponse
@@ -26,6 +25,7 @@ import org.datamancy.trading.alpha.InterdayAlphaRunRequest
 import org.datamancy.trading.alpha.InterdayAlphaSearchRequest
 import org.datamancy.trading.alpha.InterdayAlphaSearchResponse
 import org.datamancy.trading.alpha.InterdaySearchEngine
+import org.datamancy.trading.alpha.MarketDataInterdayPanelSource
 import org.datamancy.trading.policy.ActiveTradingPolicy
 import org.datamancy.trading.storage.MarketDataDataSourceFactory
 import org.slf4j.LoggerFactory
@@ -45,7 +45,7 @@ fun main() {
 fun Application.configureAlphaDiscoveryApp(
     planner: AlphaDiscoveryPlanner = AlphaDiscoveryPlanner(ActiveTradingPolicy::current),
     engine: InterdaySearchEngine = InterdaySearchEngine(
-        panelSource = HyperliquidPublicCandlePanelSource(
+        panelSource = MarketDataInterdayPanelSource(
             dataSource = MarketDataDataSourceFactory.fromEnvironment("alpha-discovery-service")
         ),
         policyProvider = ActiveTradingPolicy::current

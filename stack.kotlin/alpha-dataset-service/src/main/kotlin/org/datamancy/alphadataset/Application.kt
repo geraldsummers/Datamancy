@@ -11,12 +11,15 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
+import org.datamancy.trading.alpha.AlphaDatasetRefreshRequest
 import org.datamancy.trading.alpha.AlphaDatasetValidationRequest
 import org.datamancy.trading.alpha.AlphaDatasetValidator
 import org.datamancy.trading.alpha.AlphaDefaultsFactory
+import org.datamancy.trading.alpha.HyperliquidInterdayCandleRefresher
 import org.datamancy.trading.alpha.http.AlphaServiceError
 import org.datamancy.trading.alpha.http.AlphaServiceJson
 import org.datamancy.trading.policy.ActiveTradingPolicy
+import org.datamancy.trading.storage.MarketDataDataSourceFactory
 import org.slf4j.LoggerFactory
 
 private val logger = LoggerFactory.getLogger("AlphaDatasetApplication")
@@ -30,7 +33,10 @@ fun main() {
 }
 
 fun Application.configureAlphaDatasetApp(
-    validator: AlphaDatasetValidator = AlphaDatasetValidator(ActiveTradingPolicy::current)
+    validator: AlphaDatasetValidator = AlphaDatasetValidator(ActiveTradingPolicy::current),
+    refresher: HyperliquidInterdayCandleRefresher = HyperliquidInterdayCandleRefresher(
+        dataSource = MarketDataDataSourceFactory.fromEnvironment("alpha-dataset-service")
+    )
 ) {
     routing {
         get("/health") {
@@ -41,7 +47,7 @@ fun Application.configureAlphaDatasetApp(
                 gson.toJson(
                     AlphaServiceJson.root(
                         service = "alpha-dataset-service",
-                        endpoints = listOf("/health", "/api/v1/datasets/defaults", "/api/v1/datasets/validate")
+                        endpoints = listOf("/health", "/api/v1/datasets/defaults", "/api/v1/datasets/validate", "/api/v1/datasets/refresh")
                     )
                 ),
                 ContentType.Application.Json,
@@ -62,6 +68,21 @@ fun Application.configureAlphaDatasetApp(
                 .onFailure { logger.warn("Dataset validation failed", it) }
                 .getOrElse {
                     call.respondText(gson.toJson(AlphaServiceError("dataset validation failed: ${it.message}")), ContentType.Application.Json, HttpStatusCode.BadRequest)
+                    return@post
+                }
+            call.respondText(gson.toJson(response), ContentType.Application.Json, HttpStatusCode.OK)
+        }
+        post("/api/v1/datasets/refresh") {
+            val request = runCatching { gson.fromJson(call.receiveText(), AlphaDatasetRefreshRequest::class.java) }
+                .onFailure { logger.warn("Dataset refresh request parse failed", it) }
+                .getOrElse {
+                    call.respondText(gson.toJson(AlphaServiceError("invalid dataset refresh request")), ContentType.Application.Json, HttpStatusCode.BadRequest)
+                    return@post
+                }
+            val response = runCatching { refresher.refresh(request) }
+                .onFailure { logger.warn("Dataset refresh failed", it) }
+                .getOrElse {
+                    call.respondText(gson.toJson(AlphaServiceError("dataset refresh failed: ${it.message}")), ContentType.Application.Json, HttpStatusCode.BadRequest)
                     return@post
                 }
             call.respondText(gson.toJson(response), ContentType.Application.Json, HttpStatusCode.OK)

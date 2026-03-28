@@ -41,7 +41,7 @@ class AlphaDatasetValidator(
             requiredExecutionConditioning = request.requireExecutionConditioning,
             reasons = reasons.ifEmpty {
                 listOf(
-                    "Request is compatible with the public-candle interday price dataset contract.",
+                    "Request is compatible with the stored interday price dataset contract.",
                     "Execution realism remains a separate gate through execution readiness and execution monitoring."
                 )
             }

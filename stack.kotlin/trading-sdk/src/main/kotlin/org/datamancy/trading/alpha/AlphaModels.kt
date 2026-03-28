@@ -70,6 +70,24 @@ data class AlphaDatasetValidation(
     val reasons: List<String>
 )
 
+data class AlphaDatasetRefreshRequest(
+    val exchange: String? = null,
+    val signalBarMinutes: Int,
+    val lookbackHours: Int
+)
+
+data class AlphaDatasetRefreshResponse(
+    val startedAt: Instant,
+    val completedAt: Instant,
+    val exchange: String,
+    val signalBarMinutes: Int,
+    val storedDataType: String,
+    val lookbackHours: Int,
+    val refreshedSymbols: Int,
+    val storedBars: Int,
+    val notes: List<String>
+)
+
 data class AlphaValidationDefaults(
     val walkForwardWindows: Int,
     val nestedCvFolds: Int,

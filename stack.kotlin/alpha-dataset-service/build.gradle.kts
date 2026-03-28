@@ -7,6 +7,7 @@ plugins {
 dependencies {
     implementation(project(":trading-sdk"))
     implementation(libs.bundles.ktor.server)
+    implementation(libs.okhttp)
     implementation(libs.gson)
     implementation(libs.bundles.logging)
 
