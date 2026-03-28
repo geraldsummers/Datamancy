@@ -82,10 +82,16 @@ elif label == "cache-status":
         )
 elif label == "research-readiness":
     print(
-        "passed={passed} reason={reason} required_bars={required_bars} min_eligible={min_eligible} "
+        "passed={passed} execution_passed={execution_passed} promotion_passed={promotion_passed} "
+        "reason={reason} execution_reason={execution_reason} promotion_reason={promotion_reason} "
+        "required_bars={required_bars} min_eligible={min_eligible} "
         "candidate_limit={candidate_limit}".format(
             passed=payload.get("passed"),
+            execution_passed=payload.get("executionPassed"),
+            promotion_passed=payload.get("promotionPassed"),
             reason=payload.get("reason"),
+            execution_reason=payload.get("executionReason"),
+            promotion_reason=payload.get("promotionReason"),
             required_bars=payload.get("requiredBars"),
             min_eligible=payload.get("minimumEligibleSymbols"),
             candidate_limit=payload.get("discoveryCandidateLimit"),
@@ -95,8 +101,15 @@ elif label == "research-readiness":
         aliases = ",".join(exchange.get("marketAliases", []))
         print(
             f"  - exchange={exchange.get('exchange')} aliases={aliases} "
-            f"discovered={exchange.get('discoveredSymbols')} eligible={exchange.get('eligibleSymbols')} "
-            f"passed={exchange.get('passed')} reason={exchange.get('reason')}"
+            f"discovered={exchange.get('discoveredSymbols')} "
+            f"signal_eligible={exchange.get('eligibleSymbols')} "
+            f"execution_eligible={exchange.get('executionEligibleSymbols')} "
+            f"promotion_eligible={exchange.get('promotionEligibleSymbols')} "
+            f"passed={exchange.get('passed')} "
+            f"execution_passed={exchange.get('executionPassed')} "
+            f"promotion_passed={exchange.get('promotionPassed')} "
+            f"reason={exchange.get('reason')} "
+            f"execution_reason={exchange.get('executionReason')}"
         )
 else:
     print(json.dumps(payload, indent=2))
@@ -134,4 +147,9 @@ if not readiness.get("passed", False):
     sys.exit(2)
 
 print("[verdict] READY")
+if not readiness.get("promotionPassed", False):
+    print("[promotion] BLOCKED")
+    print(f"  - {readiness.get('promotionReason')}")
+else:
+    print("[promotion] READY")
 PY

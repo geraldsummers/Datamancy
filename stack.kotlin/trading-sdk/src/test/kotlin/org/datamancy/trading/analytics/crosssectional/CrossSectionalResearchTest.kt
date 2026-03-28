@@ -291,6 +291,48 @@ class CrossSectionalResearchTest {
     }
 
     @Test
+    fun `buildResearchCoverageVerdict can pass signal coverage without execution history`() {
+        val coveragePolicy = CoverageContractPolicy(
+            minCoverageRatio = 0.98,
+            minFinalizedRatio = 0.95,
+            minExecutionObservedRatio = 0.55,
+            minUniverseSymbols = 1,
+            maxFeatureLagSeconds = 180L,
+            maxFinalizedLagMinutes = 5L,
+            requireExecutionObserved = false
+        )
+        val snapshot = ResearchCoverageSnapshot(
+            symbol = "BTC",
+            expectedBars = 96,
+            observedBars = 96,
+            finalizedBars = 96,
+            executionObservedBars = 0,
+            coverageRatio = 1.0,
+            finalizedRatio = 1.0,
+            executionObservedRatio = 0.0,
+            latestFeatureTime = Instant.parse("2026-03-27T05:30:00Z"),
+            finalizedThrough = Instant.parse("2026-03-27T05:30:00Z"),
+            latestExecutionObservedTime = null,
+            latestFeatureLagSeconds = 0L,
+            finalizedLagMinutes = 0L,
+            latestExecutionObservedLagSeconds = null
+        )
+
+        val verdict = buildResearchCoverageVerdict(
+            exchange = "hyperliquid",
+            symbols = listOf("BTC"),
+            snapshots = listOf(snapshot),
+            requiredBars = 96,
+            coveragePolicy = coveragePolicy,
+            barMinutes = 60,
+            gateName = "signal_coverage"
+        )
+
+        assertTrue(verdict.passed)
+        assertEquals(listOf("BTC"), verdict.eligibleSymbols)
+    }
+
+    @Test
     fun `resolveResearchQueryParallelism clamps configured fanout to work size`() {
         assertEquals(1, resolveResearchQueryParallelism(workItems = 1, configuredMax = 4))
         assertEquals(3, resolveResearchQueryParallelism(workItems = 3, configuredMax = 8))

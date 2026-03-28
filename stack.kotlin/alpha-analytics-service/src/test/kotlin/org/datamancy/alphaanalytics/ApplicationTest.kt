@@ -694,18 +694,30 @@ class ApplicationTest {
             requiredBars = 96,
             minimumEligibleSymbols = 12,
             passed = true,
+            executionPassed = false,
+            promotionPassed = false,
             reason = null,
+            executionReason = "promotion_coverage gate failed exchange=hyperliquid eligible=5/19 requiredMinSymbols=12",
+            promotionReason = "promotion_coverage gate failed exchange=hyperliquid eligible=5/19 requiredMinSymbols=12",
             exchanges = listOf(
                 CrossSectionalExchangeReadiness(
                     exchange = "hyperliquid",
                     marketAliases = listOf("hyperliquid_mainnet"),
                     discoveredSymbols = 19,
                     eligibleSymbols = 17,
+                    executionEligibleSymbols = 5,
+                    promotionEligibleSymbols = 5,
                     requiredBars = 96,
                     minimumEligibleSymbols = 12,
                     passed = true,
+                    executionPassed = false,
+                    promotionPassed = false,
                     reason = null,
+                    executionReason = "promotion_coverage gate failed exchange=hyperliquid eligible=5/19 requiredMinSymbols=12",
+                    promotionReason = "promotion_coverage gate failed exchange=hyperliquid eligible=5/19 requiredMinSymbols=12",
                     sampleEligibleSymbols = listOf("BTC", "ETH", "SOL"),
+                    sampleExecutionEligibleSymbols = listOf("BTC", "ETH", "SOL"),
+                    samplePromotionEligibleSymbols = listOf("BTC", "ETH", "SOL"),
                     sampleCoverageFailures = listOf(
                         ResearchCoverageSnapshot(
                             symbol = "BOME",
@@ -723,7 +735,9 @@ class ApplicationTest {
                             finalizedLagMinutes = 3,
                             latestExecutionObservedLagSeconds = 120
                         )
-                    )
+                    ),
+                    sampleExecutionCoverageFailures = emptyList(),
+                    samplePromotionCoverageFailures = emptyList()
                 )
             )
         )

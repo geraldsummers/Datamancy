@@ -5203,12 +5203,22 @@ data class CrossSectionalExchangeReadiness(
     val marketAliases: List<String>,
     val discoveredSymbols: Int,
     val eligibleSymbols: Int,
+    val executionEligibleSymbols: Int,
+    val promotionEligibleSymbols: Int,
     val requiredBars: Int,
     val minimumEligibleSymbols: Int,
     val passed: Boolean,
+    val executionPassed: Boolean,
+    val promotionPassed: Boolean,
     val reason: String?,
+    val executionReason: String?,
+    val promotionReason: String?,
     val sampleEligibleSymbols: List<String>,
-    val sampleCoverageFailures: List<ResearchCoverageSnapshot>
+    val sampleExecutionEligibleSymbols: List<String>,
+    val samplePromotionEligibleSymbols: List<String>,
+    val sampleCoverageFailures: List<ResearchCoverageSnapshot>,
+    val sampleExecutionCoverageFailures: List<ResearchCoverageSnapshot>,
+    val samplePromotionCoverageFailures: List<ResearchCoverageSnapshot>
 )
 
 data class CrossSectionalResearchReadiness(
@@ -5221,7 +5231,11 @@ data class CrossSectionalResearchReadiness(
     val requiredBars: Int,
     val minimumEligibleSymbols: Int,
     val passed: Boolean,
+    val executionPassed: Boolean,
+    val promotionPassed: Boolean,
     val reason: String?,
+    val executionReason: String?,
+    val promotionReason: String?,
     val exchanges: List<CrossSectionalExchangeReadiness>
 )
 
@@ -5235,8 +5249,12 @@ private data class PreparedResearchUniverse(
     val discoveryCandidateLimit: Int,
     val requiredCoverageBars: Int,
     val discoveredUniverse: Map<String, List<String>>,
-    val coverageVerdicts: Map<String, ResearchCoverageVerdict>
+    val signalCoverageVerdicts: Map<String, ResearchCoverageVerdict>,
+    val executionCoverageVerdicts: Map<String, ResearchCoverageVerdict>
 )
+
+private fun signalCoveragePolicy(coveragePolicy: CoverageContractPolicy): CoverageContractPolicy =
+    coveragePolicy.copy(requireExecutionObserved = false)
 
 private fun expectedCoverageBars(lookbackHours: Int, barMinutes: Int, minBars: Int): Int {
     return requiredResearchWindowBars(
@@ -5541,7 +5559,8 @@ internal fun buildResearchCoverageVerdict(
     snapshots: List<ResearchCoverageSnapshot>,
     requiredBars: Int,
     coveragePolicy: CoverageContractPolicy,
-    barMinutes: Int
+    barMinutes: Int,
+    gateName: String = "coverage"
 ): ResearchCoverageVerdict {
     val maxFeatureLagSeconds = effectiveCoverageMaxFeatureLagSeconds(
         coveragePolicy = coveragePolicy,
@@ -5576,9 +5595,9 @@ internal fun buildResearchCoverageVerdict(
     val requestedSymbols = symbols.map(String::trim).count(String::isNotEmpty)
     val reason = when {
         requestedSymbols == 0 ->
-            "coverage gate failed exchange=$exchange requestedSymbols=0 reason=no_candidate_universe"
+            "$gateName gate failed exchange=$exchange requestedSymbols=0 reason=no_candidate_universe"
         snapshots.isEmpty() ->
-            "coverage gate failed exchange=$exchange requestedSymbols=$requestedSymbols reason=no_feature_rows"
+            "$gateName gate failed exchange=$exchange requestedSymbols=$requestedSymbols reason=no_feature_rows"
         eligibleSymbols.size < coveragePolicy.minUniverseSymbols -> {
             val sample = snapshots.take(3).joinToString(";") { snapshot ->
                 "${snapshot.symbol}:cov=${snapshot.coverageRatio.round(3)} " +
@@ -5588,11 +5607,19 @@ internal fun buildResearchCoverageVerdict(
                     "featLag=${snapshot.latestFeatureLagSeconds}s " +
                     "finLag=${snapshot.finalizedLagMinutes ?: Long.MAX_VALUE}m"
             }
-            "coverage gate failed exchange=$exchange eligible=${eligibleSymbols.size}/$requestedSymbols " +
+            val thresholdSummary = buildString {
+                append("cov>=${coveragePolicy.minCoverageRatio.round(3)} ")
+                append("fin>=${coveragePolicy.minFinalizedRatio.round(3)} ")
+                if (coveragePolicy.requireExecutionObserved) {
+                    append("exec>=${coveragePolicy.minExecutionObservedRatio.round(3)} ")
+                    append("execLag<=${maxExecutionLagSeconds}s ")
+                }
+                append("featLag<=${maxFeatureLagSeconds}s ")
+                append("finLag<=${maxFinalizedLagMinutes}m")
+            }
+            "$gateName gate failed exchange=$exchange eligible=${eligibleSymbols.size}/$requestedSymbols " +
                 "requiredMinSymbols=${coveragePolicy.minUniverseSymbols} requiredBars=$requiredBars " +
-                "thresholds=cov>=${coveragePolicy.minCoverageRatio.round(3)} fin>=${coveragePolicy.minFinalizedRatio.round(3)} " +
-                "exec>=${coveragePolicy.minExecutionObservedRatio.round(3)} " +
-                "execLag<=${maxExecutionLagSeconds}s featLag<=${maxFeatureLagSeconds}s finLag<=${maxFinalizedLagMinutes}m sample=[$sample]"
+                "thresholds=$thresholdSummary sample=[$sample]"
         }
         else -> null
     }
@@ -5621,6 +5648,7 @@ private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUni
         minBars = config.minBars
     )
     val coveragePolicy = crossSectionalPolicy().coverage
+    val signalCoveragePolicy = signalCoveragePolicy(coveragePolicy)
 
     val (discoveredUniverse, discoveryMs) = timedMillis {
         parallelMapBlocking(
@@ -5653,13 +5681,25 @@ private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUni
             minBars = config.minBars,
             coveragePolicy = coveragePolicy
         )
-        plan.exchange to buildResearchCoverageVerdict(
-            exchange = plan.exchange,
-            symbols = symbols,
-            snapshots = snapshots,
-            requiredBars = requiredCoverageBars,
-            coveragePolicy = coveragePolicy,
-            barMinutes = config.barMinutes
+        plan.exchange to Pair(
+            buildResearchCoverageVerdict(
+                exchange = plan.exchange,
+                symbols = symbols,
+                snapshots = snapshots,
+                requiredBars = requiredCoverageBars,
+                coveragePolicy = signalCoveragePolicy,
+                barMinutes = config.barMinutes,
+                gateName = "signal_coverage"
+            ),
+            buildResearchCoverageVerdict(
+                exchange = plan.exchange,
+                symbols = symbols,
+                snapshots = snapshots,
+                requiredBars = requiredCoverageBars,
+                coveragePolicy = coveragePolicy,
+                barMinutes = config.barMinutes,
+                gateName = "promotion_coverage"
+            )
         )
     }.toMap(LinkedHashMap())
 
@@ -5671,7 +5711,8 @@ private fun prepareResearchUniverse(config: ResearchConfig): PreparedResearchUni
         discoveryCandidateLimit = discoveryMaxSymbols,
         requiredCoverageBars = requiredCoverageBars,
         discoveredUniverse = discoveredUniverse,
-        coverageVerdicts = coverageVerdicts
+        signalCoverageVerdicts = coverageVerdicts.mapValues { it.value.first },
+        executionCoverageVerdicts = coverageVerdicts.mapValues { it.value.second }
     )
 }
 
@@ -5679,9 +5720,20 @@ fun evaluateCrossSectionalReadiness(config: ResearchConfig): CrossSectionalResea
     val prepared = prepareResearchUniverse(config)
     val coveragePolicy = crossSectionalPolicy().coverage
     val exchanges = prepared.exchangePlans.map { plan ->
-        val verdict = prepared.coverageVerdicts.getValue(plan.exchange)
-        val failingSamples = verdict.snapshots
-            .filterNot { it.symbol in verdict.eligibleSymbols }
+        val signalVerdict = prepared.signalCoverageVerdicts.getValue(plan.exchange)
+        val executionVerdict = prepared.executionCoverageVerdicts.getValue(plan.exchange)
+        val signalFailingSamples = signalVerdict.snapshots
+            .filterNot { it.symbol in signalVerdict.eligibleSymbols }
+            .sortedWith(
+                compareBy<ResearchCoverageSnapshot> { it.coverageRatio }
+                    .thenBy { it.finalizedRatio }
+                    .thenBy { it.executionObservedRatio }
+                    .thenByDescending { it.latestFeatureLagSeconds }
+                    .thenBy { it.symbol }
+            )
+            .take(5)
+        val executionFailingSamples = executionVerdict.snapshots
+            .filterNot { it.symbol in executionVerdict.eligibleSymbols }
             .sortedWith(
                 compareBy<ResearchCoverageSnapshot> { it.coverageRatio }
                     .thenBy { it.finalizedRatio }
@@ -5694,16 +5746,27 @@ fun evaluateCrossSectionalReadiness(config: ResearchConfig): CrossSectionalResea
             exchange = plan.exchange,
             marketAliases = plan.marketAliases,
             discoveredSymbols = prepared.discoveredUniverse[plan.exchange].orEmpty().size,
-            eligibleSymbols = verdict.eligibleSymbols.size,
-            requiredBars = verdict.requiredBars,
-            minimumEligibleSymbols = verdict.minimumEligibleSymbols,
-            passed = verdict.passed,
-            reason = verdict.reason,
-            sampleEligibleSymbols = verdict.eligibleSymbols.take(12),
-            sampleCoverageFailures = failingSamples
+            eligibleSymbols = signalVerdict.eligibleSymbols.size,
+            executionEligibleSymbols = executionVerdict.eligibleSymbols.size,
+            promotionEligibleSymbols = executionVerdict.eligibleSymbols.size,
+            requiredBars = signalVerdict.requiredBars,
+            minimumEligibleSymbols = signalVerdict.minimumEligibleSymbols,
+            passed = signalVerdict.passed,
+            executionPassed = executionVerdict.passed,
+            promotionPassed = executionVerdict.passed,
+            reason = signalVerdict.reason,
+            executionReason = executionVerdict.reason,
+            promotionReason = executionVerdict.reason,
+            sampleEligibleSymbols = signalVerdict.eligibleSymbols.take(12),
+            sampleExecutionEligibleSymbols = executionVerdict.eligibleSymbols.take(12),
+            samplePromotionEligibleSymbols = executionVerdict.eligibleSymbols.take(12),
+            sampleCoverageFailures = signalFailingSamples,
+            sampleExecutionCoverageFailures = executionFailingSamples,
+            samplePromotionCoverageFailures = executionFailingSamples
         )
     }
-    val failure = exchanges.firstOrNull { !it.passed }
+    val signalFailure = exchanges.firstOrNull { !it.passed }
+    val executionFailure = exchanges.firstOrNull { !it.executionPassed }
     return CrossSectionalResearchReadiness(
         config = config,
         exchangeCatalog = prepared.exchangeCatalog,
@@ -5713,8 +5776,12 @@ fun evaluateCrossSectionalReadiness(config: ResearchConfig): CrossSectionalResea
         discoveryCandidateLimit = prepared.discoveryCandidateLimit,
         requiredBars = prepared.requiredCoverageBars,
         minimumEligibleSymbols = coveragePolicy.minUniverseSymbols,
-        passed = failure == null,
-        reason = failure?.reason,
+        passed = signalFailure == null,
+        executionPassed = executionFailure == null,
+        promotionPassed = executionFailure == null,
+        reason = signalFailure?.reason,
+        executionReason = executionFailure?.reason,
+        promotionReason = executionFailure?.reason,
         exchanges = exchanges
     )
 }
@@ -5727,23 +5794,32 @@ fun loadResearchDataContext(config: ResearchConfig): ResearchDataContext {
     val discoveryMs = prepared.discoveryMs
     val requiredCoverageBars = prepared.requiredCoverageBars
     val discoveredUniverse = prepared.discoveredUniverse
-    val coverageVerdicts = prepared.coverageVerdicts
+    val signalCoverageVerdicts = prepared.signalCoverageVerdicts
+    val executionCoverageVerdicts = prepared.executionCoverageVerdicts
 
-    coverageVerdicts.values.forEach { verdict ->
+    signalCoverageVerdicts.values.forEach { verdict ->
         println(
-            "Cross-sectional coverage exchange=${verdict.exchange} " +
+            "Cross-sectional signal coverage exchange=${verdict.exchange} " +
+                "eligible=${verdict.eligibleSymbols.size}/${verdict.requestedSymbols} " +
+                "requiredBars=${verdict.requiredBars} passed=${verdict.passed} " +
+                "reason=${verdict.reason ?: "ok"}"
+        )
+    }
+    executionCoverageVerdicts.values.forEach { verdict ->
+        println(
+            "Cross-sectional execution coverage exchange=${verdict.exchange} " +
                 "eligible=${verdict.eligibleSymbols.size}/${verdict.requestedSymbols} " +
                 "requiredBars=${verdict.requiredBars} passed=${verdict.passed} " +
                 "reason=${verdict.reason ?: "ok"}"
         )
     }
 
-    val coverageFailure = coverageVerdicts.values.firstOrNull { !it.passed }
+    val coverageFailure = signalCoverageVerdicts.values.firstOrNull { !it.passed }
     if (coverageFailure != null) {
         throw ResearchCoverageException(coverageFailure.reason ?: "coverage gate failed for ${coverageFailure.exchange}")
     }
 
-    val candidateUniverse = coverageVerdicts.mapValues { (_, verdict) -> verdict.eligibleSymbols }
+    val candidateUniverse = signalCoverageVerdicts.mapValues { (_, verdict) -> verdict.eligibleSymbols }
 
     val (researchBars, loadBarsMs) = timedMillis {
         exchangePlans.flatMap { plan ->
