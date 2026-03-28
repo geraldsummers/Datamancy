@@ -5780,8 +5780,8 @@ fun evaluateCrossSectionalReadiness(config: ResearchConfig): CrossSectionalResea
         executionPassed = executionFailure == null,
         promotionPassed = executionFailure == null,
         reason = signalFailure?.reason,
-        executionReason = executionFailure?.reason,
-        promotionReason = executionFailure?.reason,
+        executionReason = executionFailure?.executionReason,
+        promotionReason = executionFailure?.promotionReason,
         exchanges = exchanges
     )
 }
