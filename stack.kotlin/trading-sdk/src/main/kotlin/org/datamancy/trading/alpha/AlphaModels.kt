@@ -73,7 +73,8 @@ data class AlphaDatasetValidation(
 data class AlphaDatasetRefreshRequest(
     val exchange: String? = null,
     val signalBarMinutes: Int,
-    val lookbackHours: Int
+    val lookbackHours: Int,
+    val symbols: List<String> = emptyList()
 )
 
 data class AlphaDatasetRefreshResponse(

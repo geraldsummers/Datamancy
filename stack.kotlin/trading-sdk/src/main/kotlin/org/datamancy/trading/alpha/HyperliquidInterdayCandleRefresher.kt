@@ -53,7 +53,13 @@ class HyperliquidInterdayCandleRefresher(
         val exchange = request.exchange?.ifBlank { null } ?: "hyperliquid_mainnet"
         val endTime = alignedWindowEnd(startedAt, request.signalBarMinutes)
         val startTime = endTime.minus(Duration.ofHours(request.lookbackHours.toLong()))
-        val universe = fetchUniverse()
+        val availableUniverse = fetchUniverse()
+        val requestedSymbols = request.symbols.map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        val universe = if (requestedSymbols.isEmpty()) {
+            availableUniverse
+        } else {
+            availableUniverse.filter { it in requestedSymbols }
+        }
         require(universe.isNotEmpty()) { "Hyperliquid public universe resolution returned no tradable symbols" }
 
         val candleDataType = interdayCandleDataType(request.signalBarMinutes)
