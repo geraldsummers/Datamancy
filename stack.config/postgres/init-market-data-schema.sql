@@ -574,7 +574,10 @@ CREATE INDEX IF NOT EXISTS idx_strategy_portfolio_profiles_strategy_time ON stra
 CREATE INDEX IF NOT EXISTS idx_strategy_portfolio_profiles_stage_time ON strategy_portfolio_profiles (stage, run_at DESC);
 
 -- Canonical symbol-level data health contract for the 1m research layer.
-CREATE OR REPLACE VIEW data_health_symbol_1m AS
+DROP VIEW IF EXISTS data_health_exchange_1m;
+DROP VIEW IF EXISTS data_health_symbol_1m;
+
+CREATE VIEW data_health_symbol_1m AS
 WITH symbol_universe AS (
     SELECT DISTINCT exchange, symbol FROM raw_sync_state
     UNION
@@ -801,7 +804,7 @@ SELECT
     ) AS active_recent
 FROM base;
 
-CREATE OR REPLACE VIEW data_health_exchange_1m AS
+CREATE VIEW data_health_exchange_1m AS
 SELECT
     exchange,
     COUNT(*) AS tracked_symbols,
