@@ -1,0 +1,29 @@
+services:
+  alpha-execution-agent:
+    image: datamancy/alpha-execution-agent:local-build
+    build:
+      context: .
+      dockerfile: ./stack.containers/alpha-execution-agent/Dockerfile
+    container_name: alpha-execution-agent
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    networks:
+      - trading
+      - monitoring
+    depends_on:
+      tx-gateway:
+        condition: service_started
+      alpha-portfolio-service:
+        condition: service_started
+    environment:
+      PORT: 8080
+      DATAMANCY_TRADING_POLICY_FILE: /app/config/trading-policy.json
+    volumes:
+      - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
