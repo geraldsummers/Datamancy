@@ -962,7 +962,7 @@ object DatamancyTradingPolicy {
             allowRawFallback = false
             strategyFamilies = StrategyFamilyCatalog(
                 crossSectionalResidualTrend = StrategyFamilyPolicy(enabled = true, stage = "active", notes = "Primary residual trend search family"),
-                crossSectionalResidualMeanReversion = StrategyFamilyPolicy(enabled = true, stage = "active", notes = "Primary residual mean reversion search family"),
+                crossSectionalResidualMeanReversion = StrategyFamilyPolicy(enabled = false, stage = "parked", notes = "Parked until the trend engine is stable enough to support dependent reversion work"),
                 timeSeriesMomentumOverlay = StrategyFamilyPolicy(enabled = false, stage = "planned"),
                 timeSeriesReversalOverlay = StrategyFamilyPolicy(enabled = false, stage = "planned"),
                 fundingBasisCarry = StrategyFamilyPolicy(enabled = false, stage = "planned"),

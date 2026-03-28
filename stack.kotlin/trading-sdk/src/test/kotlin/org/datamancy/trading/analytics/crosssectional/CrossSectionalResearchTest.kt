@@ -772,13 +772,11 @@ class CrossSectionalResearchTest {
         }
 
         val topTrend = result.topTrendConfigs.first()
-        val topReversion = result.topReversionConfigs.first()
 
         assertEquals(240, topTrend.config.barMinutes)
         assertEquals(24, topTrend.config.trendLookbackBars)
         assertEquals(48, topTrend.config.trendSlowBars)
-        assertEquals(1.6, topReversion.config.reversionZEntry)
-        assertTrue(topReversion.reversionFitness.passesFilters)
+        assertTrue(topTrend.trendFitness.passesFilters)
         assertTrue(result.evaluatedConfigs >= 4)
     }
 
@@ -968,11 +966,11 @@ class CrossSectionalResearchTest {
             fakeCoverageSearchResult(config)
         }
 
-        val topReversion = result.topReversionConfigs.first()
+        val topTrend = result.topTrendConfigs.first()
 
         assertEquals(4, result.evaluatedConfigs)
-        assertEquals(1.6, topReversion.config.reversionZEntry)
-        assertTrue(topReversion.reversionFitness.passesFilters)
+        assertEquals(12, topTrend.config.trendLookbackBars)
+        assertTrue(topTrend.trendFitness.passesFilters)
     }
 
     @Test
@@ -2212,9 +2210,8 @@ class CrossSectionalResearchTest {
                 liquidPerSymbol = mapOf("SOL" to 48),
                 liquidFailureCounts = mapOf("warmup" to 8),
                 rankEligibleCounts = mapOf("trendLong" to 3),
-                seedCounts = mapOf("trend" to 4, "reversion" to 4),
-                topTrendSeeds = emptyList(),
-                topReversionSeeds = emptyList()
+                seedCounts = mapOf("trend" to 4),
+                topTrendSeeds = emptyList()
             ),
             heuristicSignals = emptyList(),
             latestSignals = emptyList(),
@@ -2327,9 +2324,8 @@ class CrossSectionalResearchTest {
                 liquidPerSymbol = mapOf("SOL" to 48),
                 liquidFailureCounts = mapOf("warmup" to 8),
                 rankEligibleCounts = mapOf("trendLong" to 3),
-                seedCounts = mapOf("trend" to 4, "reversion" to 4),
-                topTrendSeeds = emptyList(),
-                topReversionSeeds = emptyList()
+                seedCounts = mapOf("trend" to 4),
+                topTrendSeeds = emptyList()
             ),
             heuristicSignals = emptyList(),
             latestSignals = emptyList(),
@@ -2509,9 +2505,8 @@ class CrossSectionalResearchTest {
                 liquidPerSymbol = mapOf("SOL" to 48),
                 liquidFailureCounts = mapOf("warmup" to 8),
                 rankEligibleCounts = mapOf("trendLong" to 3),
-                seedCounts = mapOf("trend" to 4, "reversion" to 4),
-                topTrendSeeds = emptyList(),
-                topReversionSeeds = emptyList()
+                seedCounts = mapOf("trend" to 4),
+                topTrendSeeds = emptyList()
             ),
             heuristicSignals = emptyList(),
             latestSignals = emptyList(),
@@ -2624,9 +2619,8 @@ class CrossSectionalResearchTest {
                 liquidPerSymbol = mapOf("SOL" to 48),
                 liquidFailureCounts = mapOf("warmup" to 8),
                 rankEligibleCounts = mapOf("trendLong" to 3),
-                seedCounts = mapOf("trend" to 4, "reversion" to 4),
-                topTrendSeeds = emptyList(),
-                topReversionSeeds = emptyList()
+                seedCounts = mapOf("trend" to 4),
+                topTrendSeeds = emptyList()
             ),
             heuristicSignals = emptyList(),
             latestSignals = emptyList(),

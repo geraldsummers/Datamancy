@@ -469,9 +469,8 @@ class ApplicationTest {
                 liquidPerSymbol = mapOf("SOL" to 12),
                 liquidFailureCounts = mapOf("warmup" to 4),
                 rankEligibleCounts = mapOf("trendLong" to 1),
-                seedCounts = mapOf("trend" to 1, "reversion" to 0),
-                topTrendSeeds = emptyList(),
-                topReversionSeeds = emptyList()
+                seedCounts = mapOf("trend" to 1),
+                topTrendSeeds = emptyList()
             ),
             heuristicSignals = emptyList(),
             latestSignals = emptyList(),
@@ -776,39 +775,9 @@ class ApplicationTest {
                 avgSubmitToFillMs = 88.0
             )
         )
-        val reversionFitness = StrategySearchFitness(
-            strategyKind = "reversion",
-            score = 24.8,
-            passesFilters = true,
-            rejectionReasons = emptyList(),
-            backtest = StrategyAggregateSnapshot(
-                exchanges = listOf("hyperliquid"),
-                trades = 12,
-                winRate = 0.58,
-                netReturnPct = 4.3,
-                maxDrawdownPct = 2.9,
-                sharpe = 1.4,
-                avgEdgeAfterCostBps = 8.2,
-                avgTotalCostBps = 5.6,
-                avgFillRatio = 0.77,
-                avgSubmitToFillMs = 84.0
-            ),
-            forward = StrategyAggregateSnapshot(
-                exchanges = listOf("hyperliquid"),
-                trades = 4,
-                winRate = 0.5,
-                netReturnPct = 0.9,
-                maxDrawdownPct = 1.0,
-                sharpe = 0.8,
-                avgEdgeAfterCostBps = 6.1,
-                avgTotalCostBps = 5.1,
-                avgFillRatio = 0.74,
-                avgSubmitToFillMs = 81.0
-            )
-        )
         val candidate = CrossSectionalSearchCandidate(
             rank = 1,
-            combinedScore = 67.3,
+            score = 67.3,
             config = candidateConfig,
             dataKey = ResearchDataKey(
                 txGatewayUrl = candidateConfig.txGatewayUrl,
@@ -826,9 +795,7 @@ class ApplicationTest {
             calibrationRows = 240,
             forwardRows = 120,
             trendHoldHours = 32.0,
-            reversionHoldHours = 8.0,
-            trendFitness = fitness,
-            reversionFitness = reversionFitness
+            trendFitness = fitness
         )
         return CrossSectionalSearchResult(
             searchConfig = searchConfig.copy(baseConfig = normalizedBase),
@@ -836,9 +803,7 @@ class ApplicationTest {
             completedAt = Instant.parse("2026-03-24T00:05:00Z"),
             roundsCompleted = 2,
             evaluatedConfigs = 5,
-            topTrendConfigs = listOf(candidate),
-            topReversionConfigs = listOf(candidate.copy(rank = 1)),
-            topCombinedConfigs = listOf(candidate.copy(rank = 1))
+            topTrendConfigs = listOf(candidate)
         )
     }
 }

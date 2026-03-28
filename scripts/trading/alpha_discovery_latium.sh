@@ -296,19 +296,18 @@ if mode == "search":
         f"base_lookback_hours={request.get('baseConfig', {}).get('lookbackHours')} "
         f"beam_width={request.get('beamWidth')} rounds={request.get('rounds')}"
     )
-    for section_name in ("topCombinedConfigs", "topTrendConfigs", "topReversionConfigs"):
+    for section_name in ("topTrendConfigs",):
         candidates = response.get(section_name) or []
         print(f"[{section_name}] count={len(candidates)}")
         for candidate in candidates[:3]:
             config = candidate.get("config") or {}
             print(
-                f"  rank={candidate.get('rank')} combined_score={fmt_float(candidate.get('combinedScore'))} "
+                f"  rank={candidate.get('rank')} score={fmt_float(candidate.get('score'))} "
                 f"bar_minutes={config.get('barMinutes')} lookback_hours={config.get('lookbackHours')} "
                 f"forward_hours={config.get('forwardHours')} max_symbols={config.get('maxSymbols')} "
                 f"discovery_max_symbols={config.get('discoveryMaxSymbols')} bars_loaded={candidate.get('barsLoaded')}"
             )
             print_fitness("trend", candidate.get("trendFitness"))
-            print_fitness("reversion", candidate.get("reversionFitness"))
 elif mode == "run":
     print("[run]")
     print(
