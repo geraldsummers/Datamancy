@@ -113,8 +113,12 @@ class JupyterNotebookStartupConfigTest {
     }
 
     @Test
-    fun `startup config seeds kotlin cross sectional beta notebook`() {
-        val tempHome = Files.createTempDirectory("jupyter-kotlin-notebook-seed-test")
+    fun `startup config does not seed removed cross sectional notebooks`() {
+        val text = startupConfigText()
+        assertTrue(!text.contains("18_cross_sectional_beta_trend_reversion_kotlin.ipynb"))
+        assertTrue(!text.contains("19_cross_sectional_alpha_service_client.ipynb"))
+
+        val tempHome = Files.createTempDirectory("jupyter-cross-sectional-notebook-removal-test")
         val notebookDir = Files.createDirectories(tempHome.resolve("work/datamancy-notebooks"))
 
         val script = firstPythonHeredoc(startupConfigText())
@@ -137,82 +141,13 @@ class JupyterNotebookStartupConfigTest {
         assertTrue(process.waitFor(30, TimeUnit.SECONDS), "startup-config python heredoc should finish promptly")
         assertEquals(0, process.exitValue(), output)
 
-        val notebookPath = notebookDir.resolve("18_cross_sectional_beta_trend_reversion_kotlin.ipynb")
-        assertTrue(Files.exists(notebookPath), "first startup-config heredoc should seed the Kotlin cross-sectional notebook")
-
-        val notebook = Files.readString(notebookPath)
         assertTrue(
-            notebook.contains("\"display_name\": \"Kotlin\"") &&
-                notebook.contains("\"language\": \"kotlin\"") &&
-                notebook.contains("\"name\": \"kotlin\""),
-            "seeded cross-sectional notebook should target the Kotlin kernel"
+            !Files.exists(notebookDir.resolve("18_cross_sectional_beta_trend_reversion_kotlin.ipynb")),
+            "startup-config should not regenerate the removed Kotlin cross-sectional notebook"
         )
         assertTrue(
-            notebook.contains("cross_section_beta_trend_v1") &&
-                notebook.contains("cross_section_beta_reversion_v1"),
-            "seeded Kotlin notebook should carry both trend and mean-reversion strategy families"
-        )
-        assertTrue(
-            notebook.contains("DATAMANCY_CROSS_SECTIONAL_MARKET_EXCHANGE") &&
-                notebook.contains("Research diagnostics") &&
-                notebook.contains("persistForwardTelemetry") &&
-                notebook.contains("paperTradeTopSignals"),
-            "seeded Kotlin notebook should cover diagnostics, beta-aware data selection, forward telemetry, and paper-order plumbing"
-        )
-    }
-
-    @Test
-    fun `startup config seeds alpha analytics service client notebook`() {
-        val tempHome = Files.createTempDirectory("jupyter-alpha-service-notebook-seed-test")
-        val notebookDir = Files.createDirectories(tempHome.resolve("work/datamancy-notebooks"))
-
-        val script = firstPythonHeredoc(startupConfigText())
-            .replace(
-                """home_dir = Path("/home/jovyan")""",
-                """home_dir = Path(r"${pythonPathLiteral(tempHome)}")"""
-            )
-            .replace(
-                """notebook_dir = "/home/jovyan/work/datamancy-notebooks"""",
-                """notebook_dir = r"${pythonPathLiteral(notebookDir)}""""
-            )
-        val scriptPath = tempHome.resolve("startup-config-first-heredoc.py")
-        Files.writeString(scriptPath, script)
-
-        val process = ProcessBuilder("python3", scriptPath.toString())
-            .directory(repoRoot().toFile())
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().use { it.readText() }
-        assertTrue(process.waitFor(30, TimeUnit.SECONDS), "startup-config python heredoc should finish promptly")
-        assertEquals(0, process.exitValue(), output)
-
-        val notebookPath = notebookDir.resolve("19_cross_sectional_alpha_service_client.ipynb")
-        assertTrue(Files.exists(notebookPath), "first startup-config heredoc should seed the alpha analytics service client notebook")
-
-        val notebook = Files.readString(notebookPath)
-        assertTrue(
-            notebook.contains("\"display_name\": \"Python 3\"") &&
-                notebook.contains("\"language\": \"python\"") &&
-                notebook.contains("\"name\": \"python3\""),
-            "seeded alpha analytics client notebook should target the Python kernel"
-        )
-        assertTrue(
-            notebook.contains("ALPHA_ANALYTICS_URL") &&
-                notebook.contains("/api/v1/alpha/cross-sectional/default-config") &&
-                notebook.contains("/api/v1/alpha/cross-sectional/run") &&
-                notebook.contains("/api/v1/alpha/cross-sectional/search/default-config") &&
-                notebook.contains("/api/v1/alpha/cross-sectional/search/run") &&
-                notebook.contains("cross_sectional_alpha_service_last_run.json") &&
-                notebook.contains("cross_sectional_alpha_service_search.json"),
-            "seeded alpha analytics client notebook should query the service over HTTP and persist the latest JSON snapshot"
-        )
-        assertTrue(
-            notebook.contains("latest_signals") &&
-                notebook.contains("trend_watchlist") &&
-                notebook.contains("forward_summaries") &&
-                notebook.contains("trend_leaderboard") &&
-                notebook.contains("reversion_leaderboard"),
-            "seeded alpha analytics client notebook should expose live watchlists, summary tables, and breathing search leaderboards"
+            !Files.exists(notebookDir.resolve("19_cross_sectional_alpha_service_client.ipynb")),
+            "startup-config should not regenerate the removed alpha analytics service notebook"
         )
     }
 

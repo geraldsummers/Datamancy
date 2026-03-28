@@ -1,12 +1,16 @@
 package org.datamancy.alphaanalytics
 
+import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.datamancy.trading.analytics.crosssectional.resolveAuthoritativeMarketSymbols
 import org.datamancy.trading.policy.ActiveTradingPolicy
 import org.datamancy.trading.policy.RequirementLevel
 import org.datamancy.trading.policy.TradingPolicy
+import org.datamancy.trading.policy.UniversePolicy
+import org.datamancy.trading.policy.UniverseSelectionMode
+import org.datamancy.trading.policy.VenuePolicy
 import org.datamancy.trading.storage.verifyCanonicalMarketDataDatabase
+import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.Table
@@ -14,13 +18,17 @@ import org.jetbrains.exposed.sql.andWhere
 import org.jetbrains.exposed.sql.javatime.timestamp
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.Database
 import org.postgresql.ds.PGSimpleDataSource
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.time.Duration
 import java.time.Instant
 import javax.sql.DataSource
 
 private const val CANONICAL_RESEARCH_FEATURE_BAR_SECONDS = 60L
+private val marketCatalogHttpClient: HttpClient = HttpClient.newBuilder().build()
 
 private object DataHealthSymbol1mTable : Table("data_health_symbol_1m") {
     val exchange = text("exchange")
@@ -392,6 +400,135 @@ class DataHealthService(
         }
     }
 }
+
+private data class AuthoritativeExchangeMarket(
+    val symbol: String,
+    val attributes: Map<String, String> = emptyMap()
+)
+
+private fun resolveAuthoritativeMarketSymbols(
+    txBase: String,
+    exchange: String,
+    policy: TradingPolicy
+): List<String> {
+    val venue = policy.findVenueForExchange(exchange)
+        ?: error("No trading policy venue configured for exchange=$exchange")
+    return when (venue.universe.selectionMode) {
+        UniverseSelectionMode.STATIC -> {
+            val symbols = filterSymbolsByUniversePolicy(venue.universe.staticSymbols, venue.universe)
+            require(symbols.isNotEmpty()) {
+                "Static universe policy resolved no symbols for venue=${venue.venueId} exchange=${venue.exchangeId}"
+            }
+            symbols
+        }
+
+        UniverseSelectionMode.EXCHANGE_CATALOG -> {
+            val markets = filterExchangeMarketsByUniversePolicy(
+                markets = fetchExchangeMarkets(txBase, venue.venueId),
+                universe = venue.universe
+            )
+            require(markets.isNotEmpty()) {
+                "Exchange catalog resolved no markets for venue=${venue.venueId} exchange=${venue.exchangeId}"
+            }
+            markets.map { it.symbol }
+        }
+    }
+}
+
+private fun TradingPolicy.findVenueForExchange(exchange: String): VenuePolicy? {
+    val exchangeKey = exchange.trim().lowercase()
+    if (exchangeKey.isEmpty()) return null
+    return venues.values.firstOrNull { venue ->
+        venue.venueId.trim().lowercase() == exchangeKey || venue.exchangeId.trim().lowercase() == exchangeKey
+    }
+}
+
+private fun fetchExchangeMarkets(txBase: String, exchange: String): List<AuthoritativeExchangeMarket> =
+    runCatching {
+        val request = HttpRequest.newBuilder(
+            URI.create("${txBase.removeSuffix("/")}/api/v1/exchanges/${urlEncode(exchange)}/markets")
+        )
+            .GET()
+            .timeout(Duration.ofSeconds(15))
+            .build()
+        val response = marketCatalogHttpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        if (response.statusCode() !in 200..299) {
+            error("Exchange markets returned status ${response.statusCode()}")
+        }
+        val payload = JsonParser.parseString(response.body()).asJsonObject
+        payload.getAsJsonArray("markets")
+            ?.mapNotNull { element ->
+                val obj = element.asJsonObject
+                val symbol = obj.get("symbol")
+                    ?.takeIf { !it.isJsonNull }
+                    ?.asString
+                    ?.trim()
+                    ?.uppercase()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: return@mapNotNull null
+                val attributes = obj.getAsJsonObject("attributes")
+                    ?.entrySet()
+                    ?.asSequence()
+                    ?.filter { (_, value) -> !value.isJsonNull }
+                    ?.associate { (key, value) ->
+                        key to if (value.isJsonPrimitive && value.asJsonPrimitive.isString) {
+                            value.asString.trim()
+                        } else {
+                            value.toString()
+                        }
+                    }
+                    ?.filterValues { it.isNotEmpty() }
+                    ?: emptyMap()
+                AuthoritativeExchangeMarket(symbol = symbol, attributes = attributes)
+            }
+            ?.distinctBy { it.symbol }
+            ?: emptyList()
+    }.getOrElse { ex ->
+        error("Failed to load exchange market catalog for $exchange: ${ex.message}")
+    }
+
+private fun filterSymbolsByUniversePolicy(
+    symbols: Collection<String>,
+    universe: UniversePolicy
+): List<String> {
+    val includeSymbols = universe.includeSymbols.map(::symbolKey).toSet()
+    val excludeSymbols = universe.excludeSymbols.map(::symbolKey).toSet()
+    return symbols
+        .asSequence()
+        .map(String::trim)
+        .filter(String::isNotEmpty)
+        .filter { includeSymbols.isEmpty() || symbolKey(it) in includeSymbols }
+        .filterNot { symbolKey(it) in excludeSymbols }
+        .distinct()
+        .sortedWith(compareBy<String> { symbolKey(it) }.thenBy { it })
+        .toList()
+}
+
+private fun filterExchangeMarketsByUniversePolicy(
+    markets: Collection<AuthoritativeExchangeMarket>,
+    universe: UniversePolicy
+): List<AuthoritativeExchangeMarket> {
+    val includeSymbols = universe.includeSymbols.map(::symbolKey).toSet()
+    val excludeSymbols = universe.excludeSymbols.map(::symbolKey).toSet()
+    return markets
+        .asSequence()
+        .filter { universe.includeDelisted || !it.isDelisted() }
+        .filter { includeSymbols.isEmpty() || symbolKey(it.symbol) in includeSymbols }
+        .filterNot { symbolKey(it.symbol) in excludeSymbols }
+        .distinctBy { symbolKey(it.symbol) }
+        .sortedWith(compareBy<AuthoritativeExchangeMarket> { symbolKey(it.symbol) }.thenBy { it.symbol })
+        .toList()
+}
+
+private fun AuthoritativeExchangeMarket.isDelisted(): Boolean {
+    val raw = attributes["isDelisted"] ?: attributes["delisted"] ?: return false
+    return raw.equals("true", ignoreCase = true)
+}
+
+private fun symbolKey(symbol: String): String = symbol.trim().uppercase()
+
+private fun urlEncode(value: String): String =
+    java.net.URLEncoder.encode(value, Charsets.UTF_8)
 
 internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHealthThresholds): DataHealthSymbolIssue {
     if (!row.activeRecent) {

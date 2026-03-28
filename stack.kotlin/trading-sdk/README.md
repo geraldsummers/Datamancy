@@ -106,8 +106,6 @@ The Jupyter container seeds practical trading research notebooks in `/home/jovya
 - `13_sensitivity_sweeps_fees_slippage_latency.ipynb`
 - `14_live_vs_backtest_drift_dashboard.ipynb`
 - `15_forward_test_mainnet_data.ipynb` (exploratory forward-test harness against live/mainnet market data with paper-execution realism and optional persistence into execution/drift telemetry tables)
-- `18_cross_sectional_beta_trend_reversion_kotlin.ipynb` (Kotlin-first cross-sectional engine for integrated exchanges with BTC/ETH beta estimation, residual trend and mean-reversion signals, realistic backtest/forward telemetry, and optional paper routing)
-- `19_cross_sectional_alpha_service_client.ipynb` (thin client for the authoritative cross-sectional analytics service)
 
 Notebook persistence defaults are conservative (`persist_* = False` in several notebooks).
 Enable persistence flags when you want notebooks to feed Grafana-facing strategy tables:
@@ -384,8 +382,6 @@ When the notebook image starts, Datamancy now seeds:
 - `~/work/datamancy-notebooks/13_sensitivity_sweeps_fees_slippage_latency.ipynb`
 - `~/work/datamancy-notebooks/14_live_vs_backtest_drift_dashboard.ipynb`
 - `~/work/datamancy-notebooks/15_forward_test_mainnet_data.ipynb`
-- `~/work/datamancy-notebooks/18_cross_sectional_beta_trend_reversion_kotlin.ipynb`
-- `~/work/datamancy-notebooks/19_cross_sectional_alpha_service_client.ipynb`
 
 These notebooks are wired to the stack Postgres database (`datamancy`) and include:
 
