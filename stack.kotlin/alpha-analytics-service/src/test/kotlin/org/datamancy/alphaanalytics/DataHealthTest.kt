@@ -47,12 +47,35 @@ class DataHealthTest {
             thresholds = thresholds(minTradeObservedRatioForEligibility = 0.10)
         )
 
-        assertEquals(DataHealthStatus.CRITICAL, issue.status)
-        assertEquals(DataHealthLivenessClass.HEALTHY, issue.livenessClass)
+        assertEquals(DataHealthStatus.DEGRADED, issue.status)
+        assertEquals(DataHealthLivenessClass.LIVE_SPARSE, issue.livenessClass)
         assertTrue(issue.readinessEligible)
         assertTrue("candle_1m" in issue.staleChannels)
         assertTrue(issue.idleButLiveChannels.isEmpty())
-        assertTrue(issue.reasons.any { it.contains("candle_1m lag 360s exceeds 90s") })
+        assertTrue(issue.reasons.any { it.contains("live sparse market") })
+    }
+
+    @Test
+    fun `eligible symbol with stale trade but live candle becomes live sparse not execution stale`() {
+        val issue = evaluateDataHealthRow(
+            row = baseRow(
+                symbol = "TRADEQUIET",
+                candleLatestRawTime = Instant.parse("2026-03-27T05:00:00Z"),
+                tradeLatestRawTime = Instant.parse("2026-03-27T04:58:00Z"),
+                orderbookLatestRawTime = Instant.parse("2026-03-27T05:00:55Z"),
+                candleRawLagSeconds = 30,
+                tradeRawLagSeconds = 240,
+                orderbookRawLagSeconds = 5,
+                recentTradeObservedShare24h = 0.60
+            ),
+            thresholds = thresholds(minTradeObservedRatioForEligibility = 0.10)
+        )
+
+        assertEquals(DataHealthStatus.DEGRADED, issue.status)
+        assertEquals(DataHealthLivenessClass.LIVE_SPARSE, issue.livenessClass)
+        assertTrue(issue.readinessEligible)
+        assertTrue("trade" in issue.staleChannels)
+        assertTrue(issue.reasons.any { it.contains("live sparse market") })
     }
 
     @Test

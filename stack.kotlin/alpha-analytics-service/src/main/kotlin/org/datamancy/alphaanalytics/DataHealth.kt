@@ -865,7 +865,7 @@ private fun DataHealthSymbolRow.livenessClass(thresholds: DataHealthThresholds):
     val staleEventDrivenChannels = eventDrivenChannels.filter { channel ->
         rawLagSeconds(channel)?.let { it > thresholdForChannel(channel, thresholds) } == true
     }
-    return if (staleEventDrivenChannels.size == eventDrivenChannels.size || !isReadinessEligible(thresholds)) {
+    return if (staleEventDrivenChannels.isNotEmpty() || !isReadinessEligible(thresholds)) {
         DataHealthLivenessClass.LIVE_SPARSE
     } else {
         DataHealthLivenessClass.HEALTHY
