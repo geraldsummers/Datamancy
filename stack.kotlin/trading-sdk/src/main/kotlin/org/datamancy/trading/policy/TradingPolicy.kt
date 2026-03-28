@@ -149,9 +149,9 @@ data class StrategyFamilyPolicy(
 data class AlphaDatasetPolicy(
     val marketExchange: String = "hyperliquid_mainnet",
     val executionExchange: String = "hyperliquid_mainnet",
-    val canonicalBarMinutes: Int = 1,
-    val supportedSignalBarMinutes: List<Int> = listOf(60, 240, 1_440),
-    val defaultSignalBarMinutes: Int = 60,
+    val canonicalBarMinutes: Int = 240,
+    val supportedSignalBarMinutes: List<Int> = listOf(240, 1_440),
+    val defaultSignalBarMinutes: Int = 240,
     val dailyBoundary: String = "UTC",
     val defaultLookbackHours: Int = 1_080,
     val defaultForwardHours: Int = 72,
@@ -628,9 +628,9 @@ class ResearchPolicyBuilder {
 class AlphaDatasetPolicyBuilder {
     var marketExchange: String = "hyperliquid_mainnet"
     var executionExchange: String = "hyperliquid_mainnet"
-    var canonicalBarMinutes: Int = 1
-    var supportedSignalBarMinutes: List<Int> = listOf(60, 240, 1_440)
-    var defaultSignalBarMinutes: Int = 60
+    var canonicalBarMinutes: Int = 240
+    var supportedSignalBarMinutes: List<Int> = listOf(240, 1_440)
+    var defaultSignalBarMinutes: Int = 240
     var dailyBoundary: String = "UTC"
     var defaultLookbackHours: Int = 1_080
     var defaultForwardHours: Int = 72
@@ -1131,8 +1131,8 @@ object DatamancyTradingPolicy {
             datasets {
                 marketExchange = "hyperliquid_mainnet"
                 executionExchange = "hyperliquid_mainnet"
-                canonicalBarMinutes = 1
-                supportedSignalBarMinutes = listOf(60, 240, 1_440)
+                canonicalBarMinutes = 240
+                supportedSignalBarMinutes = listOf(240, 1_440)
                 defaultSignalBarMinutes = 240
                 dailyBoundary = "UTC"
                 defaultLookbackHours = 1_080

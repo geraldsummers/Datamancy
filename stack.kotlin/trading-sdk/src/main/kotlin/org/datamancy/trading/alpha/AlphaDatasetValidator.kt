@@ -19,10 +19,10 @@ class AlphaDatasetValidator(
             reasons += "forwardHours must be positive"
         }
         if (request.requireFunding && !datasets.includeFunding) {
-            reasons += "funding is not enabled in the canonical research dataset"
+            reasons += "funding is not enabled in the interday price dataset"
         }
         if (request.requireOpenInterest && !datasets.includeOpenInterest) {
-            reasons += "open interest is not enabled in the canonical research dataset"
+            reasons += "open interest is not enabled in the interday price dataset"
         }
         if (request.requireExecutionConditioning && !policy.research.readiness.execution.requireOrderbook) {
             reasons += "execution conditioning requested but orderbook readiness is disabled"
@@ -41,7 +41,7 @@ class AlphaDatasetValidator(
             requiredExecutionConditioning = request.requireExecutionConditioning,
             reasons = reasons.ifEmpty {
                 listOf(
-                    "Request is compatible with the price-prediction dataset contract.",
+                    "Request is compatible with the public-candle interday price dataset contract.",
                     "Execution realism remains a separate gate through execution readiness and execution monitoring."
                 )
             }

@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":trading-sdk"))
     implementation(libs.bundles.ktor.server)
     implementation(libs.gson)
+    implementation(libs.okhttp)
     implementation(libs.bundles.logging)
 
     testImplementation(libs.bundles.testing)
