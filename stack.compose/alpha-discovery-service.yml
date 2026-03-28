@@ -16,8 +16,16 @@ services:
         condition: service_started
       alpha-analytics-service:
         condition: service_started
+      tx-gateway:
+        condition: service_started
     environment:
       PORT: 8080
+      POSTGRES_HOST: market-postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: datamancy
+      POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
+      TX_GATEWAY_URL: http://tx-gateway:8080
       DATAMANCY_TRADING_POLICY_FILE: /app/config/trading-policy.json
     volumes:
       - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro
