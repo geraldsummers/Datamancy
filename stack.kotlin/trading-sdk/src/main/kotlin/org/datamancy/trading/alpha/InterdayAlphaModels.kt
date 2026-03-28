@@ -33,8 +33,8 @@ data class InterdayAlphaConfig(
     val executionWindowMinutes: Int = 120,
     val capitalUsd: Double = 10_000.0,
     val maxSymbols: Int = 0,
-    val requireFunding: Boolean = true,
-    val requireOpenInterest: Boolean = true,
+    val requireFunding: Boolean = false,
+    val requireOpenInterest: Boolean = false,
     val useExecutionConditioning: Boolean = false
 )
 

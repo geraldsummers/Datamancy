@@ -37,8 +37,8 @@ default_search_payload() {
     "takeProfitVolMultiple": 3.0,
     "executionWindowMinutes": 120,
     "capitalUsd": 10000.0,
-    "requireFunding": true,
-    "requireOpenInterest": true,
+    "requireFunding": false,
+    "requireOpenInterest": false,
     "useExecutionConditioning": false
   },
   "searchSpace": {
@@ -92,8 +92,8 @@ default_run_payload() {
     "takeProfitVolMultiple": 3.0,
     "executionWindowMinutes": 120,
     "capitalUsd": 10000.0,
-    "requireFunding": true,
-    "requireOpenInterest": true,
+    "requireFunding": false,
+    "requireOpenInterest": false,
     "useExecutionConditioning": false
   },
   "mode": "OFFLINE_BACKTEST",
