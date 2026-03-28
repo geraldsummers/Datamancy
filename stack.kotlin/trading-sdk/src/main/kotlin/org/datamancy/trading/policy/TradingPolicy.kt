@@ -1092,7 +1092,7 @@ object DatamancyTradingPolicy {
             features {
                 enabled = true
                 canonicalTable = "research_features_1m"
-                bootstrapHours = 336L
+                bootstrapHours = 2_160L
                 refreshIntervalMs = 60_000L
                 refreshOverlapMinutes = 5L
                 backfillChunkHours = 1L

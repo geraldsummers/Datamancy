@@ -2364,7 +2364,7 @@ class MarketDataRepairRunner internal constructor(
         val eligibleSymbols = normalized.filter { !isCandleStreamDeferred(it, interval) }
         if (eligibleSymbols.isEmpty()) return@withContext emptyList()
         val intervalMs = candleIntervalToMillis(interval)
-        val lookbackHours = minOf(config.backfillLookbackHours, 48L).coerceAtLeast(1L)
+        val lookbackHours = config.backfillLookbackHours.coerceAtLeast(1L)
         val lookbackStart = alignDownToIntervalBoundary(
             now.minus(lookbackHours, ChronoUnit.HOURS),
             intervalMs
