@@ -153,6 +153,8 @@ data class CrossSectionalPolicy(
     val betaLookbackBars: Int = 48,
     val trendLookbackBars: Int = 12,
     val trendSlowBars: Int = 48,
+    val trendMediumBars: Int = 144,
+    val trendLongBars: Int = 288,
     val reversionLookbackBars: Int = 8,
     val trendHoldBars: Int = 6,
     val reversionHoldBars: Int = 2,
@@ -164,6 +166,9 @@ data class CrossSectionalPolicy(
     val trendEntryScore: Double = 1.0,
     val reversionZEntry: Double = 1.8,
     val reversionZExit: Double = 0.45,
+    val reversionEntryQuantile: Double = 0.12,
+    val reversionExitQuantile: Double = 0.40,
+    val reversionCrossSectionalWeight: Double = 0.45,
     val maxSpreadBps: Double = 11.0,
     val minDepthMultiple: Double = 12.0,
     val minFillRatio: Double = 0.58,
@@ -185,6 +190,9 @@ data class CrossSectionalPolicy(
     val reversionTrailingStopVolMultiple: Double = 0.5,
     val trendTakeProfitVolMultiple: Double = 2.0,
     val reversionTakeProfitVolMultiple: Double = 1.5,
+    val minTargetExposureFraction: Double = 0.25,
+    val maxTargetExposureFraction: Double = 1.0,
+    val rebalanceTargetExposureStep: Double = 0.15,
     val maxConcurrentPositions: Int = 12,
     val maxConcurrentLongs: Int = 6,
     val maxConcurrentShorts: Int = 6,
@@ -242,6 +250,8 @@ data class CrossSectionalSearchPolicy(
     val betaLookbackBars: List<Int> = listOf(24, 36, 48, 72),
     val trendLookbackBars: List<Int> = listOf(4, 6, 12, 18, 24),
     val trendSlowBars: List<Int> = listOf(12, 24, 36, 48, 72),
+    val trendMediumBars: List<Int> = listOf(48, 72, 144, 216),
+    val trendLongBars: List<Int> = listOf(96, 144, 288, 432),
     val reversionLookbackBars: List<Int> = listOf(3, 4, 8, 12),
     val trendHoldBars: List<Int> = listOf(1, 2, 3, 4, 6),
     val reversionHoldBars: List<Int> = listOf(1, 2, 3, 4),
@@ -251,6 +261,9 @@ data class CrossSectionalSearchPolicy(
     val trendEntryScore: List<Double> = listOf(0.8, 1.0, 1.2, 1.4, 1.6),
     val reversionZEntry: List<Double> = listOf(1.5, 1.8, 2.15, 2.4, 2.8),
     val reversionZExit: List<Double> = listOf(0.25, 0.45, 0.65, 0.85, 1.05),
+    val reversionEntryQuantile: List<Double> = listOf(0.08, 0.12, 0.18),
+    val reversionExitQuantile: List<Double> = listOf(0.35, 0.40, 0.45),
+    val reversionCrossSectionalWeight: List<Double> = listOf(0.25, 0.45, 0.65),
     val maxSpreadBps: List<Double> = listOf(6.0, 8.0, 11.0, 14.0),
     val minDepthMultiple: List<Double> = listOf(8.0, 12.0, 16.0),
     val minFillRatio: List<Double> = listOf(0.5, 0.58, 0.65, 0.75),
@@ -272,6 +285,9 @@ data class CrossSectionalSearchPolicy(
     val reversionTrailingStopVolMultiple: List<Double> = listOf(0.0, 0.5, 0.75, 1.0, 1.5, 2.0),
     val trendTakeProfitVolMultiple: List<Double> = listOf(0.0, 1.0, 1.5, 2.0, 3.0, 4.0),
     val reversionTakeProfitVolMultiple: List<Double> = listOf(0.0, 0.75, 1.0, 1.5, 2.0, 3.0),
+    val minTargetExposureFraction: List<Double> = listOf(0.15, 0.25, 0.35),
+    val maxTargetExposureFraction: List<Double> = listOf(0.75, 1.0, 1.25),
+    val rebalanceTargetExposureStep: List<Double> = listOf(0.10, 0.15, 0.25),
     val maxConcurrentPositions: List<Int> = listOf(8, 12, 16, 24),
     val maxConcurrentLongs: List<Int> = listOf(4, 6, 8, 12),
     val maxConcurrentShorts: List<Int> = listOf(4, 6, 8, 12),
@@ -594,6 +610,8 @@ class CrossSectionalPolicyBuilder {
     var betaLookbackBars: Int = 168
     var trendLookbackBars: Int = 24
     var trendSlowBars: Int = 96
+    var trendMediumBars: Int = 288
+    var trendLongBars: Int = 576
     var reversionLookbackBars: Int = 12
     var trendHoldBars: Int = 24
     var reversionHoldBars: Int = 8
@@ -605,6 +623,9 @@ class CrossSectionalPolicyBuilder {
     var trendEntryScore: Double = 1.05
     var reversionZEntry: Double = 2.15
     var reversionZExit: Double = 0.45
+    var reversionEntryQuantile: Double = 0.12
+    var reversionExitQuantile: Double = 0.40
+    var reversionCrossSectionalWeight: Double = 0.45
     var maxSpreadBps: Double = 11.0
     var minDepthMultiple: Double = 12.0
     var minFillRatio: Double = 0.58
@@ -626,6 +647,9 @@ class CrossSectionalPolicyBuilder {
     var reversionTrailingStopVolMultiple: Double = 0.5
     var trendTakeProfitVolMultiple: Double = 2.0
     var reversionTakeProfitVolMultiple: Double = 1.5
+    var minTargetExposureFraction: Double = 0.25
+    var maxTargetExposureFraction: Double = 1.0
+    var rebalanceTargetExposureStep: Double = 0.15
     var maxConcurrentPositions: Int = 16
     var maxConcurrentLongs: Int = 8
     var maxConcurrentShorts: Int = 8
@@ -662,6 +686,8 @@ class CrossSectionalPolicyBuilder {
         betaLookbackBars = betaLookbackBars,
         trendLookbackBars = trendLookbackBars,
         trendSlowBars = trendSlowBars,
+        trendMediumBars = trendMediumBars,
+        trendLongBars = trendLongBars,
         reversionLookbackBars = reversionLookbackBars,
         trendHoldBars = trendHoldBars,
         reversionHoldBars = reversionHoldBars,
@@ -673,6 +699,9 @@ class CrossSectionalPolicyBuilder {
         trendEntryScore = trendEntryScore,
         reversionZEntry = reversionZEntry,
         reversionZExit = reversionZExit,
+        reversionEntryQuantile = reversionEntryQuantile,
+        reversionExitQuantile = reversionExitQuantile,
+        reversionCrossSectionalWeight = reversionCrossSectionalWeight,
         maxSpreadBps = maxSpreadBps,
         minDepthMultiple = minDepthMultiple,
         minFillRatio = minFillRatio,
@@ -694,6 +723,9 @@ class CrossSectionalPolicyBuilder {
         reversionTrailingStopVolMultiple = reversionTrailingStopVolMultiple,
         trendTakeProfitVolMultiple = trendTakeProfitVolMultiple,
         reversionTakeProfitVolMultiple = reversionTakeProfitVolMultiple,
+        minTargetExposureFraction = minTargetExposureFraction,
+        maxTargetExposureFraction = maxTargetExposureFraction,
+        rebalanceTargetExposureStep = rebalanceTargetExposureStep,
         maxConcurrentPositions = maxConcurrentPositions,
         maxConcurrentLongs = maxConcurrentLongs,
         maxConcurrentShorts = maxConcurrentShorts,
@@ -948,6 +980,8 @@ object DatamancyTradingPolicy {
                 betaLookbackBars = 48
                 trendLookbackBars = 12
                 trendSlowBars = 48
+                trendMediumBars = 144
+                trendLongBars = 288
                 reversionLookbackBars = 8
                 trendHoldBars = 6
                 reversionHoldBars = 2
@@ -959,6 +993,9 @@ object DatamancyTradingPolicy {
                 trendEntryScore = 1.0
                 reversionZEntry = 1.8
                 reversionZExit = 0.45
+                reversionEntryQuantile = 0.12
+                reversionExitQuantile = 0.40
+                reversionCrossSectionalWeight = 0.45
                 maxSpreadBps = 11.0
                 minDepthMultiple = 12.0
                 minFillRatio = 0.58
@@ -980,6 +1017,9 @@ object DatamancyTradingPolicy {
                 reversionTrailingStopVolMultiple = 0.5
                 trendTakeProfitVolMultiple = 2.0
                 reversionTakeProfitVolMultiple = 1.5
+                minTargetExposureFraction = 0.25
+                maxTargetExposureFraction = 1.0
+                rebalanceTargetExposureStep = 0.15
                 maxConcurrentPositions = 12
                 maxConcurrentLongs = 6
                 maxConcurrentShorts = 6

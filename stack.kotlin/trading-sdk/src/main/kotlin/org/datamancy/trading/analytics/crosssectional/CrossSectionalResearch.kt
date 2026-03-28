@@ -200,6 +200,21 @@ fun percentile(values: List<Double>, quantile: Double): Double {
     return (sorted[lower] * (1.0 - weight)) + (sorted[upper] * weight)
 }
 
+fun median(values: List<Double>): Double = percentile(values, 0.5)
+
+fun medianAbsoluteDeviation(values: List<Double>, center: Double = median(values)): Double {
+    if (values.isEmpty()) return 0.0
+    return median(values.map { abs(it - center) })
+}
+
+fun robustZScore(value: Double, values: List<Double>, fallbackScale: Double = 1.0): Double {
+    if (values.isEmpty()) return 0.0
+    val center = median(values)
+    val mad = medianAbsoluteDeviation(values, center)
+    val scale = max(mad * 1.4826, fallbackScale)
+    return clamp((value - center) / scale, -6.0, 6.0)
+}
+
 fun stdev(values: List<Double>): Double {
     if (values.size < 2) return 0.0
     val mu = mean(values)
@@ -381,6 +396,8 @@ data class ResearchConfig(
     val betaLookbackBars: Int = crossSectionalPolicy().betaLookbackBars,
     val trendLookbackBars: Int = crossSectionalPolicy().trendLookbackBars,
     val trendSlowBars: Int = crossSectionalPolicy().trendSlowBars,
+    val trendMediumBars: Int = crossSectionalPolicy().trendMediumBars,
+    val trendLongBars: Int = crossSectionalPolicy().trendLongBars,
     val reversionLookbackBars: Int = crossSectionalPolicy().reversionLookbackBars,
     val trendHoldBars: Int = crossSectionalPolicy().trendHoldBars,
     val reversionHoldBars: Int = crossSectionalPolicy().reversionHoldBars,
@@ -392,6 +409,9 @@ data class ResearchConfig(
     val trendEntryScore: Double = crossSectionalPolicy().trendEntryScore,
     val reversionZEntry: Double = crossSectionalPolicy().reversionZEntry,
     val reversionZExit: Double = crossSectionalPolicy().reversionZExit,
+    val reversionEntryQuantile: Double = crossSectionalPolicy().reversionEntryQuantile,
+    val reversionExitQuantile: Double = crossSectionalPolicy().reversionExitQuantile,
+    val reversionCrossSectionalWeight: Double = crossSectionalPolicy().reversionCrossSectionalWeight,
     val maxSpreadBps: Double = crossSectionalPolicy().maxSpreadBps,
     val minDepthMultiple: Double = crossSectionalPolicy().minDepthMultiple,
     val minFillRatio: Double = crossSectionalPolicy().minFillRatio,
@@ -413,6 +433,9 @@ data class ResearchConfig(
     val reversionTrailingStopVolMultiple: Double = crossSectionalPolicy().reversionTrailingStopVolMultiple,
     val trendTakeProfitVolMultiple: Double = crossSectionalPolicy().trendTakeProfitVolMultiple,
     val reversionTakeProfitVolMultiple: Double = crossSectionalPolicy().reversionTakeProfitVolMultiple,
+    val minTargetExposureFraction: Double = crossSectionalPolicy().minTargetExposureFraction,
+    val maxTargetExposureFraction: Double = crossSectionalPolicy().maxTargetExposureFraction,
+    val rebalanceTargetExposureStep: Double = crossSectionalPolicy().rebalanceTargetExposureStep,
     val maxConcurrentPositions: Int = crossSectionalPolicy().maxConcurrentPositions,
     val maxConcurrentLongs: Int = crossSectionalPolicy().maxConcurrentLongs,
     val maxConcurrentShorts: Int = crossSectionalPolicy().maxConcurrentShorts,
@@ -446,6 +469,8 @@ data class CrossSectionalSearchConfig(
     val betaLookbackBars: List<Int> = crossSectionalSearchPolicy().betaLookbackBars,
     val trendLookbackBars: List<Int> = crossSectionalSearchPolicy().trendLookbackBars,
     val trendSlowBars: List<Int> = crossSectionalSearchPolicy().trendSlowBars,
+    val trendMediumBars: List<Int> = crossSectionalSearchPolicy().trendMediumBars,
+    val trendLongBars: List<Int> = crossSectionalSearchPolicy().trendLongBars,
     val reversionLookbackBars: List<Int> = crossSectionalSearchPolicy().reversionLookbackBars,
     val trendHoldBars: List<Int> = crossSectionalSearchPolicy().trendHoldBars,
     val reversionHoldBars: List<Int> = crossSectionalSearchPolicy().reversionHoldBars,
@@ -455,6 +480,9 @@ data class CrossSectionalSearchConfig(
     val trendEntryScore: List<Double> = crossSectionalSearchPolicy().trendEntryScore,
     val reversionZEntry: List<Double> = crossSectionalSearchPolicy().reversionZEntry,
     val reversionZExit: List<Double> = crossSectionalSearchPolicy().reversionZExit,
+    val reversionEntryQuantile: List<Double> = crossSectionalSearchPolicy().reversionEntryQuantile,
+    val reversionExitQuantile: List<Double> = crossSectionalSearchPolicy().reversionExitQuantile,
+    val reversionCrossSectionalWeight: List<Double> = crossSectionalSearchPolicy().reversionCrossSectionalWeight,
     val maxSpreadBps: List<Double> = crossSectionalSearchPolicy().maxSpreadBps,
     val minDepthMultiple: List<Double> = crossSectionalSearchPolicy().minDepthMultiple,
     val minFillRatio: List<Double> = crossSectionalSearchPolicy().minFillRatio,
@@ -476,6 +504,9 @@ data class CrossSectionalSearchConfig(
     val reversionTrailingStopVolMultiple: List<Double> = crossSectionalSearchPolicy().reversionTrailingStopVolMultiple,
     val trendTakeProfitVolMultiple: List<Double> = crossSectionalSearchPolicy().trendTakeProfitVolMultiple,
     val reversionTakeProfitVolMultiple: List<Double> = crossSectionalSearchPolicy().reversionTakeProfitVolMultiple,
+    val minTargetExposureFraction: List<Double> = crossSectionalSearchPolicy().minTargetExposureFraction,
+    val maxTargetExposureFraction: List<Double> = crossSectionalSearchPolicy().maxTargetExposureFraction,
+    val rebalanceTargetExposureStep: List<Double> = crossSectionalSearchPolicy().rebalanceTargetExposureStep,
     val maxConcurrentPositions: List<Int> = crossSectionalSearchPolicy().maxConcurrentPositions,
     val maxConcurrentLongs: List<Int> = crossSectionalSearchPolicy().maxConcurrentLongs,
     val maxConcurrentShorts: List<Int> = crossSectionalSearchPolicy().maxConcurrentShorts,
@@ -540,12 +571,19 @@ data class UnrankedFeature(
     val residualMomMedium: Double,
     val residualMomLong: Double,
     val residualZ: Double,
+    val residualCrossSectionalZ: Double,
+    val reversionState: Double,
+    val reversionEntryLowerBound: Double,
+    val reversionEntryUpperBound: Double,
+    val reversionExitLowerBound: Double,
+    val reversionExitUpperBound: Double,
     val imbalance: Double,
     val volumeRatio: Double,
     val depthRatio: Double,
     val volRegime: Double,
     val flowSignal: Double,
     val mediumTrendScore: Double,
+    val trendConfirmationScore: Double,
     val trendPersistence: Double,
     val trendPullback: Double,
     val trendExhaustion: Double,
@@ -580,6 +618,12 @@ data class FeatureRow(
     val residualMomMedium: Double,
     val residualMomLong: Double,
     val residualZ: Double,
+    val residualCrossSectionalZ: Double,
+    val reversionState: Double,
+    val reversionEntryLowerBound: Double,
+    val reversionEntryUpperBound: Double,
+    val reversionExitLowerBound: Double,
+    val reversionExitUpperBound: Double,
     val imbalance: Double,
     val volumeRatio: Double,
     val depthRatio: Double,
@@ -587,6 +631,7 @@ data class FeatureRow(
     val flowSignal: Double,
     val breadth: Double,
     val mediumTrendScore: Double,
+    val trendConfirmationScore: Double,
     val trendPersistence: Double,
     val trendPullback: Double,
     val trendExhaustion: Double,
@@ -595,6 +640,8 @@ data class FeatureRow(
     val reversionScore: Double,
     val trendExpectedGrossEdgeBps: Double,
     val reversionExpectedGrossEdgeBps: Double,
+    val trendTargetExposureFraction: Double,
+    val reversionTargetExposureFraction: Double,
     val liquid: Boolean,
     val trendLongRank: Int,
     val trendShortRank: Int,
@@ -611,7 +658,14 @@ data class SignalSnapshot(
     val betaBtc: Double,
     val betaEth: Double,
     val residualZ: Double,
+    val residualCrossSectionalZ: Double,
+    val reversionState: Double,
+    val reversionEntryLowerBound: Double,
+    val reversionEntryUpperBound: Double,
+    val reversionExitLowerBound: Double,
+    val reversionExitUpperBound: Double,
     val mediumTrendScore: Double,
+    val trendConfirmationScore: Double,
     val trendPersistence: Double,
     val trendPullback: Double,
     val trendExhaustion: Double,
@@ -626,6 +680,8 @@ data class SignalSnapshot(
     val volRegime: Double,
     val trendExpectedNetEdgeBps: Double,
     val reversionExpectedNetEdgeBps: Double,
+    val trendTargetExposureFraction: Double,
+    val reversionTargetExposureFraction: Double,
     val trendCalibrationSamples: Int,
     val reversionCalibrationSamples: Int,
     val trendCalibrationLowerBoundBps: Double,
@@ -686,6 +742,8 @@ data class TradeRecord(
     val basisDriftBps: Double,
     val totalCostBps: Double,
     val edgeAfterCostBps: Double,
+    val targetExposureFraction: Double,
+    val entryNotionalUsd: Double,
     val estimatedFeeUsd: Double,
     val estimatedCostUsd: Double,
     val entryTrendScore: Double,
@@ -750,6 +808,7 @@ data class OpenPosition(
     val expectedGrossEdgeBps: Double,
     val expectedRoundTripCostBps: Double,
     val expectedNetEdgeBps: Double,
+    val targetExposureFraction: Double,
     val calibrationSamples: Int,
     val calibrationWinRate: Double,
     val calibrationLowerBoundBps: Double,
@@ -772,7 +831,10 @@ private data class PortfolioTelemetryPoint(
     val grossPositions: Int,
     val longPositions: Int,
     val shortPositions: Int,
-    val netPositions: Int,
+    val grossExposureUnits: Double,
+    val longExposureUnits: Double,
+    val shortExposureUnits: Double,
+    val netExposureUnits: Double,
     val betaBtcUnits: Double,
     val betaEthUnits: Double
 )
@@ -789,6 +851,8 @@ data class EntryCandidate(
     val expectedGrossEdgeBps: Double,
     val expectedRoundTripCostBps: Double,
     val expectedNetEdgeBps: Double,
+    val targetExposureFraction: Double,
+    val signalConfidence: Double,
     val calibrationSamples: Int,
     val calibrationWinRate: Double,
     val calibrationLowerBoundBps: Double,
@@ -2004,8 +2068,8 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
         baseLookup[Triple(point.exchange, point.symbol, point.time)] = point
     }
 
-    val mediumTrendBars = max(config.trendSlowBars * 3, config.reversionLookbackBars * 6)
-    val longTrendBars = max(config.trendSlowBars * 6, mediumTrendBars * 2)
+    val mediumTrendBars = max(config.trendMediumBars, config.trendSlowBars + 1)
+    val longTrendBars = max(config.trendLongBars, mediumTrendBars + 1)
     val unranked = mutableListOf<UnrankedFeature>()
     for ((key, series) in baseByKey) {
         val exchange = key.first
@@ -2089,6 +2153,18 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 (point.spreadBps / 55.0)
             val volBps = point.vol30 * 10000.0
             val mediumAlignment = mediumTrendDirection * direction(residualZ)
+            val trendConfirmationScore = clamp(
+                (abs(mediumTrendScore) * 0.55) +
+                    (trendPersistence * 0.95) +
+                    (max(0.0, direction(rawTrend) * flowSignal) * 0.70) +
+                    (max(0.0, mediumAlignment) * 0.45) +
+                    (max(0.0, min(depthRatio, 2.0) - 1.0) * 0.30) +
+                    (max(0.0, min(volumeRatio, 3.0) - 1.0) * 0.18) -
+                    (max(0.0, trendExhaustion - 0.9) * 0.55) -
+                    (max(0.0, volRegime - 1.6) * 0.35),
+                0.0,
+                6.0
+            )
             val trendReentryBias = max(0.0, abs(mediumTrendScore) - abs(normalizedFast)) * max(0.0, -mediumAlignment)
             val trendExhaustionBias = max(0.0, abs(mediumTrendScore) - 0.6) * max(0.0, mediumAlignment)
             val trendExpectedGrossEdgeBps = clamp(
@@ -2146,12 +2222,19 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 residualMomMedium = residualMomMedium,
                 residualMomLong = residualMomLong,
                 residualZ = residualZ,
+                residualCrossSectionalZ = 0.0,
+                reversionState = residualZ,
+                reversionEntryLowerBound = -config.reversionZEntry,
+                reversionEntryUpperBound = config.reversionZEntry,
+                reversionExitLowerBound = -config.reversionZExit,
+                reversionExitUpperBound = config.reversionZExit,
                 imbalance = imbalance,
                 volumeRatio = volumeRatio,
                 depthRatio = depthRatio,
                 volRegime = volRegime,
                 flowSignal = flowSignal,
                 mediumTrendScore = mediumTrendScore,
+                trendConfirmationScore = trendConfirmationScore,
                 trendPersistence = trendPersistence,
                 trendPullback = trendPullback,
                 trendExhaustion = trendExhaustion,
@@ -2174,6 +2257,49 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
         val breadthTilt = mean(bucket.map { clamp(it.rawTrend / 3.0, -1.0, 1.0) })
         val breadth = clamp((breadthTilt + 1.0) / 2.0, 0.0, 1.0)
         val marketStress = mean(bucket.map { it.volRegime })
+        val comparableCohorts = bucket.groupBy(::reversionUniverseBucket)
+        val minimumCohortSize = min(max(bucket.size / 8, 6), max(bucket.size, 1))
+        val residualCrossSectionalZByRow = mutableMapOf<UnrankedFeature, Double>()
+
+        bucket.forEach { row ->
+            val cohort = comparableCohorts[reversionUniverseBucket(row)].orEmpty()
+                .takeIf { it.size >= minimumCohortSize }
+                ?: bucket
+            val residualRetUniverse = cohort.map { it.residualRet }
+            val fallbackScale = max(stdev(residualRetUniverse), max(row.vol30, 1e-6))
+            residualCrossSectionalZByRow[row] = robustZScore(
+                value = row.residualRet,
+                values = residualRetUniverse,
+                fallbackScale = fallbackScale
+            )
+        }
+
+        val reversionStateByRow = bucket.associateWith { row ->
+            val crossSectionalComponent = residualCrossSectionalZByRow[row] ?: 0.0
+            val blendedState = ((1.0 - config.reversionCrossSectionalWeight) * row.residualZ) +
+                (config.reversionCrossSectionalWeight * crossSectionalComponent)
+            clamp(blendedState, -6.0, 6.0)
+        }
+        val reversionEntryBoundsByRow = mutableMapOf<UnrankedFeature, Pair<Double, Double>>()
+        val reversionExitBoundsByRow = mutableMapOf<UnrankedFeature, Pair<Double, Double>>()
+
+        bucket.forEach { row ->
+            val cohort = comparableCohorts[reversionUniverseBucket(row)].orEmpty()
+                .takeIf { it.size >= minimumCohortSize }
+                ?: bucket
+            val stateUniverse = cohort.map { reversionStateByRow[it] ?: 0.0 }
+            val entryLowerQuantile = percentile(stateUniverse, config.reversionEntryQuantile)
+            val entryUpperQuantile = percentile(stateUniverse, 1.0 - config.reversionEntryQuantile)
+            val exitLowerQuantile = percentile(stateUniverse, config.reversionExitQuantile)
+            val exitUpperQuantile = percentile(stateUniverse, 1.0 - config.reversionExitQuantile)
+            val entryLowerBound = min(entryLowerQuantile, -config.reversionZEntry)
+            val entryUpperBound = max(entryUpperQuantile, config.reversionZEntry)
+            val exitLowerBound = min(max(exitLowerQuantile, -config.reversionZExit), 0.0)
+            val exitUpperBound = max(min(exitUpperQuantile, config.reversionZExit), 0.0)
+            reversionEntryBoundsByRow[row] = entryLowerBound to entryUpperBound
+            reversionExitBoundsByRow[row] = exitLowerBound to exitUpperBound
+        }
+
         val trendScores = bucket.associateWith { row ->
             val mediumDirection = direction(row.mediumTrendScore)
             val trendReference = if (abs(row.mediumTrendScore) > abs(row.rawTrend)) row.mediumTrendScore else row.rawTrend
@@ -2192,12 +2318,13 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 (max(0.0, row.volRegime - 1.7) * 0.45)
         }
         val reversionScores = bucket.associateWith { row ->
-            val continuationPressure = direction(row.residualZ) * row.flowSignal
-            val breadthContinuation = direction(row.residualZ) * breadthTilt
-            val mediumAlignment = direction(row.mediumTrendScore) * direction(row.residualZ)
+            val reversionState = reversionStateByRow[row] ?: row.residualZ
+            val continuationPressure = direction(reversionState) * row.flowSignal
+            val breadthContinuation = direction(reversionState) * breadthTilt
+            val mediumAlignment = direction(row.mediumTrendScore) * direction(reversionState)
             val reentryBonus = max(0.0, abs(row.mediumTrendScore) - abs(row.rawTrend)) * max(0.0, -mediumAlignment)
             val exhaustionBonus = max(0.0, abs(row.mediumTrendScore) - 0.6) * max(0.0, mediumAlignment)
-            abs(row.residualZ) +
+            abs(reversionState) +
                 (reentryBonus * 0.95) +
                 (exhaustionBonus * 0.80) +
                 (max(0.0, -continuationPressure) * 0.95) -
@@ -2219,7 +2346,7 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
             )
         }
         val reversionExpectedEdges = bucket.associateWith { row ->
-            val breadthContinuation = direction(row.residualZ) * breadthTilt
+            val breadthContinuation = direction(reversionStateByRow[row] ?: row.residualZ) * breadthTilt
             clamp(
                 row.reversionExpectedGrossEdgeBps +
                     (max(0.0, -breadthContinuation) * 5.0) -
@@ -2240,18 +2367,24 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
             .mapIndexed { index, entry -> entry.key to index + 1 }
             .toMap()
         val reversionLongRanks = bucket
-            .filter { it.liquid && it.residualZ < 0.0 && (reversionExpectedEdges[it] ?: 0.0) > 0.0 }
-            .sortedBy { it.residualZ }
+            .filter {
+                val reversionState = reversionStateByRow[it] ?: it.residualZ
+                it.liquid && reversionState < 0.0 && (reversionExpectedEdges[it] ?: 0.0) > 0.0
+            }
+            .sortedBy { reversionStateByRow[it] ?: it.residualZ }
             .mapIndexed { index, row -> row to index + 1 }
             .toMap()
         val reversionShortRanks = bucket
-            .filter { it.liquid && it.residualZ > 0.0 && (reversionExpectedEdges[it] ?: 0.0) > 0.0 }
-            .sortedByDescending { it.residualZ }
+            .filter {
+                val reversionState = reversionStateByRow[it] ?: it.residualZ
+                it.liquid && reversionState > 0.0 && (reversionExpectedEdges[it] ?: 0.0) > 0.0
+            }
+            .sortedByDescending { reversionStateByRow[it] ?: it.residualZ }
             .mapIndexed { index, row -> row to index + 1 }
             .toMap()
 
         bucket.forEach { row ->
-            finalRows += FeatureRow(
+            val provisionalRow = FeatureRow(
                 exchange = row.exchange,
                 symbol = row.symbol,
                 time = row.time,
@@ -2275,6 +2408,12 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 residualMomMedium = row.residualMomMedium,
                 residualMomLong = row.residualMomLong,
                 residualZ = row.residualZ,
+                residualCrossSectionalZ = (residualCrossSectionalZByRow[row] ?: 0.0).round(6),
+                reversionState = (reversionStateByRow[row] ?: row.residualZ).round(6),
+                reversionEntryLowerBound = (reversionEntryBoundsByRow[row]?.first ?: -config.reversionZEntry).round(6),
+                reversionEntryUpperBound = (reversionEntryBoundsByRow[row]?.second ?: config.reversionZEntry).round(6),
+                reversionExitLowerBound = (reversionExitBoundsByRow[row]?.first ?: -config.reversionZExit).round(6),
+                reversionExitUpperBound = (reversionExitBoundsByRow[row]?.second ?: config.reversionZExit).round(6),
                 imbalance = row.imbalance,
                 volumeRatio = row.volumeRatio,
                 depthRatio = row.depthRatio,
@@ -2282,6 +2421,7 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 flowSignal = row.flowSignal,
                 breadth = breadth,
                 mediumTrendScore = row.mediumTrendScore,
+                trendConfirmationScore = row.trendConfirmationScore,
                 trendPersistence = row.trendPersistence,
                 trendPullback = row.trendPullback,
                 trendExhaustion = row.trendExhaustion,
@@ -2290,12 +2430,54 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 reversionScore = reversionScores[row] ?: 0.0,
                 trendExpectedGrossEdgeBps = trendExpectedEdges[row] ?: row.trendExpectedGrossEdgeBps,
                 reversionExpectedGrossEdgeBps = reversionExpectedEdges[row] ?: row.reversionExpectedGrossEdgeBps,
+                trendTargetExposureFraction = 0.0,
+                reversionTargetExposureFraction = 0.0,
                 liquid = row.liquid,
                 trendLongRank = trendLongRanks[row] ?: Int.MAX_VALUE,
                 trendShortRank = trendShortRanks[row] ?: Int.MAX_VALUE,
                 reversionLongRank = reversionLongRanks[row] ?: Int.MAX_VALUE,
                 reversionShortRank = reversionShortRanks[row] ?: Int.MAX_VALUE,
                 executionObserved = row.executionObserved
+            )
+            val trendSide = direction(provisionalRow.trendScore).toInt()
+            val reversionSide = (-direction(provisionalRow.reversionState)).toInt()
+            val trendNetEdge = provisionalRow.trendExpectedGrossEdgeBps -
+                buildExpectedRoundTripCostBps(
+                    provisionalRow,
+                    buildExecutionEstimate(
+                        provisionalRow,
+                        config.notionalUsd,
+                        if (trendSide == 0) 1 else trendSide,
+                        StrategyKind.TREND
+                    )
+                )
+            val reversionNetEdge = provisionalRow.reversionExpectedGrossEdgeBps -
+                buildExpectedRoundTripCostBps(
+                    provisionalRow,
+                    buildExecutionEstimate(
+                        provisionalRow,
+                        config.notionalUsd,
+                        if (reversionSide == 0) 1 else reversionSide,
+                        StrategyKind.REVERSION
+                    )
+                )
+            val trendSizing = targetExposureFraction(
+                kind = StrategyKind.TREND,
+                row = provisionalRow,
+                side = if (trendSide == 0) 1 else trendSide,
+                expectedNetEdgeBps = trendNetEdge,
+                config = config
+            )
+            val reversionSizing = targetExposureFraction(
+                kind = StrategyKind.REVERSION,
+                row = provisionalRow,
+                side = if (reversionSide == 0) 1 else reversionSide,
+                expectedNetEdgeBps = reversionNetEdge,
+                config = config
+            )
+            finalRows += provisionalRow.copy(
+                trendTargetExposureFraction = trendSizing.first,
+                reversionTargetExposureFraction = reversionSizing.first
             )
         }
     }
@@ -2394,8 +2576,130 @@ fun buildExpectedRoundTripCostBps(row: FeatureRow, entryEstimate: ExecutionEstim
     return (entryEstimate.totalCostBps * 2.0) + regimeBuffer + flowBuffer
 }
 
+fun reversionUniverseBucket(row: UnrankedFeature): String {
+    val liquidityScore = min(((min(row.depthRatio, 3.0) + min(row.volumeRatio, 3.0)) / 2.0), 3.0)
+    val liquidityBucket = when {
+        liquidityScore < 0.9 -> "thin"
+        liquidityScore < 1.45 -> "normal"
+        else -> "deep"
+    }
+    return "$liquidityBucket|${volatilityRegimeBucket(row.volRegime)}"
+}
+
 fun breadthTilt(row: FeatureRow): Double =
     (row.breadth - 0.5) * 2.0
+
+private fun confidenceToExposureFraction(confidence: Double, config: ResearchConfig): Double =
+    clamp(
+        config.minTargetExposureFraction +
+            ((config.maxTargetExposureFraction - config.minTargetExposureFraction) * clamp(confidence, 0.0, 1.0)),
+        config.minTargetExposureFraction,
+        config.maxTargetExposureFraction
+    ).round(4)
+
+fun targetExposureFraction(
+    kind: StrategyKind,
+    row: FeatureRow,
+    side: Int,
+    expectedNetEdgeBps: Double,
+    config: ResearchConfig
+): Pair<Double, Double> {
+    if (side == 0) return config.minTargetExposureFraction.round(4) to 0.0
+    val expectedEdgeConfidence = clamp(
+        expectedNetEdgeBps / max(config.minExpectedNetEdgeBps + 12.0, 20.0),
+        0.0,
+        1.0
+    )
+    val confidence = when (kind) {
+        StrategyKind.TREND -> {
+            val signalStrength = clamp((side.toDouble() * row.trendScore) / max(config.trendEntryScore * 2.0, 1.0), 0.0, 1.25)
+            val confirmation = clamp(row.trendConfirmationScore / 3.0, 0.0, 1.25)
+            val flowAlignment = clamp((side.toDouble() * row.flowSignal) / 1.25, 0.0, 1.0)
+            val breadthAlignment = clamp((side.toDouble() * breadthTilt(row) + 0.35) / 1.35, 0.0, 1.0)
+            val persistence = clamp(row.trendPersistence, 0.0, 1.0)
+            val pullbackSupport = clamp(row.trendPullback / 1.15, 0.0, 1.0)
+            val exhaustionPenalty = clamp(max(0.0, row.trendExhaustion - 0.9) / 1.2, 0.0, 1.0)
+            clamp(
+                (signalStrength * 0.28) +
+                    (confirmation * 0.24) +
+                    (persistence * 0.16) +
+                    (flowAlignment * 0.10) +
+                    (breadthAlignment * 0.08) +
+                    (pullbackSupport * 0.06) +
+                    (expectedEdgeConfidence * 0.18) -
+                    (exhaustionPenalty * 0.18),
+                0.0,
+                1.0
+            )
+        }
+        StrategyKind.REVERSION -> {
+            val entryBound = if (side > 0) abs(row.reversionEntryLowerBound) else abs(row.reversionEntryUpperBound)
+            val exitBound = if (side > 0) abs(row.reversionExitLowerBound) else abs(row.reversionExitUpperBound)
+            val stateAbs = abs(row.reversionState)
+            val penetration = clamp((stateAbs - entryBound) / max(entryBound, 0.35), 0.0, 1.4)
+            val traversal = clamp(
+                (stateAbs - exitBound) / max(entryBound - exitBound, 0.2),
+                0.0,
+                1.25
+            )
+            val antiContinuation = clamp(
+                ((-direction(row.reversionState) * row.flowSignal) + 0.35) / 1.4,
+                0.0,
+                1.0
+            )
+            val pullbackSupport = clamp(max(row.trendPullback, row.trendExhaustion) / 1.1, 0.0, 1.0)
+            val rawTrendPenalty = clamp(abs(row.rawTrend) / max(config.trendEntryScore * 1.6, 1.0), 0.0, 1.0)
+            val scoreStrength = clamp(row.reversionScore / 3.0, 0.0, 1.2)
+            clamp(
+                (penetration * 0.28) +
+                    (traversal * 0.18) +
+                    (antiContinuation * 0.14) +
+                    (pullbackSupport * 0.10) +
+                    (scoreStrength * 0.14) +
+                    (expectedEdgeConfidence * 0.18) -
+                    (rawTrendPenalty * 0.16),
+                0.0,
+                1.0
+            )
+        }
+    }
+    return confidenceToExposureFraction(confidence, config) to confidence.round(4)
+}
+
+private fun buildSizedCandidate(
+    kind: StrategyKind,
+    row: FeatureRow,
+    side: Int,
+    expectedGrossEdgeBps: Double,
+    cappedNetEdgeBps: Double,
+    config: ResearchConfig,
+    calibrationSamples: Int = 0,
+    calibrationWinRate: Double = 0.0,
+    calibrationLowerBoundBps: Double = 0.0,
+    calibrationScope: String = "heuristic"
+): EntryCandidate {
+    val sizing = targetExposureFraction(kind, row, side, cappedNetEdgeBps, config)
+    val targetExposureFraction = sizing.first
+    val scaledNotionalUsd = config.notionalUsd * targetExposureFraction
+    val entryEstimate = buildExecutionEstimate(row, scaledNotionalUsd, side, kind)
+    val expectedRoundTripCostBps = buildExpectedRoundTripCostBps(row, entryEstimate)
+    val feasibleNetEdgeBps = max(0.0, expectedGrossEdgeBps - expectedRoundTripCostBps)
+    val expectedNetEdgeBps = min(max(cappedNetEdgeBps, 0.0), feasibleNetEdgeBps).round(4)
+    return EntryCandidate(
+        row = row,
+        side = side,
+        entryEstimate = entryEstimate,
+        expectedGrossEdgeBps = expectedGrossEdgeBps.round(4),
+        expectedRoundTripCostBps = expectedRoundTripCostBps.round(4),
+        expectedNetEdgeBps = expectedNetEdgeBps,
+        targetExposureFraction = targetExposureFraction,
+        signalConfidence = sizing.second,
+        calibrationSamples = calibrationSamples,
+        calibrationWinRate = calibrationWinRate,
+        calibrationLowerBoundBps = calibrationLowerBoundBps,
+        calibrationScope = calibrationScope
+    )
+}
 
 fun volatilityRegimeBucket(volRegime: Double): String =
     when {
@@ -2418,8 +2722,8 @@ fun calibrationSignalBucket(kind: StrategyKind, row: FeatureRow): String =
             else -> "extreme"
         }
         StrategyKind.REVERSION -> when {
-            abs(row.residualZ) < 2.60 -> "entry"
-            abs(row.residualZ) < 3.30 -> "deep"
+            abs(row.reversionState) < max(abs(row.reversionEntryLowerBound), abs(row.reversionEntryUpperBound)) * 1.2 -> "entry"
+            abs(row.reversionState) < max(abs(row.reversionEntryLowerBound), abs(row.reversionEntryUpperBound)) * 1.8 -> "deep"
             else -> "extreme"
         }
     }
@@ -2429,7 +2733,7 @@ fun calibrationConfirmationBucket(kind: StrategyKind, row: FeatureRow, side: Int
     val fastAlignment = side.toDouble() * direction(row.residualMomFast)
     val slowAlignment = side.toDouble() * direction(row.residualMomSlow)
     val mediumAlignment = side.toDouble() * direction(row.mediumTrendScore)
-    val continuationPressure = direction(row.residualZ) * row.flowSignal
+    val continuationPressure = direction(row.reversionState) * row.flowSignal
     return when (kind) {
         StrategyKind.TREND -> when {
             flowAlignment >= config.trendMinFlowAlignment &&
@@ -2593,17 +2897,12 @@ fun buildStructuralCandidate(kind: StrategyKind, row: FeatureRow, side: Int, con
     if (row.volumeRatio < config.minVolumeRatio || row.volumeRatio > config.maxVolumeRatio) return null
     if (row.volRegime > config.maxVolRegime) return null
 
-    val entryEstimate = buildExecutionEstimate(row, config.notionalUsd, side, kind)
-    if (entryEstimate.fillRatio < config.minFillRatio) return null
-
     val expectedGrossEdgeBps = when (kind) {
         StrategyKind.TREND -> row.trendExpectedGrossEdgeBps
         StrategyKind.REVERSION -> row.reversionExpectedGrossEdgeBps
     }
-    val expectedRoundTripCostBps = buildExpectedRoundTripCostBps(row, entryEstimate)
-    val expectedNetEdgeBps = expectedGrossEdgeBps - expectedRoundTripCostBps
     val rowBreadthTilt = breadthTilt(row)
-    val continuationPressure = direction(row.residualZ) * row.flowSignal
+    val continuationPressure = direction(row.reversionState) * row.flowSignal
 
     when (kind) {
         StrategyKind.TREND -> {
@@ -2619,7 +2918,9 @@ fun buildStructuralCandidate(kind: StrategyKind, row: FeatureRow, side: Int, con
             if ((side.toDouble() * direction(row.residualMomFast)) <= 0.0 && mediumAlignment < 0.75) return null
             if ((side.toDouble() * direction(row.residualMomSlow)) <= 0.0) return null
             if ((side.toDouble() * direction(row.residualMomMedium)) <= 0.0) return null
-            if (abs(row.residualZ) > config.reversionZEntry * pullbackAllowance) return null
+            if (abs(row.reversionState) > max(abs(row.reversionEntryLowerBound), abs(row.reversionEntryUpperBound)) * pullbackAllowance) {
+                return null
+            }
         }
         StrategyKind.REVERSION -> {
             val trendAwareRawTrendCap = if (row.trendPullback > 0.35 || row.trendExhaustion > 0.75) {
@@ -2633,12 +2934,12 @@ fun buildStructuralCandidate(kind: StrategyKind, row: FeatureRow, side: Int, con
                 config.reversionMaxContinuationPressure * 0.75
             }
             val breadthCap = if (row.trendPullback > 0.35 || row.trendExhaustion > 0.75) 0.30 else 0.15
-            if (side > 0 && row.residualZ > -config.reversionZEntry) return null
-            if (side < 0 && row.residualZ < config.reversionZEntry) return null
+            if (side > 0 && row.reversionState > row.reversionEntryLowerBound) return null
+            if (side < 0 && row.reversionState < row.reversionEntryUpperBound) return null
             if (row.reversionScore <= 0.0) return null
             if (abs(row.rawTrend) > trendAwareRawTrendCap) return null
             if (continuationPressure > continuationCap) return null
-            if (direction(row.residualZ) * rowBreadthTilt > breadthCap) return null
+            if (direction(row.reversionState) * rowBreadthTilt > breadthCap) return null
             if ((side.toDouble() * row.flowSignal) < -0.08 && row.trendPullback < 0.35 && row.trendExhaustion < 0.55) return null
             if ((side.toDouble() * direction(row.residualMomFast)) < 0.0 &&
                 abs(row.rawTrend) > (config.trendEntryScore * 0.85) &&
@@ -2647,17 +2948,18 @@ fun buildStructuralCandidate(kind: StrategyKind, row: FeatureRow, side: Int, con
         }
     }
 
-    return EntryCandidate(
+    val baseSizing = targetExposureFraction(kind, row, side, expectedGrossEdgeBps, config)
+    val scaledEntryEstimate = buildExecutionEstimate(row, config.notionalUsd * baseSizing.first, side, kind)
+    if (scaledEntryEstimate.fillRatio < config.minFillRatio) return null
+    val expectedRoundTripCostBps = buildExpectedRoundTripCostBps(row, scaledEntryEstimate)
+    val expectedNetEdgeBps = expectedGrossEdgeBps - expectedRoundTripCostBps
+    return buildSizedCandidate(
+        kind = kind,
         row = row,
         side = side,
-        entryEstimate = entryEstimate,
         expectedGrossEdgeBps = expectedGrossEdgeBps,
-        expectedRoundTripCostBps = expectedRoundTripCostBps,
-        expectedNetEdgeBps = expectedNetEdgeBps,
-        calibrationSamples = 0,
-        calibrationWinRate = 0.0,
-        calibrationLowerBoundBps = 0.0,
-        calibrationScope = "heuristic"
+        cappedNetEdgeBps = expectedNetEdgeBps,
+        config = config
     )
 }
 
@@ -2690,9 +2992,13 @@ fun buildEntryCandidate(
     val calibratedGrossEdgeBps = seed.expectedRoundTripCostBps + calibratedNetEdgeBps
     if (calibratedNetEdgeBps < safetyMarginBps) return null
 
-    return seed.copy(
+    return buildSizedCandidate(
+        kind = kind,
+        row = row,
+        side = side,
         expectedGrossEdgeBps = calibratedGrossEdgeBps.round(4),
-        expectedNetEdgeBps = calibratedNetEdgeBps.round(4),
+        cappedNetEdgeBps = calibratedNetEdgeBps.round(4),
+        config = config,
         calibrationSamples = calibration.samples,
         calibrationWinRate = calibration.winRate.round(4),
         calibrationLowerBoundBps = calibration.lowerBoundNetEdgeBps.round(4),
@@ -2723,9 +3029,9 @@ private fun baseExitTriggered(
         StrategyKind.REVERSION -> {
             val ageBars = current.barIndex - position.entryRow.barIndex
             ageBars >= config.reversionHoldBars ||
-                abs(current.residualZ) <= config.reversionZExit ||
-                (current.residualZ * position.side.toDouble()) >= -0.05 ||
-                (direction(position.entryRow.residualZ) * current.flowSignal) > config.reversionMaxContinuationPressure
+                current.reversionState in current.reversionExitLowerBound..current.reversionExitUpperBound ||
+                (current.reversionState * position.side.toDouble()) >= -0.05 ||
+                (direction(position.entryRow.reversionState) * current.flowSignal) > config.reversionMaxContinuationPressure
         }
     }
 
@@ -2792,7 +3098,7 @@ fun seedCandidateRows(kind: StrategyKind, bucket: List<FeatureRow>, config: Rese
                     it.liquid &&
                         it.trendLongRank <= config.topPerSide &&
                         it.trendScore >= config.trendEntryScore &&
-                        abs(it.residualZ) <= config.reversionZEntry * 1.5
+                        abs(it.reversionState) <= max(abs(it.reversionEntryLowerBound), abs(it.reversionEntryUpperBound)) * 1.25
                 }
                 .mapNotNull { buildStructuralCandidate(StrategyKind.TREND, it, 1, config) }
                 .sortedWith(compareByDescending<EntryCandidate> { it.expectedNetEdgeBps }.thenBy { it.row.trendLongRank })
@@ -2801,7 +3107,7 @@ fun seedCandidateRows(kind: StrategyKind, bucket: List<FeatureRow>, config: Rese
                     it.liquid &&
                         it.trendShortRank <= config.topPerSide &&
                         it.trendScore <= -config.trendEntryScore &&
-                        abs(it.residualZ) <= config.reversionZEntry * 1.5
+                        abs(it.reversionState) <= max(abs(it.reversionEntryLowerBound), abs(it.reversionEntryUpperBound)) * 1.25
                 }
                 .mapNotNull { buildStructuralCandidate(StrategyKind.TREND, it, -1, config) }
                 .sortedWith(compareByDescending<EntryCandidate> { it.expectedNetEdgeBps }.thenBy { it.row.trendShortRank })
@@ -2812,7 +3118,7 @@ fun seedCandidateRows(kind: StrategyKind, bucket: List<FeatureRow>, config: Rese
                 .filter {
                     it.liquid &&
                         it.reversionLongRank <= config.topPerSide &&
-                        it.residualZ <= -config.reversionZEntry &&
+                        it.reversionState <= it.reversionEntryLowerBound &&
                         it.reversionScore > 0.0
                 }
                 .mapNotNull { buildStructuralCandidate(StrategyKind.REVERSION, it, 1, config) }
@@ -2821,7 +3127,7 @@ fun seedCandidateRows(kind: StrategyKind, bucket: List<FeatureRow>, config: Rese
                 .filter {
                     it.liquid &&
                         it.reversionShortRank <= config.topPerSide &&
-                        it.residualZ >= config.reversionZEntry &&
+                        it.reversionState >= it.reversionEntryUpperBound &&
                         it.reversionScore > 0.0
                 }
                 .mapNotNull { buildStructuralCandidate(StrategyKind.REVERSION, it, -1, config) }
@@ -2843,7 +3149,7 @@ fun candidateRows(
                     it.liquid &&
                         it.trendLongRank <= config.topPerSide &&
                         it.trendScore >= config.trendEntryScore &&
-                        abs(it.residualZ) <= config.reversionZEntry * 1.5
+                        abs(it.reversionState) <= max(abs(it.reversionEntryLowerBound), abs(it.reversionEntryUpperBound)) * 1.25
                 }
                 .mapNotNull { buildEntryCandidate(StrategyKind.TREND, it, 1, config, calibrationState) }
                 .sortedWith(compareByDescending<EntryCandidate> { it.expectedNetEdgeBps }.thenBy { it.row.trendLongRank })
@@ -2852,7 +3158,7 @@ fun candidateRows(
                     it.liquid &&
                         it.trendShortRank <= config.topPerSide &&
                         it.trendScore <= -config.trendEntryScore &&
-                        abs(it.residualZ) <= config.reversionZEntry * 1.5
+                        abs(it.reversionState) <= max(abs(it.reversionEntryLowerBound), abs(it.reversionEntryUpperBound)) * 1.25
                 }
                 .mapNotNull { buildEntryCandidate(StrategyKind.TREND, it, -1, config, calibrationState) }
                 .sortedWith(compareByDescending<EntryCandidate> { it.expectedNetEdgeBps }.thenBy { it.row.trendShortRank })
@@ -2863,7 +3169,7 @@ fun candidateRows(
                 .filter {
                     it.liquid &&
                         it.reversionLongRank <= config.topPerSide &&
-                        it.residualZ <= -config.reversionZEntry &&
+                        it.reversionState <= it.reversionEntryLowerBound &&
                         it.reversionScore > 0.0
                 }
                 .mapNotNull { buildEntryCandidate(StrategyKind.REVERSION, it, 1, config, calibrationState) }
@@ -2872,7 +3178,7 @@ fun candidateRows(
                 .filter {
                     it.liquid &&
                         it.reversionShortRank <= config.topPerSide &&
-                        it.residualZ >= config.reversionZEntry &&
+                        it.reversionState >= it.reversionEntryUpperBound &&
                         it.reversionScore > 0.0
                 }
                 .mapNotNull { buildEntryCandidate(StrategyKind.REVERSION, it, -1, config, calibrationState) }
@@ -2911,7 +3217,7 @@ fun latestSignalSnapshots(
             val reversionLong = if (
                 row.liquid &&
                     row.reversionLongRank <= config.topPerSide &&
-                    row.residualZ <= -config.reversionZEntry &&
+                    row.reversionState <= row.reversionEntryLowerBound &&
                     row.reversionScore > 0.0
             ) {
                 buildEntryCandidate(StrategyKind.REVERSION, row, 1, config, calibrationState)
@@ -2921,7 +3227,7 @@ fun latestSignalSnapshots(
             val reversionShort = if (
                 row.liquid &&
                     row.reversionShortRank <= config.topPerSide &&
-                    row.residualZ >= config.reversionZEntry &&
+                    row.reversionState >= row.reversionEntryUpperBound &&
                     row.reversionScore > 0.0
             ) {
                 buildEntryCandidate(StrategyKind.REVERSION, row, -1, config, calibrationState)
@@ -2938,7 +3244,14 @@ fun latestSignalSnapshots(
                 betaBtc = row.betaBtc.round(4),
                 betaEth = row.betaEth.round(4),
                 residualZ = row.residualZ.round(4),
+                residualCrossSectionalZ = row.residualCrossSectionalZ.round(4),
+                reversionState = row.reversionState.round(4),
+                reversionEntryLowerBound = row.reversionEntryLowerBound.round(4),
+                reversionEntryUpperBound = row.reversionEntryUpperBound.round(4),
+                reversionExitLowerBound = row.reversionExitLowerBound.round(4),
+                reversionExitUpperBound = row.reversionExitUpperBound.round(4),
                 mediumTrendScore = row.mediumTrendScore.round(4),
+                trendConfirmationScore = row.trendConfirmationScore.round(4),
                 trendPersistence = row.trendPersistence.round(4),
                 trendPullback = row.trendPullback.round(4),
                 trendExhaustion = row.trendExhaustion.round(4),
@@ -2953,6 +3266,8 @@ fun latestSignalSnapshots(
                 volRegime = row.volRegime.round(4),
                 trendExpectedNetEdgeBps = (trendCandidate?.expectedNetEdgeBps ?: 0.0).round(2),
                 reversionExpectedNetEdgeBps = (reversionCandidate?.expectedNetEdgeBps ?: 0.0).round(2),
+                trendTargetExposureFraction = (trendCandidate?.targetExposureFraction ?: row.trendTargetExposureFraction).round(4),
+                reversionTargetExposureFraction = (reversionCandidate?.targetExposureFraction ?: row.reversionTargetExposureFraction).round(4),
                 trendCalibrationSamples = trendCandidate?.calibrationSamples ?: 0,
                 reversionCalibrationSamples = reversionCandidate?.calibrationSamples ?: 0,
                 trendCalibrationLowerBoundBps = (trendCandidate?.calibrationLowerBoundBps ?: 0.0).round(2),
@@ -2980,21 +3295,23 @@ fun latestSignalSnapshots(
 
 fun buildTradeRecord(position: OpenPosition, current: FeatureRow, config: ResearchConfig): TradeRecord {
     val kind = position.strategyKind
-    val exitEstimate = buildExecutionEstimate(current, config.notionalUsd, -position.side, kind)
+    val entryNotionalUsd = config.notionalUsd * position.targetExposureFraction
+    val exitEstimate = buildExecutionEstimate(current, entryNotionalUsd, -position.side, kind)
     val effectiveFill = min(position.entryEstimate.fillRatio, exitEstimate.fillRatio)
-    val grossReturn = position.side * ((current.close / position.entryRow.close) - 1.0) * effectiveFill
+    val deployedGrossReturn = position.side * ((current.close / position.entryRow.close) - 1.0) * effectiveFill
     val totalCostBps = position.entryEstimate.totalCostBps + exitEstimate.totalCostBps
-    val netReturn = grossReturn - (totalCostBps / 10000.0)
+    val grossReturn = deployedGrossReturn * position.targetExposureFraction
+    val netReturn = (deployedGrossReturn - (totalCostBps / 10000.0)) * position.targetExposureFraction
     val signalMagnitude = when (kind) {
         StrategyKind.TREND -> abs(position.entryRow.trendScore)
-        StrategyKind.REVERSION -> abs(position.entryRow.residualZ)
+        StrategyKind.REVERSION -> abs(position.entryRow.reversionState)
     }
     val jitter = deterministicJitter(current.time, position.side)
     val decisionLatencyMs = clamp(6.0 + (signalMagnitude * 7.0) + (jitter * 0.6), 4.0, 60.0)
     val submitToAckMs = clamp(
         55.0 +
             (current.spreadBps * 1.1) +
-            ((config.notionalUsd / max(current.depthUsd, config.notionalUsd)) * 120.0) +
+            ((entryNotionalUsd / max(current.depthUsd, entryNotionalUsd)) * 120.0) +
             (jitter * 1.5),
         20.0,
         900.0
@@ -3030,7 +3347,9 @@ fun buildTradeRecord(position: OpenPosition, current: FeatureRow, config: Resear
         fundingDriftBps = 0.0,
         basisDriftBps = 0.0,
         totalCostBps = totalCostBps,
-        edgeAfterCostBps = netReturn * 10000.0,
+        edgeAfterCostBps = (deployedGrossReturn - (totalCostBps / 10000.0)) * 10000.0,
+        targetExposureFraction = position.targetExposureFraction,
+        entryNotionalUsd = entryNotionalUsd.round(4),
         estimatedFeeUsd = position.entryEstimate.estimatedFeeUsd + exitEstimate.estimatedFeeUsd,
         estimatedCostUsd = position.entryEstimate.estimatedCostUsd + exitEstimate.estimatedCostUsd,
         entryTrendScore = position.entryRow.trendScore,
@@ -3078,6 +3397,7 @@ fun simulateIndependentTrade(
         expectedGrossEdgeBps = candidate.expectedGrossEdgeBps,
         expectedRoundTripCostBps = candidate.expectedRoundTripCostBps,
         expectedNetEdgeBps = candidate.expectedNetEdgeBps,
+        targetExposureFraction = candidate.targetExposureFraction,
         calibrationSamples = candidate.calibrationSamples,
         calibrationWinRate = candidate.calibrationWinRate,
         calibrationLowerBoundBps = candidate.calibrationLowerBoundBps,
@@ -3124,11 +3444,16 @@ fun buildCalibrationExamples(
             val series = seriesByExchangeSymbol[candidate.row.exchange to candidate.row.symbol] ?: return@forEach
             val startIndex = indexLookup[Triple(candidate.row.exchange, candidate.row.symbol, candidate.row.time)] ?: return@forEach
             val trade = simulateIndependentTrade(strategyName, kind, candidate, series, startIndex, config) ?: return@forEach
+            val realizedGrossEdgeBps = if (trade.targetExposureFraction > 1e-9) {
+                (trade.grossReturnFraction * 10000.0) / trade.targetExposureFraction
+            } else {
+                0.0
+            }
             examples += CalibrationExample(
                 key = calibrationBaseKey(kind, candidate.row, candidate.side, config),
                 entryTime = candidate.row.time,
                 availableAt = trade.exitTime,
-                grossEdgeBps = trade.grossReturnFraction * 10000.0,
+                grossEdgeBps = realizedGrossEdgeBps,
                 netEdgeBps = trade.edgeAfterCostBps,
                 totalCostBps = trade.totalCostBps,
                 fillRatio = trade.fillRatio
@@ -3144,14 +3469,23 @@ private fun effectiveLongCapacity(config: ResearchConfig): Int =
 private fun effectiveShortCapacity(config: ResearchConfig): Int =
     min(max(config.maxConcurrentShorts, 1), max(config.maxConcurrentPositions, 1))
 
+private fun currentGrossExposureUnits(positions: Collection<OpenPosition>): Double =
+    positions.sumOf { it.targetExposureFraction }
+
+private fun currentLongExposureUnits(positions: Collection<OpenPosition>): Double =
+    positions.filter { it.side > 0 }.sumOf { it.targetExposureFraction }
+
+private fun currentShortExposureUnits(positions: Collection<OpenPosition>): Double =
+    positions.filter { it.side < 0 }.sumOf { it.targetExposureFraction }
+
 private fun currentBetaBtcUnits(positions: Collection<OpenPosition>): Double =
-    positions.sumOf { it.side.toDouble() * it.entryRow.betaBtc }
+    positions.sumOf { it.side.toDouble() * it.targetExposureFraction * it.entryRow.betaBtc }
 
 private fun currentBetaEthUnits(positions: Collection<OpenPosition>): Double =
-    positions.sumOf { it.side.toDouble() * it.entryRow.betaEth }
+    positions.sumOf { it.side.toDouble() * it.targetExposureFraction * it.entryRow.betaEth }
 
-private fun currentNetUnits(positions: Collection<OpenPosition>): Int =
-    positions.sumOf { it.side }
+private fun currentNetUnits(positions: Collection<OpenPosition>): Double =
+    positions.sumOf { it.side.toDouble() * it.targetExposureFraction }
 
 private fun portfolioTelemetryPoint(
     positions: Collection<OpenPosition>
@@ -3163,9 +3497,12 @@ private fun portfolioTelemetryPoint(
         grossPositions = grossPositions,
         longPositions = longPositions,
         shortPositions = shortPositions,
-        netPositions = longPositions - shortPositions,
-        betaBtcUnits = currentBetaBtcUnits(positions),
-        betaEthUnits = currentBetaEthUnits(positions)
+        grossExposureUnits = currentGrossExposureUnits(positions).round(4),
+        longExposureUnits = currentLongExposureUnits(positions).round(4),
+        shortExposureUnits = currentShortExposureUnits(positions).round(4),
+        netExposureUnits = currentNetUnits(positions).round(4),
+        betaBtcUnits = currentBetaBtcUnits(positions).round(4),
+        betaEthUnits = currentBetaEthUnits(positions).round(4)
     )
 }
 
@@ -3175,18 +3512,29 @@ private fun portfolioAcceptanceScore(
     config: ResearchConfig
 ): Double {
     val capacity = max(config.maxConcurrentPositions, 1).toDouble()
-    val currentNetFraction = abs(currentNetUnits(positions)).toDouble() / capacity
-    val candidateNetFraction = abs(currentNetUnits(positions) + candidate.side).toDouble() / capacity
+    val candidateNetContribution = candidate.side.toDouble() * candidate.targetExposureFraction
+    val currentNetFraction = abs(currentNetUnits(positions)) / capacity
+    val candidateNetFraction = abs(currentNetUnits(positions) + candidateNetContribution) / capacity
     val currentBetaPenalty =
         (abs(currentBetaBtcUnits(positions)) / capacity) +
             (abs(currentBetaEthUnits(positions)) / capacity)
     val candidateBetaPenalty =
-        (abs(currentBetaBtcUnits(positions) + (candidate.side.toDouble() * candidate.row.betaBtc)) / capacity) +
-            (abs(currentBetaEthUnits(positions) + (candidate.side.toDouble() * candidate.row.betaEth)) / capacity)
+        (abs(currentBetaBtcUnits(positions) + (candidateNetContribution * candidate.row.betaBtc)) / capacity) +
+            (abs(currentBetaEthUnits(positions) + (candidateNetContribution * candidate.row.betaEth)) / capacity)
     val balanceBonus = (currentNetFraction - candidateNetFraction) * 6.0
     val betaBonus = (currentBetaPenalty - candidateBetaPenalty) * 10.0
-    val capacityPenalty = (positions.size.toDouble() / capacity) * 0.75
-    return candidate.expectedNetEdgeBps + balanceBonus + betaBonus - capacityPenalty
+    val capacityPenalty = (currentGrossExposureUnits(positions) / capacity) * 0.75
+    val similarityPenalty = positions
+        .filter { it.side == candidate.side }
+        .map {
+            val betaDistance = (abs(it.entryRow.betaBtc - candidate.row.betaBtc) + abs(it.entryRow.betaEth - candidate.row.betaEth)) / 2.0
+            clamp(1.0 - betaDistance, 0.0, 1.0)
+        }
+        .takeIf { it.isNotEmpty() }
+        ?.let(::mean)
+        ?.times(2.0)
+        ?: 0.0
+    return candidate.expectedNetEdgeBps + balanceBonus + betaBonus - capacityPenalty - similarityPenalty
 }
 
 private fun canAddCandidateToPortfolio(
@@ -3220,14 +3568,15 @@ private fun canAddCandidateToPortfolio(
     }
 
     val capacity = max(config.maxConcurrentPositions, 1).toDouble()
-    val nextNetFraction = abs(currentNetUnits(positions.values) + candidate.side).toDouble() / capacity
+    val candidateNetContribution = candidate.side.toDouble() * candidate.targetExposureFraction
+    val nextNetFraction = abs(currentNetUnits(positions.values) + candidateNetContribution) / capacity
     if (nextNetFraction > config.maxNetExposureFraction + 1e-9) {
         counters.rejectedNetLimit += 1
         return false
     }
 
-    val nextBetaBtc = abs(currentBetaBtcUnits(positions.values) + (candidate.side.toDouble() * candidate.row.betaBtc)) / capacity
-    val nextBetaEth = abs(currentBetaEthUnits(positions.values) + (candidate.side.toDouble() * candidate.row.betaEth)) / capacity
+    val nextBetaBtc = abs(currentBetaBtcUnits(positions.values) + (candidateNetContribution * candidate.row.betaBtc)) / capacity
+    val nextBetaEth = abs(currentBetaEthUnits(positions.values) + (candidateNetContribution * candidate.row.betaEth)) / capacity
     if (nextBetaBtc > config.maxPortfolioBetaBtcAbs + 1e-9 || nextBetaEth > config.maxPortfolioBetaEthAbs + 1e-9) {
         counters.rejectedBetaLimit += 1
         return false
@@ -3247,7 +3596,7 @@ private fun buildPortfolioProfile(
     config: ResearchConfig
 ): PortfolioProfileSnapshot {
     val samples = if (telemetry.isEmpty()) {
-        listOf(PortfolioTelemetryPoint(0, 0, 0, 0, 0.0, 0.0))
+        listOf(PortfolioTelemetryPoint(0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
     } else {
         telemetry
     }
@@ -3255,10 +3604,11 @@ private fun buildPortfolioProfile(
     val grossSeries = samples.map { it.grossPositions.toDouble() }
     val longSeries = samples.map { it.longPositions.toDouble() }
     val shortSeries = samples.map { it.shortPositions.toDouble() }
-    val netSeries = samples.map { abs(it.netPositions).toDouble() }
+    val grossExposureSeries = samples.map { it.grossExposureUnits }
+    val netSeries = samples.map { abs(it.netExposureUnits) }
     val betaBtcSeries = samples.map { abs(it.betaBtcUnits) / capacity }
     val betaEthSeries = samples.map { abs(it.betaEthUnits) / capacity }
-    val utilizationSeries = samples.map { it.grossPositions.toDouble() / capacity }
+    val utilizationSeries = samples.map { it.grossExposureUnits / capacity }
 
     return PortfolioProfileSnapshot(
         strategyKind = kind.name.lowercase(),
@@ -3277,9 +3627,9 @@ private fun buildPortfolioProfile(
         avgConcurrentPositions = mean(grossSeries).round(4),
         avgConcurrentLongs = mean(longSeries).round(4),
         avgConcurrentShorts = mean(shortSeries).round(4),
-        maxGrossExposureUsd = ((samples.maxOfOrNull { it.grossPositions } ?: 0).toDouble() * config.notionalUsd).round(4),
-        avgGrossExposureUsd = (mean(grossSeries) * config.notionalUsd).round(4),
-        maxNetExposureUsd = ((samples.maxOfOrNull { abs(it.netPositions) } ?: 0).toDouble() * config.notionalUsd).round(4),
+        maxGrossExposureUsd = ((samples.maxOfOrNull { it.grossExposureUnits } ?: 0.0) * config.notionalUsd).round(4),
+        avgGrossExposureUsd = (mean(grossExposureSeries) * config.notionalUsd).round(4),
+        maxNetExposureUsd = ((samples.maxOfOrNull { abs(it.netExposureUnits) } ?: 0.0) * config.notionalUsd).round(4),
         avgNetExposureUsd = (mean(netSeries) * config.notionalUsd).round(4),
         maxAbsNetExposureFraction = (netSeries.maxOrNull()?.div(capacity) ?: 0.0).round(4),
         avgAbsNetExposureFraction = (mean(netSeries) / capacity).round(4),
@@ -3318,12 +3668,22 @@ private fun buildOpenPosition(
         expectedGrossEdgeBps = candidate.expectedGrossEdgeBps,
         expectedRoundTripCostBps = candidate.expectedRoundTripCostBps,
         expectedNetEdgeBps = candidate.expectedNetEdgeBps,
+        targetExposureFraction = candidate.targetExposureFraction,
         calibrationSamples = candidate.calibrationSamples,
         calibrationWinRate = candidate.calibrationWinRate,
         calibrationLowerBoundBps = candidate.calibrationLowerBoundBps,
         calibrationScope = candidate.calibrationScope,
         maxFavorableReturnFraction = 0.0
     )
+
+private fun shouldRebalancePosition(
+    existing: OpenPosition,
+    candidate: EntryCandidate,
+    config: ResearchConfig
+): Boolean =
+    existing.side == candidate.side &&
+        candidate.row.barIndex > existing.entryRow.barIndex &&
+        abs(candidate.targetExposureFraction - existing.targetExposureFraction) >= config.rebalanceTargetExposureStep
 
 private fun simulateStrategyWithPortfolio(
     strategyName: String,
@@ -3389,6 +3749,13 @@ private fun simulateStrategyWithPortfolio(
             pendingCandidates.remove(candidate)
 
             val positionKey = "${candidate.row.exchange}|${candidate.row.symbol}"
+            val existingPosition = positions[positionKey]
+            if (existingPosition != null && shouldRebalancePosition(existingPosition, candidate, config)) {
+                trades += buildTradeRecord(updateOpenPosition(existingPosition, candidate.row), candidate.row, config)
+                positions.remove(positionKey)
+                positions[positionKey] = buildOpenPosition(strategyName, kind, candidate)
+                continue
+            }
             if ((cooldownUntilBar[positionKey] ?: Int.MIN_VALUE) > candidate.row.barIndex) {
                 continue
             }
@@ -4472,6 +4839,11 @@ fun paperTradeTopSignals(
                 "action" to preferredAction,
                 "strategyFamily" to strategyFamily,
                 "expectedNetEdgeBps" to max(trendNet, reversionNet),
+                "targetExposureFraction" to when (strategyFamily) {
+                    "trend" -> signal.trendTargetExposureFraction
+                    "reversion" -> signal.reversionTargetExposureFraction
+                    else -> config.minTargetExposureFraction
+                },
                 "trendScore" to signal.trendScore,
                 "residualZ" to signal.residualZ,
                 "price" to signal.lastPrice
@@ -4510,7 +4882,8 @@ fun paperTradeTopSignals(
         val normalizedSymbol = bestQuote?.string("normalizedSymbol") ?: symbol
         val quote = bestQuote?.obj("quote")
         val lastPrice = quote?.double("last") ?: quote?.double("ask") ?: quote?.double("bid") ?: (candidate["price"] as Double)
-        val size = max(config.notionalUsd / max(lastPrice, 1.0), 0.001).round(6)
+        val targetExposureFraction = candidate["targetExposureFraction"] as Double
+        val size = max((config.notionalUsd * targetExposureFraction) / max(lastPrice, 1.0), 0.001).round(6)
         val order = if (config.enablePaperOrders && config.txAuthToken.isNotBlank()) {
             submitPaperOrder(
                 txBase = config.txGatewayUrl,
@@ -4529,6 +4902,7 @@ fun paperTradeTopSignals(
             "requestedAction" to action,
             "strategyFamily" to candidate["strategyFamily"],
             "expectedNetEdgeBps" to candidate["expectedNetEdgeBps"],
+            "targetExposureFraction" to targetExposureFraction,
             "selectedExchange" to selectedExchange,
             "executionMode" to config.paperExecutionMode,
             "size" to size,
@@ -4550,9 +4924,11 @@ data class ResearchSeedSnapshot(
     val reversionScore: Double? = null,
     val flowSignal: Double,
     val residualZ: Double,
+    val reversionState: Double,
     val volumeRatio: Double,
     val expectedNetEdgeBps: Double,
-    val expectedRoundTripCostBps: Double
+    val expectedRoundTripCostBps: Double,
+    val targetExposureFraction: Double
 )
 
 data class ResearchDiagnostics(
@@ -4729,24 +5105,24 @@ fun computeResearchDiagnostics(
             it.liquid &&
                 it.trendLongRank <= config.topPerSide &&
                 it.trendScore >= config.trendEntryScore &&
-                abs(it.residualZ) <= config.reversionZEntry * 1.5
+                abs(it.reversionState) <= max(abs(it.reversionEntryLowerBound), abs(it.reversionEntryUpperBound)) * 1.25
         },
         "trendShort" to rows.count {
             it.liquid &&
                 it.trendShortRank <= config.topPerSide &&
                 it.trendScore <= -config.trendEntryScore &&
-                abs(it.residualZ) <= config.reversionZEntry * 1.5
+                abs(it.reversionState) <= max(abs(it.reversionEntryLowerBound), abs(it.reversionEntryUpperBound)) * 1.25
         },
         "reversionLong" to rows.count {
             it.liquid &&
                 it.reversionLongRank <= config.topPerSide &&
-                it.residualZ <= -config.reversionZEntry &&
+                it.reversionState <= it.reversionEntryLowerBound &&
                 it.reversionScore > 0.0
         },
         "reversionShort" to rows.count {
             it.liquid &&
                 it.reversionShortRank <= config.topPerSide &&
-                it.residualZ >= config.reversionZEntry &&
+                it.reversionState >= it.reversionEntryUpperBound &&
                 it.reversionScore > 0.0
         }
     )
@@ -4775,9 +5151,11 @@ fun computeResearchDiagnostics(
                 trendScore = it.row.trendScore.round(4),
                 flowSignal = it.row.flowSignal.round(4),
                 residualZ = it.row.residualZ.round(4),
+                reversionState = it.row.reversionState.round(4),
                 volumeRatio = it.row.volumeRatio.round(4),
                 expectedNetEdgeBps = it.expectedNetEdgeBps.round(4),
-                expectedRoundTripCostBps = it.expectedRoundTripCostBps.round(4)
+                expectedRoundTripCostBps = it.expectedRoundTripCostBps.round(4),
+                targetExposureFraction = it.targetExposureFraction.round(4)
             )
         },
         topReversionSeeds = reversionSeeds.sortedByDescending { it.expectedNetEdgeBps }.take(8).map {
@@ -4788,9 +5166,11 @@ fun computeResearchDiagnostics(
                 reversionScore = it.row.reversionScore.round(4),
                 flowSignal = it.row.flowSignal.round(4),
                 residualZ = it.row.residualZ.round(4),
+                reversionState = it.row.reversionState.round(4),
                 volumeRatio = it.row.volumeRatio.round(4),
                 expectedNetEdgeBps = it.expectedNetEdgeBps.round(4),
-                expectedRoundTripCostBps = it.expectedRoundTripCostBps.round(4)
+                expectedRoundTripCostBps = it.expectedRoundTripCostBps.round(4),
+                targetExposureFraction = it.targetExposureFraction.round(4)
             )
         }
     )
@@ -5709,6 +6089,8 @@ fun isValidResearchConfig(config: ResearchConfig): Boolean {
         config.betaLookbackBars > 1 &&
         config.trendLookbackBars > 1 &&
         config.trendSlowBars > config.trendLookbackBars &&
+        config.trendMediumBars > config.trendSlowBars &&
+        config.trendLongBars > config.trendMediumBars &&
         config.reversionLookbackBars > 1 &&
         config.trendHoldBars > 0 &&
         config.reversionHoldBars > 0 &&
@@ -5720,6 +6102,10 @@ fun isValidResearchConfig(config: ResearchConfig): Boolean {
         config.reversionZEntry > 0.0 &&
         config.reversionZExit >= 0.0 &&
         config.reversionZExit < config.reversionZEntry &&
+        config.reversionEntryQuantile in 0.0..0.5 &&
+        config.reversionExitQuantile in 0.0..0.5 &&
+        config.reversionExitQuantile > config.reversionEntryQuantile &&
+        config.reversionCrossSectionalWeight in 0.0..1.0 &&
         config.maxSpreadBps > 0.0 &&
         config.minDepthMultiple > 0.0 &&
         config.minFillRatio in 0.0..1.0 &&
@@ -5738,6 +6124,9 @@ fun isValidResearchConfig(config: ResearchConfig): Boolean {
         config.reversionTrailingStopVolMultiple >= 0.0 &&
         config.trendTakeProfitVolMultiple >= 0.0 &&
         config.reversionTakeProfitVolMultiple >= 0.0 &&
+        config.minTargetExposureFraction > 0.0 &&
+        config.maxTargetExposureFraction in config.minTargetExposureFraction..1.0 &&
+        config.rebalanceTargetExposureStep >= 0.0 &&
         config.maxConcurrentPositions > 0 &&
         config.maxConcurrentLongs in 1..config.maxConcurrentPositions &&
         config.maxConcurrentShorts in 1..config.maxConcurrentPositions &&
@@ -5832,6 +6221,8 @@ private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List
         ),
         intMutation("trendLookbackBars", "trend_signal", searchConfig.trendLookbackBars, { it.trendLookbackBars }, { cfg, value -> cfg.copy(trendLookbackBars = value) }),
         intMutation("trendSlowBars", "trend_signal", searchConfig.trendSlowBars, { it.trendSlowBars }, { cfg, value -> cfg.copy(trendSlowBars = value) }),
+        intMutation("trendMediumBars", "trend_signal", searchConfig.trendMediumBars, { it.trendMediumBars }, { cfg, value -> cfg.copy(trendMediumBars = value) }),
+        intMutation("trendLongBars", "trend_signal", searchConfig.trendLongBars, { it.trendLongBars }, { cfg, value -> cfg.copy(trendLongBars = value) }),
         intMutation("trendHoldBars", "trend_signal", searchConfig.trendHoldBars, { it.trendHoldBars }, { cfg, value -> cfg.copy(trendHoldBars = value) }),
         intMutation(
             "trendCooldownBars",
@@ -5849,6 +6240,30 @@ private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List
             { it.reversionZExit },
             { cfg, value -> cfg.copy(reversionZExit = value) },
             predicate = { it >= 0.0 }
+        ),
+        doubleMutation(
+            "reversionEntryQuantile",
+            "reversion_signal",
+            searchConfig.reversionEntryQuantile,
+            { it.reversionEntryQuantile },
+            { cfg, value -> cfg.copy(reversionEntryQuantile = value) },
+            predicate = { it in 0.0..0.5 }
+        ),
+        doubleMutation(
+            "reversionExitQuantile",
+            "reversion_signal",
+            searchConfig.reversionExitQuantile,
+            { it.reversionExitQuantile },
+            { cfg, value -> cfg.copy(reversionExitQuantile = value) },
+            predicate = { it in 0.0..0.5 }
+        ),
+        doubleMutation(
+            "reversionCrossSectionalWeight",
+            "reversion_signal",
+            searchConfig.reversionCrossSectionalWeight,
+            { it.reversionCrossSectionalWeight },
+            { cfg, value -> cfg.copy(reversionCrossSectionalWeight = value) },
+            predicate = { it in 0.0..1.0 }
         ),
         doubleMutation(
             "reversionMaxContinuationPressure",
@@ -5928,6 +6343,30 @@ private fun buildSearchMutations(searchConfig: CrossSectionalSearchConfig): List
             { it.maxNetExposureFraction },
             { cfg, value -> cfg.copy(maxNetExposureFraction = value) },
             predicate = { it in 0.0..1.0 }
+        ),
+        doubleMutation(
+            "minTargetExposureFraction",
+            "portfolio_policy",
+            searchConfig.minTargetExposureFraction,
+            { it.minTargetExposureFraction },
+            { cfg, value -> cfg.copy(minTargetExposureFraction = value) },
+            predicate = { it > 0.0 && it <= 1.0 }
+        ),
+        doubleMutation(
+            "maxTargetExposureFraction",
+            "portfolio_policy",
+            searchConfig.maxTargetExposureFraction,
+            { it.maxTargetExposureFraction },
+            { cfg, value -> cfg.copy(maxTargetExposureFraction = value) },
+            predicate = { it > 0.0 && it <= 1.0 }
+        ),
+        doubleMutation(
+            "rebalanceTargetExposureStep",
+            "portfolio_policy",
+            searchConfig.rebalanceTargetExposureStep,
+            { it.rebalanceTargetExposureStep },
+            { cfg, value -> cfg.copy(rebalanceTargetExposureStep = value) },
+            predicate = { it >= 0.0 && it <= 1.0 }
         ),
         doubleMutation(
             "maxPortfolioBetaBtcAbs",
@@ -6175,6 +6614,8 @@ fun researchConfigFingerprint(config: ResearchConfig): String =
         config.betaLookbackBars,
         config.trendLookbackBars,
         config.trendSlowBars,
+        config.trendMediumBars,
+        config.trendLongBars,
         config.reversionLookbackBars,
         config.trendHoldBars,
         config.reversionHoldBars,
@@ -6186,6 +6627,9 @@ fun researchConfigFingerprint(config: ResearchConfig): String =
         config.trendEntryScore.round(6),
         config.reversionZEntry.round(6),
         config.reversionZExit.round(6),
+        config.reversionEntryQuantile.round(6),
+        config.reversionExitQuantile.round(6),
+        config.reversionCrossSectionalWeight.round(6),
         config.maxSpreadBps.round(6),
         config.minDepthMultiple.round(6),
         config.minFillRatio.round(6),
@@ -6207,6 +6651,9 @@ fun researchConfigFingerprint(config: ResearchConfig): String =
         config.reversionTrailingStopVolMultiple.round(6),
         config.trendTakeProfitVolMultiple.round(6),
         config.reversionTakeProfitVolMultiple.round(6),
+        config.minTargetExposureFraction.round(6),
+        config.maxTargetExposureFraction.round(6),
+        config.rebalanceTargetExposureStep.round(6),
         config.maxConcurrentPositions,
         config.maxConcurrentLongs,
         config.maxConcurrentShorts,
@@ -6414,6 +6861,24 @@ private fun buildSeedAnchorConfig(
             base.maxConcurrentShorts,
             searchConfig.maxConcurrentShorts,
             listOf(searchConfig.maxConcurrentShorts.maxOrNull() ?: base.maxConcurrentShorts)
+        ),
+        minTargetExposureFraction = selectDoubleSearchValue(
+            base.minTargetExposureFraction,
+            searchConfig.minTargetExposureFraction,
+            listOf(searchConfig.minTargetExposureFraction.minOrNull() ?: base.minTargetExposureFraction),
+            predicate = { it > 0.0 && it <= 1.0 }
+        ),
+        maxTargetExposureFraction = selectDoubleSearchValue(
+            base.maxTargetExposureFraction,
+            searchConfig.maxTargetExposureFraction,
+            listOf(searchConfig.maxTargetExposureFraction.maxOrNull() ?: base.maxTargetExposureFraction),
+            predicate = { it > 0.0 && it <= 1.0 }
+        ),
+        rebalanceTargetExposureStep = selectDoubleSearchValue(
+            base.rebalanceTargetExposureStep,
+            searchConfig.rebalanceTargetExposureStep,
+            listOf(searchConfig.rebalanceTargetExposureStep.minOrNull() ?: base.rebalanceTargetExposureStep),
+            predicate = { it >= 0.0 && it <= 1.0 }
         )
     )
 }
@@ -6442,9 +6907,31 @@ private fun buildTrendSearchSeed(
         },
         predicate = { it > trendLookbackBars }
     )
+    val trendMediumBars = selectIntSearchValue(
+        anchor.trendMediumBars,
+        searchConfig.trendMediumBars,
+        preferred = when {
+            barMinutes <= 5 -> listOf(24, 36, 48)
+            barMinutes <= 30 -> listOf(48, 72, 96)
+            else -> listOf(72, 96, 144)
+        },
+        predicate = { it > trendSlowBars }
+    )
+    val trendLongBars = selectIntSearchValue(
+        anchor.trendLongBars,
+        searchConfig.trendLongBars,
+        preferred = when {
+            barMinutes <= 5 -> listOf(48, 72, 96)
+            barMinutes <= 30 -> listOf(96, 144, 192)
+            else -> listOf(144, 192, 288)
+        },
+        predicate = { it > trendMediumBars }
+    )
     return anchor.copy(
         trendLookbackBars = trendLookbackBars,
         trendSlowBars = trendSlowBars,
+        trendMediumBars = trendMediumBars,
+        trendLongBars = trendLongBars,
         trendHoldBars = selectIntSearchValue(
             anchor.trendHoldBars,
             searchConfig.trendHoldBars,
@@ -6482,7 +6969,29 @@ private fun buildReversionSearchSeed(
     barMinutes: Int
 ): ResearchConfig {
     val anchor = buildSeedAnchorConfig(searchConfig, barMinutes)
+    val trendMediumBars = selectIntSearchValue(
+        anchor.trendMediumBars,
+        searchConfig.trendMediumBars,
+        preferred = when {
+            barMinutes <= 5 -> listOf(24, 36, 48)
+            barMinutes <= 30 -> listOf(48, 72, 96)
+            else -> listOf(72, 96, 144)
+        },
+        predicate = { it > anchor.trendSlowBars }
+    )
+    val trendLongBars = selectIntSearchValue(
+        anchor.trendLongBars,
+        searchConfig.trendLongBars,
+        preferred = when {
+            barMinutes <= 5 -> listOf(48, 72, 96)
+            barMinutes <= 30 -> listOf(96, 144, 192)
+            else -> listOf(144, 192, 288)
+        },
+        predicate = { it > trendMediumBars }
+    )
     return anchor.copy(
+        trendMediumBars = trendMediumBars,
+        trendLongBars = trendLongBars,
         reversionLookbackBars = selectIntSearchValue(
             anchor.reversionLookbackBars,
             searchConfig.reversionLookbackBars,
@@ -6508,6 +7017,24 @@ private fun buildReversionSearchSeed(
             searchConfig.reversionZExit,
             preferred = searchConfig.reversionZExit.sorted(),
             predicate = { it >= 0.0 }
+        ),
+        reversionEntryQuantile = selectDoubleSearchValue(
+            anchor.reversionEntryQuantile,
+            searchConfig.reversionEntryQuantile,
+            preferred = searchConfig.reversionEntryQuantile.sorted(),
+            predicate = { it in 0.0..0.5 }
+        ),
+        reversionExitQuantile = selectDoubleSearchValue(
+            anchor.reversionExitQuantile,
+            searchConfig.reversionExitQuantile,
+            preferred = searchConfig.reversionExitQuantile.sortedDescending(),
+            predicate = { it in 0.0..0.5 }
+        ),
+        reversionCrossSectionalWeight = selectDoubleSearchValue(
+            anchor.reversionCrossSectionalWeight,
+            searchConfig.reversionCrossSectionalWeight,
+            preferred = searchConfig.reversionCrossSectionalWeight.sorted(),
+            predicate = { it in 0.0..1.0 }
         ),
         reversionMaxContinuationPressure = selectDoubleSearchValue(
             anchor.reversionMaxContinuationPressure,
@@ -6554,11 +7081,31 @@ private fun buildMediumTrendSearchSeed(
         anchor.trendSlowBars,
         searchConfig.trendSlowBars,
         preferred = when {
-            barMinutes <= 30 -> listOf(36, 48, 72)
-            barMinutes <= 120 -> listOf(48, 72, 96)
-            else -> listOf(72, 96, 144)
+            barMinutes <= 30 -> listOf(72, 96, 144)
+            barMinutes <= 120 -> listOf(96, 144, 192)
+            else -> listOf(144, 192, 288)
         },
         predicate = { it > trendLookbackBars }
+    )
+    val trendMediumBars = selectIntSearchValue(
+        anchor.trendMediumBars,
+        searchConfig.trendMediumBars,
+        preferred = when {
+            barMinutes <= 30 -> listOf(144, 192, 288)
+            barMinutes <= 120 -> listOf(192, 288, 384)
+            else -> listOf(288, 384, 576)
+        },
+        predicate = { it > trendSlowBars }
+    )
+    val trendLongBars = selectIntSearchValue(
+        anchor.trendLongBars,
+        searchConfig.trendLongBars,
+        preferred = when {
+            barMinutes <= 30 -> listOf(288, 384, 576)
+            barMinutes <= 120 -> listOf(384, 576, 768)
+            else -> listOf(576, 768, 1152)
+        },
+        predicate = { it > trendMediumBars }
     )
     return anchor.copy(
         lookbackHours = selectIntSearchValue(anchor.lookbackHours, searchConfig.lookbackHours, listOf(720, 1080, 1440)),
@@ -6566,7 +7113,17 @@ private fun buildMediumTrendSearchSeed(
         betaLookbackBars = selectIntSearchValue(anchor.betaLookbackBars, searchConfig.betaLookbackBars, listOf(72, 96, 168)),
         trendLookbackBars = trendLookbackBars,
         trendSlowBars = trendSlowBars,
-        trendHoldBars = selectIntSearchValue(anchor.trendHoldBars, searchConfig.trendHoldBars, listOf(3, 4, 6, 9)),
+        trendMediumBars = trendMediumBars,
+        trendLongBars = trendLongBars,
+        trendHoldBars = selectIntSearchValue(
+            anchor.trendHoldBars,
+            searchConfig.trendHoldBars,
+            when {
+                barMinutes <= 30 -> listOf(48, 72, 96, 144)
+                barMinutes <= 120 -> listOf(24, 36, 48, 72)
+                else -> listOf(12, 18, 24, 36)
+            }
+        ),
         topPerSide = selectIntSearchValue(anchor.topPerSide, searchConfig.topPerSide, listOf(4, 6, 10)),
         trendEntryScore = selectDoubleSearchValue(anchor.trendEntryScore, searchConfig.trendEntryScore, listOf(0.8, 1.0, 1.2), predicate = { it > 0.0 }),
         trendMinFlowAlignment = selectDoubleSearchValue(anchor.trendMinFlowAlignment, searchConfig.trendMinFlowAlignment, listOf(0.0, 0.05, 0.08), predicate = { it >= 0.0 }),
@@ -6597,6 +7154,9 @@ private fun buildMediumReversionSearchSeed(
         topPerSide = selectIntSearchValue(anchor.topPerSide, searchConfig.topPerSide, listOf(4, 6, 10)),
         reversionZEntry = selectDoubleSearchValue(anchor.reversionZEntry, searchConfig.reversionZEntry, listOf(1.0, 1.5, 1.8), predicate = { it > 0.0 }),
         reversionZExit = selectDoubleSearchValue(anchor.reversionZExit, searchConfig.reversionZExit, listOf(0.1, 0.2, 0.45), predicate = { it >= 0.0 }),
+        reversionEntryQuantile = selectDoubleSearchValue(anchor.reversionEntryQuantile, searchConfig.reversionEntryQuantile, listOf(0.08, 0.12, 0.18), predicate = { it in 0.0..0.5 }),
+        reversionExitQuantile = selectDoubleSearchValue(anchor.reversionExitQuantile, searchConfig.reversionExitQuantile, listOf(0.25, 0.35, 0.45), predicate = { it in 0.0..0.5 }),
+        reversionCrossSectionalWeight = selectDoubleSearchValue(anchor.reversionCrossSectionalWeight, searchConfig.reversionCrossSectionalWeight, listOf(0.25, 0.4, 0.55), predicate = { it in 0.0..1.0 }),
         reversionMaxContinuationPressure = selectDoubleSearchValue(
             anchor.reversionMaxContinuationPressure,
             searchConfig.reversionMaxContinuationPressure,
@@ -6633,6 +7193,24 @@ private fun buildBreadthSearchSeed(searchConfig: CrossSectionalSearchConfig): Re
             base.maxConcurrentShorts,
             searchConfig.maxConcurrentShorts,
             listOf(searchConfig.maxConcurrentShorts.maxOrNull() ?: base.maxConcurrentShorts)
+        ),
+        minTargetExposureFraction = selectDoubleSearchValue(
+            base.minTargetExposureFraction,
+            searchConfig.minTargetExposureFraction,
+            listOf(searchConfig.minTargetExposureFraction.minOrNull() ?: base.minTargetExposureFraction),
+            predicate = { it > 0.0 && it <= 1.0 }
+        ),
+        maxTargetExposureFraction = selectDoubleSearchValue(
+            base.maxTargetExposureFraction,
+            searchConfig.maxTargetExposureFraction,
+            listOf(searchConfig.maxTargetExposureFraction.maxOrNull() ?: base.maxTargetExposureFraction),
+            predicate = { it > 0.0 && it <= 1.0 }
+        ),
+        rebalanceTargetExposureStep = selectDoubleSearchValue(
+            base.rebalanceTargetExposureStep,
+            searchConfig.rebalanceTargetExposureStep,
+            listOf(searchConfig.rebalanceTargetExposureStep.minOrNull() ?: base.rebalanceTargetExposureStep),
+            predicate = { it >= 0.0 && it <= 1.0 }
         ),
         maxNetExposureFraction = selectDoubleSearchValue(
             base.maxNetExposureFraction,

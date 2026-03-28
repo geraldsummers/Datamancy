@@ -1774,6 +1774,120 @@ class CrossSectionalResearchTest {
         )
     }
 
+    @Test
+    fun `buildStructuralCandidate scales trend exposure with confirmation strength`() {
+        val config = ResearchConfig(
+            betaLookbackBars = 8,
+            trendLookbackBars = 4,
+            trendSlowBars = 8,
+            reversionLookbackBars = 4,
+            trendEntryScore = 1.0,
+            minTargetExposureFraction = 0.2,
+            maxTargetExposureFraction = 0.9,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val weak = featureRow(
+            symbol = "SOL",
+            liquid = true,
+            barIndex = 24,
+            trendScore = 1.15,
+            trendLongRank = 1,
+            residualZ = 0.2,
+            flowSignal = 0.1,
+            rawTrend = 0.9,
+            mediumTrendScore = 0.9,
+            trendConfirmationScore = 0.7,
+            trendPersistence = 0.55,
+            trendExpectedGrossEdgeBps = 22.0
+        )
+        val strong = weak.copy(
+            trendScore = 1.9,
+            flowSignal = 0.55,
+            rawTrend = 1.35,
+            mediumTrendScore = 1.4,
+            trendConfirmationScore = 2.4,
+            trendPersistence = 1.0,
+            trendPullback = 0.35,
+            trendExpectedGrossEdgeBps = 42.0
+        )
+
+        val weakCandidate = assertNotNull(buildStructuralCandidate(StrategyKind.TREND, weak, 1, config))
+        val strongCandidate = assertNotNull(buildStructuralCandidate(StrategyKind.TREND, strong, 1, config))
+
+        assertTrue(strongCandidate.targetExposureFraction > weakCandidate.targetExposureFraction)
+        assertTrue(strongCandidate.signalConfidence > weakCandidate.signalConfidence)
+    }
+
+    @Test
+    fun `shouldExitPosition uses dynamic reversion exit band`() {
+        val config = ResearchConfig(
+            betaLookbackBars = 8,
+            trendLookbackBars = 4,
+            trendSlowBars = 8,
+            reversionLookbackBars = 4,
+            reversionHoldBars = 6,
+            reversionTrailingStopVolMultiple = 0.0,
+            reversionTakeProfitVolMultiple = 0.0,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val entryRow = featureRow(
+            symbol = "SOL",
+            liquid = true,
+            barIndex = 20,
+            trendScore = 0.2,
+            residualZ = -2.4,
+            reversionState = -2.1,
+            reversionEntryLowerBound = -1.8,
+            reversionExitLowerBound = -0.45,
+            reversionExitUpperBound = 0.45,
+            reversionScore = 1.1
+        )
+        val currentRow = entryRow.copy(
+            barIndex = 22,
+            time = entryRow.time.plusSeconds(120L),
+            residualZ = -0.9,
+            reversionState = -0.18,
+            flowSignal = 0.05
+        )
+        val position = OpenPosition(
+            strategyName = "cross_section_beta_reversion_v1",
+            strategyKind = StrategyKind.REVERSION,
+            exchange = entryRow.exchange,
+            symbol = entryRow.symbol,
+            side = 1,
+            entryRow = entryRow,
+            entryEstimate = ExecutionEstimate(
+                fillRatio = 0.9,
+                feeBps = 2.0,
+                feeTier = "test",
+                feeTierAdjustmentBps = 0.0,
+                makerFeeBps = 1.0,
+                takerFeeBps = 4.0,
+                spreadCostBps = 0.5,
+                slippageBps = 0.5,
+                impactBps = 0.5,
+                adverseSelectionBps = 0.3,
+                fundingDriftBps = 0.0,
+                basisDriftBps = 0.0,
+                totalCostBps = 3.8,
+                estimatedFeeUsd = 0.5,
+                estimatedCostUsd = 0.9
+            ),
+            expectedGrossEdgeBps = 12.0,
+            expectedRoundTripCostBps = 4.5,
+            expectedNetEdgeBps = 7.5,
+            targetExposureFraction = 0.5,
+            calibrationSamples = 0,
+            calibrationWinRate = 0.0,
+            calibrationLowerBoundBps = 0.0,
+            calibrationScope = "heuristic"
+        )
+
+        assertTrue(shouldExitPosition(StrategyKind.REVERSION, position, currentRow, config))
+    }
+
     private fun featureRow(
         symbol: String,
         liquid: Boolean,
@@ -1789,10 +1903,21 @@ class CrossSectionalResearchTest {
         residualMomMedium: Double = residualMomSlow,
         residualMomLong: Double = residualMomSlow,
         mediumTrendScore: Double = rawTrend,
+        trendConfirmationScore: Double = 1.2,
         trendPersistence: Double = 0.75,
         trendPullback: Double = 0.0,
         trendExhaustion: Double = 0.0,
         trendExpectedGrossEdgeBps: Double = 12.0,
+        reversionExpectedGrossEdgeBps: Double = 8.0,
+        residualCrossSectionalZ: Double = residualZ * 0.6,
+        reversionState: Double = residualZ,
+        reversionEntryLowerBound: Double = -1.8,
+        reversionEntryUpperBound: Double = 1.8,
+        reversionExitLowerBound: Double = -0.35,
+        reversionExitUpperBound: Double = 0.35,
+        reversionScore: Double = 0.4,
+        trendTargetExposureFraction: Double = 0.55,
+        reversionTargetExposureFraction: Double = 0.45,
         volumeRatio: Double = 0.8,
         depthUsd: Double = 250_000.0,
         spreadBps: Double = 0.5,
@@ -1825,6 +1950,12 @@ class CrossSectionalResearchTest {
         residualMomMedium = residualMomMedium,
         residualMomLong = residualMomLong,
         residualZ = residualZ,
+        residualCrossSectionalZ = residualCrossSectionalZ,
+        reversionState = reversionState,
+        reversionEntryLowerBound = reversionEntryLowerBound,
+        reversionEntryUpperBound = reversionEntryUpperBound,
+        reversionExitLowerBound = reversionExitLowerBound,
+        reversionExitUpperBound = reversionExitUpperBound,
         imbalance = imbalance,
         volumeRatio = volumeRatio,
         depthRatio = 1.8,
@@ -1832,14 +1963,17 @@ class CrossSectionalResearchTest {
         flowSignal = flowSignal,
         breadth = 0.55,
         mediumTrendScore = mediumTrendScore,
+        trendConfirmationScore = trendConfirmationScore,
         trendPersistence = trendPersistence,
         trendPullback = trendPullback,
         trendExhaustion = trendExhaustion,
         rawTrend = rawTrend,
         trendScore = trendScore,
-        reversionScore = 0.4,
+        reversionScore = reversionScore,
         trendExpectedGrossEdgeBps = trendExpectedGrossEdgeBps,
-        reversionExpectedGrossEdgeBps = 8.0,
+        reversionExpectedGrossEdgeBps = reversionExpectedGrossEdgeBps,
+        trendTargetExposureFraction = trendTargetExposureFraction,
+        reversionTargetExposureFraction = reversionTargetExposureFraction,
         liquid = liquid,
         trendLongRank = trendLongRank,
         trendShortRank = Int.MAX_VALUE,
@@ -1903,6 +2037,8 @@ class CrossSectionalResearchTest {
         basisDriftBps = 0.0,
         totalCostBps = 5.4,
         edgeAfterCostBps = edgeAfterCostBps,
+        targetExposureFraction = 0.5,
+        entryNotionalUsd = 2_500.0,
         estimatedFeeUsd = 1.25,
         estimatedCostUsd = 2.7,
         entryTrendScore = 1.2,
