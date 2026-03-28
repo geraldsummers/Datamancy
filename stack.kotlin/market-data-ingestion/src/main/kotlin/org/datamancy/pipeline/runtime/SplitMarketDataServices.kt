@@ -1153,6 +1153,24 @@ internal val persistLiveChannels: List<String> = listOf(
     "asset_context"
 )
 
+internal suspend fun runPeriodicFlushLoop(
+    flushIntervalMs: Long,
+    flush: suspend () -> Unit,
+    onError: (Throwable) -> Unit = {}
+) {
+    require(flushIntervalMs > 0L) { "flush interval must be positive" }
+    while (currentCoroutineContext().isActive) {
+        delay(flushIntervalMs)
+        try {
+            flush()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (ex: Exception) {
+            onError(ex)
+        }
+    }
+}
+
 internal data class HyperliquidSourcePlan(
     val family: String,
     val shardIndex: Int,
@@ -1740,10 +1758,13 @@ class MarketDataPersistRunner internal constructor(
         }
         flushJobs = currentSinks().map { sink ->
             scope.launch {
-                while (isActive) {
-                    delay(config.flushIntervalSeconds * 1_000L)
-                    sink.flush()
-                }
+                runPeriodicFlushLoop(
+                    flushIntervalMs = config.flushIntervalSeconds * 1_000L,
+                    flush = { sink.flush() },
+                    onError = { ex ->
+                        logger.warn(ex) { "Periodic market-data-persist flush failed; will retry on next interval" }
+                    }
+                )
             }
         }
         statsJob = scope.launch {

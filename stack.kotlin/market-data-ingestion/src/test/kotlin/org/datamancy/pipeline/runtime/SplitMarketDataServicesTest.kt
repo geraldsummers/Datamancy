@@ -1,6 +1,9 @@
 package org.datamancy.pipeline.runtime
 
 import io.nats.client.api.DeliverPolicy
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.datamancy.pipeline.runners.HyperliquidContinuityWatchdog
 import org.datamancy.pipeline.sources.HyperliquidAssetContext
 import org.datamancy.pipeline.sources.HyperliquidCandle
@@ -11,6 +14,7 @@ import org.datamancy.pipeline.sources.HyperliquidTrade
 import org.junit.jupiter.api.Test
 import kotlinx.serialization.json.Json
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -569,6 +573,30 @@ class SplitMarketDataServicesTest {
             1,
             persistWorkerCountForChannel("candle_1m", tradeWorkers = 4, orderbookWorkers = 3, assetContextWorkers = 2)
         )
+    }
+
+    @Test
+    fun `periodic flush loop retries after transient flush failures`() = runBlocking {
+        val attempts = AtomicInteger(0)
+        val errors = mutableListOf<String>()
+
+        val job = launch {
+            runPeriodicFlushLoop(
+                flushIntervalMs = 1L,
+                flush = {
+                    when (attempts.incrementAndGet()) {
+                        1 -> error("transient flush failure")
+                        else -> cancel()
+                    }
+                },
+                onError = { errors += it.message.orEmpty() }
+            )
+        }
+
+        job.join()
+
+        assertEquals(2, attempts.get())
+        assertEquals(listOf("transient flush failure"), errors)
     }
 
     @Test
