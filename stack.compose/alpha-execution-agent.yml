@@ -18,6 +18,7 @@ services:
         condition: service_started
     environment:
       PORT: 8080
+      TX_GATEWAY_URL: http://tx-gateway:8080
       DATAMANCY_TRADING_POLICY_FILE: /app/config/trading-policy.json
     volumes:
       - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro

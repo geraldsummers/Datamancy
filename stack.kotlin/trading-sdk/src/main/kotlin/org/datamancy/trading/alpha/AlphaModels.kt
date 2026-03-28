@@ -219,6 +219,35 @@ data class AlphaExecutionPlan(
     val notes: List<String>
 )
 
+data class AlphaExecutionSubmitRequest(
+    val exchange: String = "hyperliquid",
+    val symbol: String,
+    val direction: AlphaDirection,
+    val orderType: String = "MARKET",
+    val size: Double,
+    val price: Double? = null,
+    val mode: AlphaRunMode = AlphaRunMode.FORWARD_PAPER,
+    val reduceOnly: Boolean = false,
+    val urgencyClass: String? = null,
+    val feeTier: String? = null,
+    val maxSlippageBps: Double? = null,
+    val cancelAfterMs: Long? = null
+)
+
+data class AlphaExecutionSubmission(
+    val accepted: Boolean,
+    val exchange: String,
+    val symbol: String,
+    val mode: AlphaRunMode,
+    val orderId: String? = null,
+    val status: String? = null,
+    val filledSize: Double? = null,
+    val fillPrice: Double? = null,
+    val upstreamCode: Int? = null,
+    val error: String? = null,
+    val notes: List<String> = emptyList()
+)
+
 data class AlphaExecutionFill(
     val symbol: String,
     val direction: AlphaDirection,
