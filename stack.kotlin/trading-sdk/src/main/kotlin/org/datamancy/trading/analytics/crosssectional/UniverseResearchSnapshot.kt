@@ -18,7 +18,8 @@ internal data class UniverseSnapshotBar(
     val askDepth10: Double,
     val midPrice: Double,
     val executionObserved: Boolean,
-    val finalized: Boolean
+    val finalized: Boolean,
+    val latestExecutionObservedTime: Instant? = null
 )
 
 internal data class UniverseSnapshot(
@@ -277,7 +278,8 @@ private fun loadUniverseSnapshotFromFeatures(
                 bid_depth_10,
                 ask_depth_10,
                 mid_price,
-                orderbook_observed
+                orderbook_observed,
+                time AS latest_execution_observed_time
             FROM bucketed
             WHERE orderbook_observed
             ORDER BY symbol, bucket_time, time DESC
@@ -300,7 +302,8 @@ private fun loadUniverseSnapshotFromFeatures(
             COALESCE(o.ask_depth_10, 0) AS ask_depth_10,
             COALESCE(o.mid_price, c.close) AS mid_price,
             CASE WHEN o.symbol IS NULL THEN FALSE ELSE TRUE END AS execution_observed,
-            COALESCE(f.finalized, FALSE) AS finalized
+            COALESCE(f.finalized, FALSE) AS finalized,
+            o.latest_execution_observed_time
         FROM bucket_close c
         JOIN bucket_volume v
           ON v.symbol = c.symbol
@@ -332,7 +335,8 @@ private fun loadUniverseSnapshotFromFeatures(
                                 askDepth10 = rs.getDouble("ask_depth_10"),
                                 midPrice = rs.getDouble("mid_price"),
                                 executionObserved = rs.getBoolean("execution_observed"),
-                                finalized = rs.getBoolean("finalized")
+                                finalized = rs.getBoolean("finalized"),
+                                latestExecutionObservedTime = rs.getTimestamp("latest_execution_observed_time")?.toInstant()
                             )
                         )
                     }

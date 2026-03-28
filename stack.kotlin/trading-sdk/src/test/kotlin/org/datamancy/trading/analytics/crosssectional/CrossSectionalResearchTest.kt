@@ -175,6 +175,80 @@ class CrossSectionalResearchTest {
     }
 
     @Test
+    fun `computeResearchCoverageSnapshotsFromUniverseSnapshot carries execution freshness into the next 60m bar`() {
+        val snapshot = UniverseSnapshot(
+            aliases = listOf("hyperliquid_mainnet"),
+            barMinutes = 60,
+            lookbackHours = 3,
+            loadedAt = Instant.parse("2026-03-27T03:05:00Z"),
+            barsBySymbol = mapOf(
+                "BTC" to listOf(
+                    UniverseSnapshotBar(
+                        symbol = "BTC",
+                        time = Instant.parse("2026-03-27T00:00:00Z"),
+                        close = 100.0,
+                        volume = 1_000.0,
+                        spreadPct = 0.001,
+                        bidDepth10 = 50_000.0,
+                        askDepth10 = 50_000.0,
+                        midPrice = 100.0,
+                        executionObserved = true,
+                        finalized = true,
+                        latestExecutionObservedTime = Instant.parse("2026-03-27T00:59:00Z")
+                    ),
+                    UniverseSnapshotBar(
+                        symbol = "BTC",
+                        time = Instant.parse("2026-03-27T01:00:00Z"),
+                        close = 101.0,
+                        volume = 1_100.0,
+                        spreadPct = 0.001,
+                        bidDepth10 = 51_000.0,
+                        askDepth10 = 51_000.0,
+                        midPrice = 101.0,
+                        executionObserved = false,
+                        finalized = true
+                    ),
+                    UniverseSnapshotBar(
+                        symbol = "BTC",
+                        time = Instant.parse("2026-03-27T02:00:00Z"),
+                        close = 102.0,
+                        volume = 1_200.0,
+                        spreadPct = 0.001,
+                        bidDepth10 = 52_000.0,
+                        askDepth10 = 52_000.0,
+                        midPrice = 102.0,
+                        executionObserved = false,
+                        finalized = true
+                    )
+                )
+            ),
+            totalBars = 3,
+            firstBarTime = Instant.parse("2026-03-27T00:00:00Z"),
+            lastBarTime = Instant.parse("2026-03-27T02:00:00Z")
+        )
+
+        val snapshots = computeResearchCoverageSnapshotsFromUniverseSnapshot(
+            exchange = "hyperliquid",
+            snapshot = snapshot,
+            symbols = listOf("BTC"),
+            lookbackHours = 3,
+            barMinutes = 60,
+            minBars = 3,
+            referenceTime = Instant.parse("2026-03-27T03:05:00Z"),
+            coveragePolicy = CoverageContractPolicy(
+                minExecutionObservedRatio = 0.55,
+                maxFeatureLagSeconds = 180L,
+                maxFinalizedLagMinutes = 5L
+            )
+        )
+
+        val coverage = snapshots.single()
+        assertEquals(2, coverage.executionObservedBars)
+        assertEquals(2.0 / 3.0, coverage.executionObservedRatio)
+        assertEquals(Instant.parse("2026-03-27T00:59:00Z"), coverage.latestExecutionObservedTime)
+    }
+
+    @Test
     fun `buildResearchCoverageVerdict rejects stale execution frontier even when execution ratio passes`() {
         val coveragePolicy = CoverageContractPolicy(
             minCoverageRatio = 0.98,
@@ -335,6 +409,19 @@ class CrossSectionalResearchTest {
         assertEquals(5L, effectiveCoverageMaxFinalizedLagMinutes(policy, barMinutes = 1))
         assertEquals(1920L, effectiveCoverageMaxFeatureLagSeconds(policy, barMinutes = 30))
         assertEquals(34L, effectiveCoverageMaxFinalizedLagMinutes(policy, barMinutes = 30))
+    }
+
+    @Test
+    fun `coverage lag metrics align execution freshness to the containing bucket close`() {
+        val lagMetrics = computeResearchCoverageLagMetrics(
+            latestFeatureTime = Instant.parse("2026-03-27T23:00:00Z"),
+            finalizedThrough = Instant.parse("2026-03-27T23:00:00Z"),
+            latestExecutionObservedTime = Instant.parse("2026-03-27T23:59:00Z"),
+            referenceTime = Instant.parse("2026-03-28T00:10:00Z"),
+            bucketSeconds = 60L * 60L
+        )
+
+        assertEquals(600L, lagMetrics.latestExecutionObservedLagSeconds)
     }
 
     @Test
