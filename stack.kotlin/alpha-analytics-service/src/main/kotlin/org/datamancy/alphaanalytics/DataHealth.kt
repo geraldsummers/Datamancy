@@ -661,10 +661,12 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
     }
 
     if (row.coverageRatio < thresholds.minCoverageRatio) {
-        degradedReasons += "coverage ${row.coverageRatio.formatRatio()} below ${thresholds.minCoverageRatio.formatRatio()}"
+        degradedReasons +=
+            "recent feature coverage ${row.coverageRatio.formatRatio()} below ${thresholds.minCoverageRatio.formatRatio()}"
     }
     if (row.finalizedRatio < thresholds.minFinalizedRatio) {
-        degradedReasons += "finalized coverage ${row.finalizedRatio.formatRatio()} below ${thresholds.minFinalizedRatio.formatRatio()}"
+        degradedReasons +=
+            "recent finalized coverage ${row.finalizedRatio.formatRatio()} below ${thresholds.minFinalizedRatio.formatRatio()}"
     }
     if (row.finalizedLagMinutes == null || row.finalizedLagMinutes > thresholds.finalizedLagMaxMinutes) {
         degradedReasons += "finalized lag ${row.finalizedLagMinutes?.formatMinutes() ?: "n/a"} exceeds ${thresholds.finalizedLagMaxMinutes}m"

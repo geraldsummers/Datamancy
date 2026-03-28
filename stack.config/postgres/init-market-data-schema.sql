@@ -663,11 +663,28 @@ base AS (
         fcs.earliest_feature_time AS coverage_earliest_feature_time,
         fcs.latest_feature_time AS coverage_latest_feature_time,
         fcs.finalized_through AS coverage_finalized_through,
-        COALESCE(fcs.expected_bars, 0) AS expected_bars,
-        COALESCE(fcs.observed_bars, 0) AS observed_bars,
-        COALESCE(fcs.finalized_bars, 0) AS finalized_bars,
-        COALESCE(fcs.coverage_ratio, 0) AS coverage_ratio,
-        COALESCE(fcs.finalized_ratio, 0) AS finalized_ratio,
+        COALESCE(fcs.expected_bars, 0) AS historical_expected_bars,
+        COALESCE(fcs.observed_bars, 0) AS historical_observed_bars,
+        COALESCE(fcs.finalized_bars, 0) AS historical_finalized_bars,
+        COALESCE(fcs.coverage_ratio, 0) AS historical_coverage_ratio,
+        COALESCE(fcs.finalized_ratio, 0) AS historical_finalized_ratio,
+        CASE
+            WHEN rp.candle_1m_latest_raw_time IS NULL THEN 0
+            ELSE GREATEST(
+                (
+                    EXTRACT(
+                        EPOCH FROM (
+                            date_trunc('minute', rp.candle_1m_latest_raw_time) -
+                            GREATEST(
+                                date_trunc('minute', COALESCE(fcs.earliest_raw_time, rp.candle_1m_latest_raw_time)),
+                                date_trunc('minute', NOW() - INTERVAL '24 hours')
+                            )
+                        )
+                    ) / 60
+                )::INTEGER + 1,
+                0
+            )
+        END AS recent_expected_bars_24h,
         fcs.last_computed_at,
         COALESCE(rf.recent_feature_rows_24h, 0) AS recent_feature_rows_24h,
         COALESCE(rf.recent_candle_observed_rows_24h, 0) AS recent_candle_observed_rows_24h,
@@ -703,6 +720,25 @@ base AS (
 )
 SELECT
     base.*,
+    COALESCE(recent_expected_bars_24h, 0) AS expected_bars,
+    COALESCE(recent_feature_rows_24h, 0) AS observed_bars,
+    COALESCE(recent_finalized_rows_24h, 0) AS finalized_bars,
+    CASE
+        WHEN COALESCE(recent_expected_bars_24h, 0) <= 0 THEN 0
+        ELSE LEAST(recent_feature_rows_24h::DOUBLE PRECISION / recent_expected_bars_24h::DOUBLE PRECISION, 1.0)
+    END AS coverage_ratio,
+    CASE
+        WHEN COALESCE(recent_expected_bars_24h, 0) <= 0 THEN 0
+        ELSE LEAST(recent_finalized_rows_24h::DOUBLE PRECISION / recent_expected_bars_24h::DOUBLE PRECISION, 1.0)
+    END AS finalized_ratio,
+    CASE
+        WHEN COALESCE(recent_expected_bars_24h, 0) <= 0 THEN 0
+        ELSE LEAST(recent_feature_rows_24h::DOUBLE PRECISION / recent_expected_bars_24h::DOUBLE PRECISION, 1.0)
+    END AS recent_coverage_ratio_24h,
+    CASE
+        WHEN COALESCE(recent_expected_bars_24h, 0) <= 0 THEN 0
+        ELSE LEAST(recent_finalized_rows_24h::DOUBLE PRECISION / recent_expected_bars_24h::DOUBLE PRECISION, 1.0)
+    END AS recent_finalized_ratio_24h,
     CASE
         WHEN candle_1m_latest_raw_time IS NULL THEN NULL
         ELSE GREATEST(EXTRACT(EPOCH FROM (NOW() - candle_1m_latest_raw_time)), 0)::BIGINT
