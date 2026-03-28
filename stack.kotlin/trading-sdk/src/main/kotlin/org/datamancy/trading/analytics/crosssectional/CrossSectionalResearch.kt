@@ -2479,11 +2479,6 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
         val comparableCohorts = bucket.groupBy(::reversionUniverseBucket)
         val minimumCohortSize = min(max(bucket.size / 8, 6), max(bucket.size, 1))
         val residualCrossSectionalZByRow = mutableMapOf<UnrankedFeature, Double>()
-        val fundingZByRow = mutableMapOf<UnrankedFeature, Double>()
-        val fundingChangeZByRow = mutableMapOf<UnrankedFeature, Double>()
-        val oiChangeZByRow = mutableMapOf<UnrankedFeature, Double>()
-        val oiAccelerationZByRow = mutableMapOf<UnrankedFeature, Double>()
-        val oiNotionalZByRow = mutableMapOf<UnrankedFeature, Double>()
 
         bucket.forEach { row ->
             val cohort = comparableCohorts[reversionUniverseBucket(row)].orEmpty()
@@ -2496,63 +2491,15 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 values = residualRetUniverse,
                 fallbackScale = fallbackScale
             )
-            val fundingUniverse = cohort.map { it.fundingRate }
-            val fundingChangeUniverse = cohort.map { it.fundingChange }
-            val oiChangeUniverse = cohort.map { it.oiChange }
-            val oiAccelerationUniverse = cohort.map { it.oiAcceleration }
-            val oiNotionalUniverse = cohort.map { ln(max(it.openInterestNotionalUsd, 0.0) + 1.0) }
-            fundingZByRow[row] = robustZScore(
-                value = row.fundingRate,
-                values = fundingUniverse,
-                fallbackScale = max(stdev(fundingUniverse), 1e-4)
-            )
-            fundingChangeZByRow[row] = robustZScore(
-                value = row.fundingChange,
-                values = fundingChangeUniverse,
-                fallbackScale = max(stdev(fundingChangeUniverse), 5e-5)
-            )
-            oiChangeZByRow[row] = robustZScore(
-                value = row.oiChange,
-                values = oiChangeUniverse,
-                fallbackScale = max(stdev(oiChangeUniverse), 0.01)
-            )
-            oiAccelerationZByRow[row] = robustZScore(
-                value = row.oiAcceleration,
-                values = oiAccelerationUniverse,
-                fallbackScale = max(stdev(oiAccelerationUniverse), 0.01)
-            )
-            oiNotionalZByRow[row] = robustZScore(
-                value = ln(max(row.openInterestNotionalUsd, 0.0) + 1.0),
-                values = oiNotionalUniverse,
-                fallbackScale = max(stdev(oiNotionalUniverse), 0.1)
-            )
         }
+        val crowdingMetricsByRow = computeCrowdingContextMetrics(
+            bucket = bucket,
+            comparableCohorts = comparableCohorts,
+            minimumCohortSize = minimumCohortSize
+        )
 
         fun trendReference(row: UnrankedFeature): Double =
             if (abs(row.mediumTrendScore) > abs(row.rawTrend)) row.mediumTrendScore else row.rawTrend
-
-        fun participationScore(row: UnrankedFeature): Double {
-            val trendDirection = direction(trendReference(row))
-            return clamp(
-                (trendDirection * (oiChangeZByRow[row] ?: 0.0) * 0.85) +
-                    (trendDirection * (oiAccelerationZByRow[row] ?: 0.0) * 0.45) +
-                    (trendDirection * (fundingChangeZByRow[row] ?: 0.0) * 0.25),
-                -6.0,
-                6.0
-            )
-        }
-
-        fun crowdingScore(row: UnrankedFeature): Double {
-            val trendDirection = direction(trendReference(row))
-            return clamp(
-                participationScore(row) +
-                    (trendDirection * (fundingZByRow[row] ?: 0.0) * 0.35) +
-                    (max(0.0, oiNotionalZByRow[row] ?: 0.0) * 0.18) -
-                    (max(0.0, abs(fundingZByRow[row] ?: 0.0) - 1.8) * 0.55),
-                -6.0,
-                6.0
-            )
-        }
 
         val reversionStateByRow = bucket.associateWith { row ->
             val crossSectionalComponent = residualCrossSectionalZByRow[row] ?: 0.0
@@ -2585,8 +2532,9 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
             val reference = trendReference(row)
             val flowAlignment = direction(reference) * row.flowSignal
             val breadthAlignment = direction(reference) * breadthTilt
-            val participation = participationScore(row)
-            val crowding = crowdingScore(row)
+            val crowdingMetrics = crowdingMetricsByRow[row] ?: CrowdingContextMetrics(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            val participation = crowdingMetrics.participationScore
+            val crowding = crowdingMetrics.crowdingScore
             row.rawTrend +
                 (row.mediumTrendScore * 0.85) +
                 (mediumDirection * max(0.0, row.trendPersistence - 0.5) * 0.70) +
@@ -2622,8 +2570,9 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
         }
         val trendExpectedEdges = bucket.associateWith { row ->
             val breadthAlignment = direction(trendReference(row)) * breadthTilt
-            val participation = participationScore(row)
-            val crowding = crowdingScore(row)
+            val crowdingMetrics = crowdingMetricsByRow[row] ?: CrowdingContextMetrics(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            val participation = crowdingMetrics.participationScore
+            val crowding = crowdingMetrics.crowdingScore
             clamp(
                 row.trendExpectedGrossEdgeBps +
                     (max(0.0, participation) * 6.5) -
@@ -2731,16 +2680,16 @@ fun engineerFeatures(bars: List<Bar>, config: ResearchConfig): List<FeatureRow> 
                 reversionShortRank = reversionShortRanks[row] ?: Int.MAX_VALUE,
                 executionObserved = row.executionObserved,
                 fundingRate = row.fundingRate,
-                fundingZ = (fundingZByRow[row] ?: 0.0).round(6),
-                fundingChangeZ = (fundingChangeZByRow[row] ?: 0.0).round(6),
+                fundingZ = (crowdingMetricsByRow[row]?.fundingZ ?: 0.0).round(6),
+                fundingChangeZ = (crowdingMetricsByRow[row]?.fundingChangeZ ?: 0.0).round(6),
                 openInterest = row.openInterest,
                 openInterestNotionalUsd = row.openInterestNotionalUsd.round(4),
                 oiChange = row.oiChange.round(6),
-                oiChangeZ = (oiChangeZByRow[row] ?: 0.0).round(6),
-                oiAccelerationZ = (oiAccelerationZByRow[row] ?: 0.0).round(6),
-                oiNotionalZ = (oiNotionalZByRow[row] ?: 0.0).round(6),
-                crowdingScore = crowdingScore(row).round(6),
-                participationScore = participationScore(row).round(6),
+                oiChangeZ = (crowdingMetricsByRow[row]?.oiChangeZ ?: 0.0).round(6),
+                oiAccelerationZ = (crowdingMetricsByRow[row]?.oiAccelerationZ ?: 0.0).round(6),
+                oiNotionalZ = (crowdingMetricsByRow[row]?.oiNotionalZ ?: 0.0).round(6),
+                crowdingScore = (crowdingMetricsByRow[row]?.crowdingScore ?: 0.0).round(6),
+                participationScore = (crowdingMetricsByRow[row]?.participationScore ?: 0.0).round(6),
                 assetContextObserved = row.assetContextObserved
             )
             val trendSide = direction(provisionalRow.trendScore).toInt()
@@ -5459,6 +5408,26 @@ internal data class ResearchCoverageLagMetrics(
     val latestCrowdingObservedLagSeconds: Long?
 )
 
+private data class CrowdingContextMetrics(
+    val fundingZ: Double,
+    val fundingChangeZ: Double,
+    val oiChangeZ: Double,
+    val oiAccelerationZ: Double,
+    val oiNotionalZ: Double,
+    val participationScore: Double,
+    val crowdingScore: Double
+)
+
+private data class CoverageGateRequirements(
+    val requiredContexts: Set<ResearchFeatureContext>,
+    val requiresExecution: Boolean,
+    val requiresCrowding: Boolean,
+    val maxFeatureLagSeconds: Long,
+    val maxExecutionLagSeconds: Long,
+    val maxFinalizedLagMinutes: Long,
+    val maxCrowdingLagSeconds: Long
+)
+
 data class CrossSectionalExchangeReadiness(
     val exchange: String,
     val marketAliases: List<String>,
@@ -5668,6 +5637,104 @@ internal fun computeResearchCoverageLagMetrics(
     }
 )
 
+private fun computeCrowdingContextMetrics(
+    bucket: List<UnrankedFeature>,
+    comparableCohorts: Map<String, List<UnrankedFeature>>,
+    minimumCohortSize: Int
+): Map<UnrankedFeature, CrowdingContextMetrics> {
+    if (bucket.isEmpty()) return emptyMap()
+
+    fun cohortFor(row: UnrankedFeature): List<UnrankedFeature> =
+        comparableCohorts[reversionUniverseBucket(row)].orEmpty()
+            .takeIf { it.size >= minimumCohortSize }
+            ?: bucket
+
+    return bucket.associateWith { row ->
+        val cohort = cohortFor(row)
+        val fundingUniverse = cohort.map { it.fundingRate }
+        val fundingChangeUniverse = cohort.map { it.fundingChange }
+        val oiChangeUniverse = cohort.map { it.oiChange }
+        val oiAccelerationUniverse = cohort.map { it.oiAcceleration }
+        val oiNotionalUniverse = cohort.map { ln(max(it.openInterestNotionalUsd, 0.0) + 1.0) }
+        val fundingZ = robustZScore(
+            value = row.fundingRate,
+            values = fundingUniverse,
+            fallbackScale = max(stdev(fundingUniverse), 1e-4)
+        )
+        val fundingChangeZ = robustZScore(
+            value = row.fundingChange,
+            values = fundingChangeUniverse,
+            fallbackScale = max(stdev(fundingChangeUniverse), 5e-5)
+        )
+        val oiChangeZ = robustZScore(
+            value = row.oiChange,
+            values = oiChangeUniverse,
+            fallbackScale = max(stdev(oiChangeUniverse), 0.01)
+        )
+        val oiAccelerationZ = robustZScore(
+            value = row.oiAcceleration,
+            values = oiAccelerationUniverse,
+            fallbackScale = max(stdev(oiAccelerationUniverse), 0.01)
+        )
+        val oiNotionalZ = robustZScore(
+            value = ln(max(row.openInterestNotionalUsd, 0.0) + 1.0),
+            values = oiNotionalUniverse,
+            fallbackScale = max(stdev(oiNotionalUniverse), 0.1)
+        )
+        val trendReference = if (abs(row.mediumTrendScore) > abs(row.rawTrend)) row.mediumTrendScore else row.rawTrend
+        val trendDirection = direction(trendReference)
+        val participationScore = clamp(
+            (trendDirection * oiChangeZ * 0.85) +
+                (trendDirection * oiAccelerationZ * 0.45) +
+                (trendDirection * fundingChangeZ * 0.25),
+            -6.0,
+            6.0
+        )
+        val crowdingScore = clamp(
+            participationScore +
+                (trendDirection * fundingZ * 0.35) +
+                (max(0.0, oiNotionalZ) * 0.18) -
+                (max(0.0, abs(fundingZ) - 1.8) * 0.55),
+            -6.0,
+            6.0
+        )
+        CrowdingContextMetrics(
+            fundingZ = fundingZ,
+            fundingChangeZ = fundingChangeZ,
+            oiChangeZ = oiChangeZ,
+            oiAccelerationZ = oiAccelerationZ,
+            oiNotionalZ = oiNotionalZ,
+            participationScore = participationScore,
+            crowdingScore = crowdingScore
+        )
+    }
+}
+
+private fun coverageGateRequirements(
+    coveragePolicy: CoverageContractPolicy,
+    barMinutes: Int,
+    requiredContexts: Set<ResearchFeatureContext>
+): CoverageGateRequirements =
+    CoverageGateRequirements(
+        requiredContexts = requiredContexts,
+        requiresExecution = ResearchFeatureContext.EXECUTION in requiredContexts && coveragePolicy.requireExecutionObserved,
+        requiresCrowding = ResearchFeatureContext.CROWDING in requiredContexts,
+        maxFeatureLagSeconds = effectiveCoverageMaxFeatureLagSeconds(coveragePolicy, barMinutes),
+        maxExecutionLagSeconds = effectiveCoverageMaxExecutionLagSeconds(coveragePolicy, barMinutes),
+        maxFinalizedLagMinutes = effectiveCoverageMaxFinalizedLagMinutes(coveragePolicy, barMinutes),
+        maxCrowdingLagSeconds = effectiveCoverageMaxCrowdingLagSeconds(coveragePolicy, barMinutes)
+    )
+
+private fun coverageFailureComparator(prioritizeCrowding: Boolean = false): Comparator<ResearchCoverageSnapshot> =
+    compareBy<ResearchCoverageSnapshot> { it.coverageRatio }
+        .thenBy { it.finalizedRatio }
+        .let { comparator ->
+            if (prioritizeCrowding) comparator.thenBy { it.crowdingObservedRatio } else comparator
+        }
+        .thenBy { it.executionObservedRatio }
+        .thenByDescending { it.latestFeatureLagSeconds }
+        .thenBy { it.symbol }
+
 private fun computeResearchCoverageSnapshots(
     exchange: String,
     aliases: List<String>,
@@ -5876,43 +5943,30 @@ internal fun buildResearchCoverageVerdict(
     requiredContexts: Set<ResearchFeatureContext> = setOf(ResearchFeatureContext.PRICE),
     gateName: String = "coverage"
 ): ResearchCoverageVerdict {
-    val maxFeatureLagSeconds = effectiveCoverageMaxFeatureLagSeconds(
+    val requirements = coverageGateRequirements(
         coveragePolicy = coveragePolicy,
-        barMinutes = barMinutes
+        barMinutes = barMinutes,
+        requiredContexts = requiredContexts
     )
-    val maxExecutionLagSeconds = effectiveCoverageMaxExecutionLagSeconds(
-        coveragePolicy = coveragePolicy,
-        barMinutes = barMinutes
-    )
-    val maxFinalizedLagMinutes = effectiveCoverageMaxFinalizedLagMinutes(
-        coveragePolicy = coveragePolicy,
-        barMinutes = barMinutes
-    )
-    val maxCrowdingLagSeconds = effectiveCoverageMaxCrowdingLagSeconds(
-        coveragePolicy = coveragePolicy,
-        barMinutes = barMinutes
-    )
-    val requiresExecution = ResearchFeatureContext.EXECUTION in requiredContexts && coveragePolicy.requireExecutionObserved
-    val requiresCrowding = ResearchFeatureContext.CROWDING in requiredContexts
     val eligibleSymbols = snapshots
         .filter { snapshot ->
             snapshot.observedBars >= requiredBars &&
                 snapshot.coverageRatio >= coveragePolicy.minCoverageRatio &&
                 snapshot.finalizedRatio >= coveragePolicy.minFinalizedRatio &&
-                snapshot.latestFeatureLagSeconds <= maxFeatureLagSeconds &&
-                (snapshot.finalizedLagMinutes ?: Long.MAX_VALUE) <= maxFinalizedLagMinutes &&
+                snapshot.latestFeatureLagSeconds <= requirements.maxFeatureLagSeconds &&
+                (snapshot.finalizedLagMinutes ?: Long.MAX_VALUE) <= requirements.maxFinalizedLagMinutes &&
                 (
-                    !requiresExecution ||
+                    !requirements.requiresExecution ||
                         (
                             snapshot.executionObservedRatio >= coveragePolicy.minExecutionObservedRatio &&
-                                (snapshot.latestExecutionObservedLagSeconds ?: Long.MAX_VALUE) <= maxExecutionLagSeconds
+                                (snapshot.latestExecutionObservedLagSeconds ?: Long.MAX_VALUE) <= requirements.maxExecutionLagSeconds
                             )
                     ) &&
                 (
-                    !requiresCrowding ||
+                    !requirements.requiresCrowding ||
                         (
                             snapshot.crowdingObservedBars > 0 &&
-                                (snapshot.latestCrowdingObservedLagSeconds ?: Long.MAX_VALUE) <= maxCrowdingLagSeconds
+                                (snapshot.latestCrowdingObservedLagSeconds ?: Long.MAX_VALUE) <= requirements.maxCrowdingLagSeconds
                             )
                     )
         }
@@ -5939,16 +5993,16 @@ internal fun buildResearchCoverageVerdict(
             val thresholdSummary = buildString {
                 append("cov>=${coveragePolicy.minCoverageRatio.round(3)} ")
                 append("fin>=${coveragePolicy.minFinalizedRatio.round(3)} ")
-                if (requiresExecution) {
+                if (requirements.requiresExecution) {
                     append("exec>=${coveragePolicy.minExecutionObservedRatio.round(3)} ")
-                    append("execLag<=${maxExecutionLagSeconds}s ")
+                    append("execLag<=${requirements.maxExecutionLagSeconds}s ")
                 }
-                if (requiresCrowding) {
+                if (requirements.requiresCrowding) {
                     append("crowd>0 ")
-                    append("crowdLag<=${maxCrowdingLagSeconds}s ")
+                    append("crowdLag<=${requirements.maxCrowdingLagSeconds}s ")
                 }
-                append("featLag<=${maxFeatureLagSeconds}s ")
-                append("finLag<=${maxFinalizedLagMinutes}m")
+                append("featLag<=${requirements.maxFeatureLagSeconds}s ")
+                append("finLag<=${requirements.maxFinalizedLagMinutes}m")
             }
             "$gateName gate failed exchange=$exchange eligible=${eligibleSymbols.size}/$requestedSymbols " +
                 "requiredMinSymbols=${coveragePolicy.minUniverseSymbols} requiredBars=$requiredBars " +
@@ -6076,34 +6130,15 @@ fun evaluateCrossSectionalReadiness(config: ResearchConfig): CrossSectionalResea
         val promotionVerdict = prepared.promotionCoverageVerdicts.getValue(plan.exchange)
         val signalFailingSamples = signalVerdict.snapshots
             .filterNot { it.symbol in signalVerdict.eligibleSymbols }
-            .sortedWith(
-                compareBy<ResearchCoverageSnapshot> { it.coverageRatio }
-                    .thenBy { it.finalizedRatio }
-                    .thenBy { it.executionObservedRatio }
-                    .thenByDescending { it.latestFeatureLagSeconds }
-                    .thenBy { it.symbol }
-            )
+            .sortedWith(coverageFailureComparator())
             .take(5)
         val executionFailingSamples = executionVerdict.snapshots
             .filterNot { it.symbol in executionVerdict.eligibleSymbols }
-            .sortedWith(
-                compareBy<ResearchCoverageSnapshot> { it.coverageRatio }
-                    .thenBy { it.finalizedRatio }
-                    .thenBy { it.executionObservedRatio }
-                    .thenByDescending { it.latestFeatureLagSeconds }
-                    .thenBy { it.symbol }
-            )
+            .sortedWith(coverageFailureComparator())
             .take(5)
         val promotionFailingSamples = promotionVerdict.snapshots
             .filterNot { it.symbol in promotionVerdict.eligibleSymbols }
-            .sortedWith(
-                compareBy<ResearchCoverageSnapshot> { it.coverageRatio }
-                    .thenBy { it.finalizedRatio }
-                    .thenBy { it.crowdingObservedRatio }
-                    .thenBy { it.executionObservedRatio }
-                    .thenByDescending { it.latestFeatureLagSeconds }
-                    .thenBy { it.symbol }
-            )
+            .sortedWith(coverageFailureComparator(prioritizeCrowding = true))
             .take(5)
         CrossSectionalExchangeReadiness(
             exchange = plan.exchange,
