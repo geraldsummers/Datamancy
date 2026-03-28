@@ -6,7 +6,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -18,6 +21,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 import javax.sql.DataSource
+import kotlin.math.pow
 
 private const val DEFAULT_HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info"
 private val JSON_MEDIA_TYPE = "application/json".toMediaType()
@@ -30,8 +34,14 @@ class HyperliquidPublicCandlePanelSource(
         .readTimeout(30, TimeUnit.SECONDS)
         .callTimeout(40, TimeUnit.SECONDS)
         .build(),
-    private val concurrency: Int = 12
+    private val concurrency: Int = 4,
+    private val requestSpacingMs: Long = 250,
+    private val maxRetries: Int = 5,
+    private val baseRetryDelayMs: Long = 1_000
 ) : InterdayPanelSource {
+    private val requestGate = Mutex()
+    private var nextRequestEarliestMs: Long = 0
+
     override suspend fun load(request: InterdayPanelRequest): InterdayPanel = withContext(Dispatchers.IO) {
         require(request.signalBarMinutes in setOf(240, 1_440)) {
             "Hyperliquid public interday source supports signalBarMinutes=240 or 1440 only"
@@ -126,7 +136,7 @@ class HyperliquidPublicCandlePanelSource(
         )
     }
 
-    private fun fetchUniverse(): List<String> {
+    private suspend fun fetchUniverse(): List<String> {
         val body = post("""{"type":"meta"}""")
         val root = JsonParser.parseString(body).asJsonObject
         return root.getAsJsonArray("universe")
@@ -141,7 +151,7 @@ class HyperliquidPublicCandlePanelSource(
             .orEmpty()
     }
 
-    private fun fetchCandles(symbol: String, request: InterdayPanelRequest): List<PublicCandle> {
+    private suspend fun fetchCandles(symbol: String, request: InterdayPanelRequest): List<PublicCandle> {
         val interval = when (request.signalBarMinutes) {
             240 -> "4h"
             1_440 -> "1d"
@@ -174,17 +184,49 @@ class HyperliquidPublicCandlePanelSource(
         }.sortedBy { it.time }
     }
 
-    private fun post(jsonBody: String): String {
-        val request = Request.Builder()
-            .url(infoUrl)
-            .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
-            .build()
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
+    private suspend fun post(jsonBody: String): String {
+        repeat(maxRetries.coerceAtLeast(1)) { attempt ->
+            awaitRequestSlot()
+            val request = Request.Builder()
+                .url(infoUrl)
+                .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    return response.body?.string().orEmpty()
+                }
+                if (response.code == 429 || response.code in 500..599) {
+                    if (attempt == maxRetries - 1) {
+                        error("Hyperliquid public candle request failed after ${attempt + 1} attempts: HTTP ${response.code}")
+                    }
+                    delay(retryDelayMs(attempt, response.header("Retry-After")))
+                    return@repeat
+                }
                 error("Hyperliquid public candle request failed: HTTP ${response.code}")
             }
-            return response.body?.string().orEmpty()
         }
+        error("Hyperliquid public candle request exhausted retries")
+    }
+
+    private suspend fun awaitRequestSlot() {
+        if (requestSpacingMs <= 0) return
+        requestGate.withLock {
+            val now = System.currentTimeMillis()
+            val waitMs = (nextRequestEarliestMs - now).coerceAtLeast(0)
+            if (waitMs > 0) {
+                delay(waitMs)
+            }
+            nextRequestEarliestMs = maxOf(System.currentTimeMillis(), nextRequestEarliestMs) + requestSpacingMs
+        }
+    }
+
+    private fun retryDelayMs(attempt: Int, retryAfterHeader: String?): Long {
+        val retryAfterMs = retryAfterHeader?.trim()?.toLongOrNull()?.times(1_000)
+        if (retryAfterMs != null && retryAfterMs > 0) {
+            return retryAfterMs
+        }
+        val multiplier = 2.0.pow(attempt.toDouble()).toLong()
+        return (baseRetryDelayMs * multiplier).coerceAtMost(30_000)
     }
 
     private fun loadCarrySeries(request: InterdayPanelRequest): Map<String, Map<Instant, CarryBar>> {

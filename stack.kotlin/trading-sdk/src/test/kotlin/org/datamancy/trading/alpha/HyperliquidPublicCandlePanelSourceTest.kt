@@ -46,6 +46,43 @@ class HyperliquidPublicCandlePanelSourceTest {
             assertEquals(listOf("BRAVO", "ALPHA"), panel.series.map { it.symbol })
         }
     }
+
+    @Test
+    fun `retries candle fetch after rate limit response`() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {"universe":[{"name":"ALPHA","isDelisted":false}]}
+                """.trimIndent()
+            )
+        )
+        server.enqueue(MockResponse().setResponseCode(429).addHeader("Retry-After", "0"))
+        server.enqueue(MockResponse().setBody(candleArray("ALPHA", listOf("2026-03-01T00:00:00Z" to 100.0))))
+
+        server.use {
+            val source = HyperliquidPublicCandlePanelSource(
+                dataSource = null,
+                infoUrl = server.url("/info").toString(),
+                concurrency = 1,
+                requestSpacingMs = 0,
+                maxRetries = 2,
+                baseRetryDelayMs = 1
+            )
+            val panel = source.load(
+                InterdayPanelRequest(
+                    exchange = "hyperliquid_mainnet",
+                    signalBarMinutes = 240,
+                    startTime = Instant.parse("2026-03-01T00:00:00Z"),
+                    endTime = Instant.parse("2026-03-02T00:00:00Z")
+                )
+            )
+
+            assertEquals(1, panel.series.size)
+            assertEquals("ALPHA", panel.series.single().symbol)
+            assertEquals(1, panel.timeline.size)
+        }
+    }
 }
 
 private fun candleArray(symbol: String, points: List<Pair<String, Double>>): String {
