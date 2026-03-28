@@ -9,9 +9,13 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
     networks:
+      - litellm
       - trading
+      - postgres
       - monitoring
     depends_on:
+      market-postgres:
+        condition: service_healthy
       alpha-dataset-service:
         condition: service_started
       alpha-analytics-service:
