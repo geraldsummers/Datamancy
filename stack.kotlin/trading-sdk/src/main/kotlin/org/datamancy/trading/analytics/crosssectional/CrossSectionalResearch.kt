@@ -1201,6 +1201,16 @@ internal fun requiredResearchWindowBars(lookbackHours: Int, barMinutes: Int, min
     return max(minBars, lookbackBars)
 }
 
+internal fun researchWarmupBars(config: ResearchConfig): Int =
+    max(config.betaLookbackBars, max(config.trendSlowBars, config.reversionLookbackBars))
+
+internal fun minimumResearchLookbackHours(config: ResearchConfig): Int {
+    val warmupHours = ceil(
+        researchWarmupBars(config).toDouble() * max(config.barMinutes, 1).toDouble() / 60.0
+    ).toInt()
+    return warmupHours + max(config.forwardHours, 1) + 1
+}
+
 private data class TimedCacheEntry<T>(
     val loadedAt: Instant,
     val value: T
@@ -5086,7 +5096,7 @@ fun computeResearchDiagnostics(
     config: ResearchConfig
 ): ResearchDiagnostics {
     val groupedFeatureBuckets = rows.groupBy { it.exchange to it.time }
-    val warmupFloor = max(config.betaLookbackBars, config.trendSlowBars)
+    val warmupFloor = researchWarmupBars(config)
     val liquidRows = rows.filter { it.liquid }
 
     val liquidFailureCounts = mapOf(
@@ -6078,11 +6088,7 @@ fun normalizeSearchConfig(searchConfig: CrossSectionalSearchConfig): CrossSectio
     )
 
 fun isValidResearchConfig(config: ResearchConfig): Boolean {
-    val warmupBars = max(config.betaLookbackBars, max(config.trendSlowBars, config.reversionLookbackBars))
-    val minimumHours = max(
-        config.forwardHours + 1,
-        ((warmupBars * max(config.barMinutes, 1)) / 60) + 1
-    )
+    val minimumHours = minimumResearchLookbackHours(config)
     return config.barMinutes > 0 &&
         config.lookbackHours >= minimumHours &&
         config.forwardHours > 0 &&

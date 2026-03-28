@@ -38,6 +38,33 @@ class CrossSectionalResearchTest {
     }
 
     @Test
+    fun `minimumResearchLookbackHours reserves warmup and forward slices`() {
+        val blocked = ResearchConfig(
+            barMinutes = 60,
+            lookbackHours = 144,
+            forwardHours = 72,
+            betaLookbackBars = 96,
+            trendLookbackBars = 24,
+            trendSlowBars = 96,
+            trendMediumBars = 192,
+            trendLongBars = 384,
+            reversionLookbackBars = 12,
+            trendHoldBars = 48,
+            reversionHoldBars = 6,
+            persistBacktest = false,
+            persistForward = false
+        )
+        val feasible = blocked.copy(
+            forwardHours = 24
+        )
+
+        assertEquals(169, minimumResearchLookbackHours(blocked))
+        assertFalse(isValidResearchConfig(blocked))
+        assertEquals(121, minimumResearchLookbackHours(feasible))
+        assertTrue(isValidResearchConfig(feasible))
+    }
+
+    @Test
     fun `alignedResearchWindowBounds keeps requested frontier unless caller adds explicit lag`() {
         val now = Instant.parse("2026-03-28T00:35:38Z")
 
