@@ -6,22 +6,48 @@ REMOTE_ROOT="${REMOTE_ROOT:-~/datamancy}"
 
 ssh "$REMOTE_HOST" "REMOTE_ROOT='$REMOTE_ROOT' bash -s" <<'REMOTE_EOF'
 set -euo pipefail
+REMOTE_ROOT="${REMOTE_ROOT/#\~/$HOME}"
 cd "$REMOTE_ROOT"
-set -a
-. ./.env
-set +a
+
+env_or_file() {
+  python3 - "$1" "${2:-}" <<'PY'
+import os
+import sys
+
+key = sys.argv[1]
+default = sys.argv[2]
+value = os.environ.get(key, "")
+if not value:
+    try:
+        with open(".env", "r", encoding="utf-8") as handle:
+            for raw in handle:
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                if k.strip() == key:
+                    value = v.strip().strip('"').strip("'")
+                    break
+    except FileNotFoundError:
+        pass
+normalized = value.strip()
+if normalized.lower() in {"none", "null", '""', "''"}:
+    normalized = ""
+print(normalized if normalized else default)
+PY
+}
 
 COOKIE_JAR="$(mktemp)"
 trap 'rm -f "$COOKIE_JAR"' EXIT
 
-REDIRECT_URI="${TRADING_E2E_OIDC_REDIRECT_URI:-${MODEL_CONTEXT_OIDC_REDIRECT_URI:-http://test-runner/callback}}"
-CLIENT_ID="${TRADING_E2E_OIDC_CLIENT_ID:-${MODEL_CONTEXT_OIDC_CLIENT_ID:-test-runner}}"
-CLIENT_SECRET="${TRADING_E2E_OIDC_CLIENT_SECRET:-${TEST_RUNNER_OAUTH_SECRET:-${MODEL_CONTEXT_OIDC_CLIENT_SECRET:-}}}"
-SCOPE="${TRADING_E2E_OIDC_SCOPE:-openid profile email groups}"
-USERNAME="${TRADING_E2E_USERNAME:-${STACK_ADMIN_USER:-sysadmin}}"
-PASSWORD="${TRADING_E2E_PASSWORD:-${STACK_ADMIN_PASSWORD:-}}"
-HYPERLIQUID_KEY="${TRADING_E2E_HYPERLIQUID_KEY:-${HYPERLIQUID_TESTNET_KEY:-}}"
-AUTHELIA_BASE_URL="${TRADING_E2E_AUTHELIA_URL:-${AUTHELIA_URL:-https://auth.datamancy.net}}"
+REDIRECT_URI="$(env_or_file TRADING_E2E_OIDC_REDIRECT_URI "$(env_or_file MODEL_CONTEXT_OIDC_REDIRECT_URI 'http://test-runner/callback')")"
+CLIENT_ID="$(env_or_file TRADING_E2E_OIDC_CLIENT_ID "$(env_or_file MODEL_CONTEXT_OIDC_CLIENT_ID 'test-runner')")"
+CLIENT_SECRET="$(env_or_file TRADING_E2E_OIDC_CLIENT_SECRET "$(env_or_file TEST_RUNNER_OAUTH_SECRET "$(env_or_file MODEL_CONTEXT_OIDC_CLIENT_SECRET '')")")"
+SCOPE="$(env_or_file TRADING_E2E_OIDC_SCOPE 'openid profile email groups')"
+USERNAME="$(env_or_file TRADING_E2E_USERNAME "$(env_or_file STACK_ADMIN_USER 'sysadmin')")"
+PASSWORD="$(env_or_file TRADING_E2E_PASSWORD "$(env_or_file STACK_ADMIN_PASSWORD '')")"
+HYPERLIQUID_KEY="$(env_or_file TRADING_E2E_HYPERLIQUID_KEY "$(env_or_file HYPERLIQUID_TESTNET_KEY '')")"
+AUTHELIA_BASE_URL="$(env_or_file TRADING_E2E_AUTHELIA_URL "$(env_or_file AUTHELIA_URL 'https://auth.datamancy.net')")"
 
 if [ -z "$CLIENT_SECRET" ] || [ -z "$PASSWORD" ] || [ -z "$HYPERLIQUID_KEY" ]; then
   echo "Missing testnet smoke prerequisites in .env" >&2
@@ -51,7 +77,7 @@ print(urllib.parse.urlencode(params))
 PY
 )"
 
-LOCATION="$(curl -ksS -I -b "$COOKIE_JAR" -c "$COOKIE_JAR" "$AUTH_URL" | tr -d '\r' | awk '/^Location: /{print substr($0,11)}' | tail -n 1)"
+LOCATION="$(curl -ksS -D - -o /dev/null -b "$COOKIE_JAR" -c "$COOKIE_JAR" "$AUTH_URL" | tr -d '\r' | awk 'tolower($0) ~ /^location: /{print substr($0,11)}' | tail -n 1)"
 if [ -z "$LOCATION" ]; then
   echo "Failed to obtain OIDC authorization redirect" >&2
   exit 1

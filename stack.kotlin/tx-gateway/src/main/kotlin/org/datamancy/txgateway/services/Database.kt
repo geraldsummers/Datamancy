@@ -1838,7 +1838,7 @@ class DatabaseService(
             LIMIT 1
         """.trimIndent()
 
-        return listOfNotNull(
+        val preferredQuotes = listOfNotNull(
             runOrderbookQuoteQuery(
                 exchange = exchange,
                 symbol = symbol,
@@ -1851,13 +1851,17 @@ class DatabaseService(
                 sql = canonicalSql,
                 sourceLabel = "orderbook_data:canonical"
             ),
-            runOrderbookQuoteQuery(
-                exchange = exchange,
-                symbol = symbol,
-                sql = topOfBookSql,
-                sourceLabel = "orderbook_data:top_of_book_legacy"
-            )
-        ).maxByOrNull { it.timestamp }
+        )
+        if (preferredQuotes.isNotEmpty()) {
+            return preferredQuotes.maxByOrNull { it.timestamp }
+        }
+
+        return runOrderbookQuoteQuery(
+            exchange = exchange,
+            symbol = symbol,
+            sql = topOfBookSql,
+            sourceLabel = "orderbook_data:top_of_book_legacy"
+        )
     }
 
     private fun runOrderbookQuoteQuery(
@@ -2466,13 +2470,10 @@ internal fun resolveHyperliquidQuoteExchangeCandidates(
             addIfPresent(candidates, mainnetExchange)
         }
         "testnet_live" -> {
-            addIfPresent(candidates, testnetExchange)
-            addIfPresent(candidates, mainnetExchange)
-            addIfPresent(candidates, forwardPaperExchange)
+            addIfPresent(candidates, testnetExchange ?: legacy)
         }
         "mainnet_live" -> {
-            addIfPresent(candidates, mainnetExchange)
-            addIfPresent(candidates, forwardPaperExchange)
+            addIfPresent(candidates, mainnetExchange ?: legacy)
         }
         else -> addIfPresent(
             candidates,
@@ -2480,7 +2481,7 @@ internal fun resolveHyperliquidQuoteExchangeCandidates(
         )
     }
 
-    if (allowCanonicalFallback || candidates.isEmpty()) {
+    if (normalizedMode !in setOf("testnet_live", "mainnet_live") && (allowCanonicalFallback || candidates.isEmpty())) {
         candidates += "hyperliquid"
     }
 

@@ -57,11 +57,10 @@ class TestAddressResolution:
         assert main.resolve_account_address(creds) == "0xExplicit"
 
     @patch('main.Account')
-    def test_resolve_account_address_rejects_mismatched_explicit_address(self, mock_account):
+    def test_resolve_account_address_prefers_explicit_account_for_agent_wallets(self, mock_account):
         mock_account.from_key.return_value = Mock(address="0xDerived")
         creds = {"address": "0xExplicit", "private_key": "unused"}
-        with pytest.raises(ValueError, match="does not match private key"):
-            main.resolve_account_address(creds)
+        assert main.resolve_account_address(creds) == "0xExplicit"
 
 
 class TestGetExchangeClient:
@@ -100,6 +99,8 @@ class TestGetInfoClient:
     def test_get_info_client_mainnet(self, mock_info_class):
         """Test getting Info client for mainnet"""
         with patch('main.IS_MAINNET', True):
+            main._cached_info_client = None
+            main._cached_info_client_built_at = 0.0
             client = main.get_info_client()
             mock_info_class.assert_called_once()
             call_kwargs = mock_info_class.call_args.kwargs
@@ -109,6 +110,8 @@ class TestGetInfoClient:
     def test_get_info_client_testnet(self, mock_info_class):
         """Test getting Info client for testnet"""
         with patch('main.IS_MAINNET', False):
+            main._cached_info_client = None
+            main._cached_info_client_built_at = 0.0
             client = main.get_info_client()
             mock_info_class.assert_called_once()
             call_kwargs = mock_info_class.call_args.kwargs
@@ -127,12 +130,10 @@ class TestFlaskEndpoints:
             client.environ_base["HTTP_X_WORKER_TOKEN"] = "test-worker-token"
             yield client
 
-    @patch('main.get_info_client')
-    def test_health_endpoint_healthy(self, mock_get_info, client):
+    @patch('main.load_markets_payload')
+    def test_health_endpoint_healthy(self, mock_load_markets, client):
         """Test health check endpoint when healthy"""
-        mock_info = Mock()
-        mock_info.meta.return_value = {'status': 'ok'}
-        mock_get_info.return_value = mock_info
+        mock_load_markets.return_value = {'markets': [], 'count': 0, 'cached': False}
 
         response = client.get('/health')
         assert response.status_code == 200
@@ -140,15 +141,40 @@ class TestFlaskEndpoints:
         assert data['service'] == 'hyperliquid-worker'
         assert 'mainnet' in data
 
-    @patch('main.get_info_client')
-    def test_health_endpoint_degraded(self, mock_get_info, client):
+    @patch('main.load_markets_payload')
+    def test_health_endpoint_degraded(self, mock_load_markets, client):
         """Test health check endpoint when degraded"""
-        mock_get_info.side_effect = Exception("Connection failed")
+        mock_load_markets.side_effect = Exception("Connection failed")
 
         response = client.get('/health')
         assert response.status_code == 200
         data = response.get_json()
         assert data['status'] == 'degraded'
+
+    @patch('main.get_info_client')
+    def test_markets_endpoint_uses_cached_payload(self, mock_get_info, client):
+        mock_info = Mock()
+        mock_info.meta.return_value = {
+            'universe': [
+                {'name': 'BTC', 'szDecimals': 3},
+                {'coin': 'ETH', 'szDecimals': 3}
+            ]
+        }
+        mock_get_info.return_value = mock_info
+
+        main._cached_markets_payload = None
+        main._cached_markets_built_at = 0.0
+        response = client.get('/markets')
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['count'] == 2
+        assert data['cached'] is False
+
+        mock_info.meta.side_effect = Exception("rate limited")
+        cached_response = client.get('/markets')
+        assert cached_response.status_code == 200
+        cached_data = cached_response.get_json()
+        assert cached_data['count'] == 2
 
     def test_order_missing_key(self, client):
         """Test order submission without API key"""

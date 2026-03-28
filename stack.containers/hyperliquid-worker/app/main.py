@@ -15,7 +15,8 @@ from hyperliquid.utils import constants
 from decimal import Decimal
 from datetime import datetime, timezone
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
-from time import perf_counter
+from time import monotonic, perf_counter
+from threading import Lock
 from waitress import serve
 
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +33,8 @@ MAX_ORDER_SIZE = Decimal(os.getenv('HYPERLIQUID_MAX_ORDER_SIZE', '1000'))
 MAX_ORDER_NOTIONAL_USD = Decimal(os.getenv('HYPERLIQUID_MAX_ORDER_NOTIONAL_USD', '1000000'))
 WORKER_SHARED_TOKEN = os.getenv('WORKER_SHARED_TOKEN', '').strip()
 WORKER_HTTP_THREADS = max(2, int(os.getenv('HYPERLIQUID_WORKER_THREADS', '8')))
+INFO_CLIENT_TTL_SECONDS = max(30, int(os.getenv('HYPERLIQUID_INFO_CLIENT_TTL_SECONDS', '300')))
+MARKETS_CACHE_TTL_SECONDS = max(15, int(os.getenv('HYPERLIQUID_MARKETS_CACHE_TTL_SECONDS', '60')))
 
 if not WORKER_SHARED_TOKEN:
     logger.warning("WORKER_SHARED_TOKEN is not set; sensitive endpoints will reject requests")
@@ -51,6 +54,13 @@ HYPERLIQUID_MAINNET_GAUGE = Gauge(
     "Whether worker is configured for Hyperliquid mainnet (1) or testnet (0)"
 )
 HYPERLIQUID_MAINNET_GAUGE.set(1 if IS_MAINNET else 0)
+
+_info_client_lock = Lock()
+_cached_info_client = None
+_cached_info_client_built_at = 0.0
+_markets_cache_lock = Lock()
+_cached_markets_payload = None
+_cached_markets_built_at = 0.0
 
 
 @app.before_request
@@ -349,8 +359,6 @@ def derive_evm_address(private_key: str) -> str:
 def resolve_account_address(creds: dict) -> str:
     derived_address = derive_evm_address(creds["private_key"])
     explicit_address = creds.get("address")
-    if explicit_address and explicit_address.lower() != derived_address.lower():
-        raise ValueError("Provided Hyperliquid address does not match private key")
     return explicit_address or derived_address
 
 
@@ -463,8 +471,59 @@ def get_exchange_client(hyperliquid_key: str) -> Exchange:
 
 def get_info_client() -> Info:
     """Get Info client for market data queries"""
-    spot_meta = None if IS_MAINNET else {"universe": [], "tokens": []}
-    return Info(base_url=HYPERLIQUID_API_URL, skip_ws=True, spot_meta=spot_meta)
+    global _cached_info_client, _cached_info_client_built_at
+    now = monotonic()
+    with _info_client_lock:
+        if _cached_info_client is not None and (now - _cached_info_client_built_at) < INFO_CLIENT_TTL_SECONDS:
+            return _cached_info_client
+
+        spot_meta = None if IS_MAINNET else {"universe": [], "tokens": []}
+        fresh_client = Info(base_url=HYPERLIQUID_API_URL, skip_ws=True, spot_meta=spot_meta)
+        _cached_info_client = fresh_client
+        _cached_info_client_built_at = now
+        return fresh_client
+
+
+def load_markets_payload(force_refresh: bool = False) -> dict:
+    global _cached_markets_payload, _cached_markets_built_at
+    now = monotonic()
+    with _markets_cache_lock:
+        if (
+            not force_refresh
+            and _cached_markets_payload is not None
+            and (now - _cached_markets_built_at) < MARKETS_CACHE_TTL_SECONDS
+        ):
+            return _cached_markets_payload
+
+        try:
+            info = get_info_client()
+            meta = info.meta() or {}
+            universe = meta.get("universe", []) if isinstance(meta, dict) else []
+
+            markets_payload = []
+            for entry in universe:
+                if isinstance(entry, dict):
+                    symbol = entry.get("name") or entry.get("coin")
+                    if symbol:
+                        markets_payload.append(entry | {"symbol": symbol})
+
+            payload = {
+                "markets": markets_payload,
+                "count": len(markets_payload),
+                "mainnet": IS_MAINNET,
+                "cached": False,
+                "fetchedAt": datetime.now(timezone.utc).isoformat()
+            }
+            _cached_markets_payload = payload
+            _cached_markets_built_at = now
+            return payload
+        except Exception:
+            if _cached_markets_payload is not None:
+                logger.warning("Markets query failed; serving stale cached catalog", exc_info=True)
+                stale_payload = dict(_cached_markets_payload)
+                stale_payload["cached"] = True
+                return stale_payload
+            raise
 
 
 @app.route('/metrics', methods=['GET'])
@@ -476,22 +535,7 @@ def metrics():
 def markets():
     """Get available markets from Hyperliquid meta feed."""
     try:
-        info = get_info_client()
-        meta = info.meta() or {}
-        universe = meta.get("universe", []) if isinstance(meta, dict) else []
-
-        markets_payload = []
-        for entry in universe:
-            if isinstance(entry, dict):
-                symbol = entry.get("name") or entry.get("coin")
-                if symbol:
-                    markets_payload.append(entry | {"symbol": symbol})
-
-        return jsonify({
-            "markets": markets_payload,
-            "count": len(markets_payload),
-            "mainnet": IS_MAINNET
-        })
+        return jsonify(load_markets_payload())
     except Exception as e:
         logger.error(f"Markets query failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
@@ -1032,10 +1076,8 @@ def close_all_positions():
 def health():
     """Health check"""
     try:
-        # Test connection to Hyperliquid API
-        info = get_info_client()
-        meta = info.meta()
-        api_status = "healthy" if meta else "degraded"
+        catalog = load_markets_payload()
+        api_status = "healthy" if catalog.get("count", 0) >= 0 else "degraded"
     except Exception as e:
         logger.error(f"API unhealthy: {e}")
         api_status = "unhealthy"

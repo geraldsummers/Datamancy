@@ -105,9 +105,9 @@ class DatabaseConfigTest {
     }
 
     @Test
-    fun `quote exchange candidates include mainnet fallback for testnet live`() {
+    fun `quote exchange candidates stay pinned to testnet live tape`() {
         assertEquals(
-            listOf("hyperliquid_testnet", "hyperliquid_mainnet", "hyperliquid"),
+            listOf("hyperliquid_testnet"),
             resolveHyperliquidQuoteExchangeCandidates(
                 requestedExecutionMode = "testnet_live",
                 legacyQuoteExchange = "hyperliquid",
