@@ -460,9 +460,73 @@ internal data class MarketDataServiceConfig(
     val stateUpdater: StateUpdaterConfig
 )
 
+internal data class HyperliquidRuntimeOverride(
+    val mainnet: Boolean,
+    val exchangeId: String,
+    val wsUrl: String,
+    val infoUrl: String
+)
+
+internal fun resolveHyperliquidRuntimeOverride(
+    policyExchangeId: String,
+    policyMainnet: Boolean,
+    policyWsUrl: String?,
+    policyInfoUrl: String?,
+    environment: Map<String, String> = System.getenv()
+): HyperliquidRuntimeOverride {
+    val mainnetOverride = environment["HYPERLIQUID_MAINNET"]
+        ?.trim()
+        ?.takeIf(String::isNotEmpty)
+        ?.toBooleanStrictOrNull()
+    val mainnet = mainnetOverride ?: policyMainnet
+    val exchangeIdOverride = environment["HYPERLIQUID_EXCHANGE_ID"]
+        ?.trim()
+        ?.takeIf(String::isNotEmpty)
+    val wsUrlOverride = (
+        environment["HYPERLIQUID_WEBSOCKET_URL"]
+            ?.trim()
+            ?.takeIf(String::isNotEmpty)
+            ?: environment["HYPERLIQUID_WS_URL"]
+                ?.trim()
+                ?.takeIf(String::isNotEmpty)
+        )
+    val infoUrlOverride = environment["HYPERLIQUID_INFO_URL"]
+        ?.trim()
+        ?.takeIf(String::isNotEmpty)
+
+    val effectiveExchangeId = exchangeIdOverride
+        ?: if (mainnetOverride != null) {
+            resolveHyperliquidExchangeId(explicitExchangeId = null, mainnet = mainnet)
+        } else {
+            resolveHyperliquidExchangeId(explicitExchangeId = policyExchangeId, mainnet = mainnet)
+        }
+
+    val effectiveWsUrl = resolveHyperliquidWsUrl(
+        explicitUrl = wsUrlOverride ?: if (mainnetOverride != null) null else policyWsUrl,
+        mainnet = mainnet
+    )
+    val effectiveInfoUrl = resolveHyperliquidInfoUrl(
+        explicitUrl = infoUrlOverride ?: if (mainnetOverride != null) null else policyInfoUrl,
+        mainnet = mainnet
+    )
+
+    return HyperliquidRuntimeOverride(
+        mainnet = mainnet,
+        exchangeId = effectiveExchangeId,
+        wsUrl = effectiveWsUrl,
+        infoUrl = effectiveInfoUrl
+    )
+}
+
 internal fun loadMarketDataServiceConfig(): MarketDataServiceConfig {
     val tradingPolicy = ActiveTradingPolicy.current()
     val hyperliquidPolicy = tradingPolicy.venue("hyperliquid")
+    val runtimeOverride = resolveHyperliquidRuntimeOverride(
+        policyExchangeId = hyperliquidPolicy.exchangeId,
+        policyMainnet = hyperliquidPolicy.mainnet,
+        policyWsUrl = hyperliquidPolicy.websocketUrl,
+        policyInfoUrl = hyperliquidPolicy.infoUrl
+    )
     val universeMode = when (hyperliquidPolicy.universe.selectionMode) {
         UniverseSelectionMode.STATIC -> HyperliquidUniverseMode.STATIC
         UniverseSelectionMode.EXCHANGE_CATALOG -> HyperliquidUniverseMode.CATALOG
@@ -488,15 +552,15 @@ internal fun loadMarketDataServiceConfig(): MarketDataServiceConfig {
         persistAssetContextToPostgres = System.getenv("PERSIST_ASSET_CONTEXT_TO_POSTGRES")
             ?.toBooleanStrictOrNull()
             ?: true,
-        exchangeId = hyperliquidPolicy.exchangeId,
-        mainnet = hyperliquidPolicy.mainnet,
+        exchangeId = runtimeOverride.exchangeId,
+        mainnet = runtimeOverride.mainnet,
         wsUrl = resolveHyperliquidWsUrl(
-            explicitUrl = hyperliquidPolicy.websocketUrl,
-            mainnet = hyperliquidPolicy.mainnet
+            explicitUrl = runtimeOverride.wsUrl,
+            mainnet = runtimeOverride.mainnet
         ),
         infoUrl = resolveHyperliquidInfoUrl(
-            explicitUrl = hyperliquidPolicy.infoUrl,
-            mainnet = hyperliquidPolicy.mainnet
+            explicitUrl = runtimeOverride.infoUrl,
+            mainnet = runtimeOverride.mainnet
         ),
         marketCatalogUrl = System.getenv("HYPERLIQUID_MARKET_CATALOG_URL")
             ?: "http://tx-gateway:8080/api/v1/exchanges/hyperliquid/markets",

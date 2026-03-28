@@ -22,6 +22,59 @@ import kotlin.test.assertTrue
 class SplitMarketDataServicesTest {
 
     @Test
+    fun `runtime override keeps policy values when no env overrides are provided`() {
+        val resolved = resolveHyperliquidRuntimeOverride(
+            policyExchangeId = "hyperliquid_mainnet",
+            policyMainnet = true,
+            policyWsUrl = "wss://api.hyperliquid.xyz/ws",
+            policyInfoUrl = "https://api.hyperliquid.xyz/info",
+            environment = emptyMap()
+        )
+
+        assertEquals("hyperliquid_mainnet", resolved.exchangeId)
+        assertEquals(true, resolved.mainnet)
+        assertEquals("wss://api.hyperliquid.xyz/ws", resolved.wsUrl)
+        assertEquals("https://api.hyperliquid.xyz/info", resolved.infoUrl)
+    }
+
+    @Test
+    fun `runtime override can pin a testnet sidecar from a mainnet policy`() {
+        val resolved = resolveHyperliquidRuntimeOverride(
+            policyExchangeId = "hyperliquid_mainnet",
+            policyMainnet = true,
+            policyWsUrl = "wss://api.hyperliquid.xyz/ws",
+            policyInfoUrl = "https://api.hyperliquid.xyz/info",
+            environment = mapOf("HYPERLIQUID_MAINNET" to "false")
+        )
+
+        assertEquals("hyperliquid_testnet", resolved.exchangeId)
+        assertEquals(false, resolved.mainnet)
+        assertEquals("wss://api.hyperliquid-testnet.xyz/ws", resolved.wsUrl)
+        assertEquals("https://api.hyperliquid-testnet.xyz/info", resolved.infoUrl)
+    }
+
+    @Test
+    fun `runtime override respects explicit exchange and url overrides`() {
+        val resolved = resolveHyperliquidRuntimeOverride(
+            policyExchangeId = "hyperliquid_mainnet",
+            policyMainnet = true,
+            policyWsUrl = "wss://api.hyperliquid.xyz/ws",
+            policyInfoUrl = "https://api.hyperliquid.xyz/info",
+            environment = mapOf(
+                "HYPERLIQUID_MAINNET" to "false",
+                "HYPERLIQUID_EXCHANGE_ID" to "hyperliquid_testnet_custom",
+                "HYPERLIQUID_WEBSOCKET_URL" to "wss://example.testnet/ws",
+                "HYPERLIQUID_INFO_URL" to "https://example.testnet/info"
+            )
+        )
+
+        assertEquals("hyperliquid_testnet_custom", resolved.exchangeId)
+        assertEquals(false, resolved.mainnet)
+        assertEquals("wss://example.testnet/ws", resolved.wsUrl)
+        assertEquals("https://example.testnet/info", resolved.infoUrl)
+    }
+
+    @Test
     fun `raw event transport subjects separate live and replay lanes`() {
         val config = RawEventTransportConfig(
             url = "nats://nats:4222",

@@ -1,0 +1,72 @@
+services:
+  market-data-sync-testnet:
+    image: datamancy/market-data-sync:local-build
+    container_name: market-data-sync-testnet
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    networks:
+      - internet
+      - postgres
+    depends_on:
+      nats:
+        condition: service_started
+    environment:
+      DATAMANCY_TRADING_POLICY_FILE: /app/config/trading-policy.json
+      HYPERLIQUID_MAINNET: "false"
+      HYPERLIQUID_EXCHANGE_ID: hyperliquid_testnet
+      RAW_EVENT_MAX_AGE_HOURS: "24"
+      RAW_EVENT_BUS_URL: nats://nats:4222
+      RAW_EVENT_STREAM: MARKET_DATA_RAW
+      RAW_EVENT_INGEST_SUBJECT_PREFIX: raw.market.ingest
+      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist.coalesced
+      RAW_EVENT_DLQ_SUBJECT: raw.market.dlq
+    volumes:
+      - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro
+
+  market-data-persist-testnet:
+    image: datamancy/market-data-persist:local-build
+    container_name: market-data-persist-testnet
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    networks:
+      - postgres
+    depends_on:
+      market-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      market-data-plumbing:
+        condition: service_started
+    environment:
+      POSTGRES_HOST: market-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: datamancy
+      POSTGRES_USER: ${POSTGRES_PIPELINE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PIPELINE_PASSWORD}
+      DATAMANCY_TRADING_POLICY_FILE: /app/config/trading-policy.json
+      HYPERLIQUID_MAINNET: "false"
+      HYPERLIQUID_EXCHANGE_ID: hyperliquid_testnet
+      MARKET_DATA_BATCH_SIZE: "5000"
+      MARKET_DATA_ORDERBOOK_BATCH_SIZE: "5000"
+      MARKET_DATA_ASSET_CONTEXT_BATCH_SIZE: "5000"
+      TRADE_PERSIST_WORKERS: "1"
+      ORDERBOOK_PERSIST_WORKERS: "1"
+      ASSET_CONTEXT_PERSIST_WORKERS: "1"
+      MARKET_DATA_FLUSH_SECONDS: "10"
+      PERSIST_TRADES_TO_POSTGRES: "${PERSIST_TRADES_TO_POSTGRES:-true}"
+      PERSIST_ORDERBOOKS_TO_POSTGRES: "${PERSIST_ORDERBOOKS_TO_POSTGRES:-true}"
+      PERSIST_ASSET_CONTEXT_TO_POSTGRES: "${PERSIST_ASSET_CONTEXT_TO_POSTGRES:-true}"
+      RAW_EVENT_PERSIST_LIVE_REPLAY_START_TIME: "${RAW_EVENT_PERSIST_LIVE_REPLAY_START_TIME:-}"
+      RAW_EVENT_PERSIST_LIVE_DURABLE_SUFFIX: "${RAW_EVENT_PERSIST_LIVE_DURABLE_SUFFIX:-}"
+      RAW_EVENT_MAX_AGE_HOURS: "24"
+      RAW_EVENT_FETCH_BATCH: "256"
+      RAW_EVENT_MAX_ACK_PENDING: "32768"
+      RAW_EVENT_BUS_URL: nats://nats:4222
+      RAW_EVENT_STREAM: MARKET_DATA_RAW
+      RAW_EVENT_INGEST_SUBJECT_PREFIX: raw.market.ingest
+      RAW_EVENT_PERSIST_SUBJECT_PREFIX: raw.market.persist.coalesced
+      RAW_EVENT_DLQ_SUBJECT: raw.market.dlq
+    volumes:
+      - ./configs/trading/trading-policy.json:/app/config/trading-policy.json:ro
