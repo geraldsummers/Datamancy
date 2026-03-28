@@ -291,6 +291,21 @@ class CrossSectionalResearchTest {
     }
 
     @Test
+    fun `coverage lag metrics honor requested bar cadence`() {
+        val lagMetrics = computeResearchCoverageLagMetrics(
+            latestFeatureTime = Instant.parse("2026-03-27T23:30:00Z"),
+            finalizedThrough = Instant.parse("2026-03-27T23:30:00Z"),
+            latestExecutionObservedTime = Instant.parse("2026-03-27T23:30:00Z"),
+            referenceTime = Instant.parse("2026-03-28T00:03:40Z"),
+            bucketSeconds = 30L * 60L
+        )
+
+        assertEquals(220L, lagMetrics.latestFeatureLagSeconds)
+        assertEquals(3L, lagMetrics.finalizedLagMinutes)
+        assertEquals(220L, lagMetrics.latestExecutionObservedLagSeconds)
+    }
+
+    @Test
     fun `buildStrategySummaries carries bar minutes into metrics`() {
         val config = ResearchConfig(
             barMinutes = 60,

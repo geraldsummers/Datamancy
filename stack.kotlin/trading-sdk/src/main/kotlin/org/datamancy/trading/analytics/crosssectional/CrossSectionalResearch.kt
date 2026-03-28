@@ -4836,6 +4836,12 @@ data class ResearchCoverageVerdict(
     val reason: String?
 )
 
+internal data class ResearchCoverageLagMetrics(
+    val latestFeatureLagSeconds: Long,
+    val finalizedLagMinutes: Long?,
+    val latestExecutionObservedLagSeconds: Long?
+)
+
 data class CrossSectionalExchangeReadiness(
     val exchange: String,
     val marketAliases: List<String>,
@@ -4920,6 +4926,13 @@ internal fun computeResearchCoverageSnapshotsFromUniverseSnapshot(
                 val latestFeatureTime = bars.maxOfOrNull { it.time }
                 val finalizedThrough = bars.filter { it.finalized }.maxOfOrNull { it.time }
                 val latestExecutionObservedTime = bars.filter { it.executionObserved }.maxOfOrNull { it.time }
+                val lagMetrics = computeResearchCoverageLagMetrics(
+                    latestFeatureTime = latestFeatureTime,
+                    finalizedThrough = finalizedThrough,
+                    latestExecutionObservedTime = latestExecutionObservedTime,
+                    referenceTime = referenceTime,
+                    bucketSeconds = window.bucketSeconds.toLong()
+                )
 
                 ResearchCoverageSnapshot(
                     symbol = symbol,
@@ -4933,26 +4946,40 @@ internal fun computeResearchCoverageSnapshotsFromUniverseSnapshot(
                     latestFeatureTime = latestFeatureTime,
                     finalizedThrough = finalizedThrough,
                     latestExecutionObservedTime = latestExecutionObservedTime,
-                    latestFeatureLagSeconds = barCloseLagSeconds(
-                        bucketStartTime = latestFeatureTime,
-                        referenceTime = referenceTime,
-                        bucketSeconds = window.bucketSeconds.toLong()
-                    ),
-                    finalizedLagMinutes = barCloseLagMinutes(
-                        bucketStartTime = finalizedThrough,
-                        referenceTime = referenceTime,
-                        bucketSeconds = window.bucketSeconds.toLong()
-                    ),
-                    latestExecutionObservedLagSeconds = barCloseLagSeconds(
-                        bucketStartTime = latestExecutionObservedTime,
-                        referenceTime = referenceTime,
-                        bucketSeconds = window.bucketSeconds.toLong()
-                    )
+                    latestFeatureLagSeconds = lagMetrics.latestFeatureLagSeconds,
+                    finalizedLagMinutes = lagMetrics.finalizedLagMinutes,
+                    latestExecutionObservedLagSeconds = lagMetrics.latestExecutionObservedLagSeconds
                 )
             }
         }
         .sortedBy { it.symbol }
 }
+
+internal fun computeResearchCoverageLagMetrics(
+    latestFeatureTime: Instant?,
+    finalizedThrough: Instant?,
+    latestExecutionObservedTime: Instant?,
+    referenceTime: Instant,
+    bucketSeconds: Long
+): ResearchCoverageLagMetrics = ResearchCoverageLagMetrics(
+    latestFeatureLagSeconds = barCloseLagSeconds(
+        bucketStartTime = latestFeatureTime,
+        referenceTime = referenceTime,
+        bucketSeconds = bucketSeconds
+    ),
+    finalizedLagMinutes = barCloseLagMinutes(
+        bucketStartTime = finalizedThrough,
+        referenceTime = referenceTime,
+        bucketSeconds = bucketSeconds
+    ),
+    latestExecutionObservedLagSeconds = latestExecutionObservedTime?.let {
+        barCloseLagSeconds(
+            bucketStartTime = it,
+            referenceTime = referenceTime,
+            bucketSeconds = bucketSeconds
+        )
+    }
+)
 
 private fun computeResearchCoverageSnapshots(
     exchange: String,
@@ -5063,17 +5090,12 @@ private fun computeResearchCoverageSnapshots(
                         val latestExecutionObservedTime = rs.getTimestamp("latest_execution_observed_time")?.toInstant()
                         val latestFeatureTime = rs.getTimestamp("latest_feature_time")?.toInstant()
                         val finalizedThrough = rs.getTimestamp("finalized_through")?.toInstant()
-                        val latestFeatureLagSeconds = barCloseLagSeconds(
-                            bucketStartTime = latestFeatureTime,
-                            referenceTime = referenceTime
-                        )
-                        val finalizedLagMinutes = barCloseLagMinutes(
-                            bucketStartTime = finalizedThrough,
-                            referenceTime = referenceTime
-                        )
-                        val latestExecutionObservedLagSeconds = barCloseLagSeconds(
-                            bucketStartTime = latestExecutionObservedTime,
-                            referenceTime = referenceTime
+                        val lagMetrics = computeResearchCoverageLagMetrics(
+                            latestFeatureTime = latestFeatureTime,
+                            finalizedThrough = finalizedThrough,
+                            latestExecutionObservedTime = latestExecutionObservedTime,
+                            referenceTime = referenceTime,
+                            bucketSeconds = bucketSeconds.toLong()
                         )
 
                         add(
@@ -5089,9 +5111,9 @@ private fun computeResearchCoverageSnapshots(
                                 latestFeatureTime = latestFeatureTime,
                                 finalizedThrough = finalizedThrough,
                                 latestExecutionObservedTime = latestExecutionObservedTime,
-                                latestFeatureLagSeconds = latestFeatureLagSeconds,
-                                finalizedLagMinutes = finalizedLagMinutes,
-                                latestExecutionObservedLagSeconds = latestExecutionObservedLagSeconds
+                                latestFeatureLagSeconds = lagMetrics.latestFeatureLagSeconds,
+                                finalizedLagMinutes = lagMetrics.finalizedLagMinutes,
+                                latestExecutionObservedLagSeconds = lagMetrics.latestExecutionObservedLagSeconds
                             )
                         )
                     }
