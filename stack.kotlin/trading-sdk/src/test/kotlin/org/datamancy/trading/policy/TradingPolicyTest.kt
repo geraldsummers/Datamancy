@@ -39,6 +39,6 @@ class TradingPolicyTest {
         assertEquals(24, policy.venue("hyperliquid").rawSync.executionSymbolsPerConnection)
         assertEquals(2_160L, policy.venue("hyperliquid").features.bootstrapHours)
         assertEquals(5L, policy.venue("hyperliquid").features.refreshOverlapMinutes)
-        assertEquals(1L, policy.venue("hyperliquid").features.backfillChunkHours)
+        assertEquals(3L, policy.venue("hyperliquid").features.backfillChunkHours)
     }
 }

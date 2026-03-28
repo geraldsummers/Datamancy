@@ -1095,7 +1095,7 @@ object DatamancyTradingPolicy {
                 bootstrapHours = 2_160L
                 refreshIntervalMs = 60_000L
                 refreshOverlapMinutes = 5L
-                backfillChunkHours = 1L
+                backfillChunkHours = 3L
                 finalizationLagMinutes = 3L
                 freshness {
                     maxRawLagSeconds = 90L
