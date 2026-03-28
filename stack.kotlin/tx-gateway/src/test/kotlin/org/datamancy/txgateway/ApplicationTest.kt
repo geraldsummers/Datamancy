@@ -1180,12 +1180,12 @@ class ApplicationTest {
                 deltaExposureUsd = match { it.compareTo(BigDecimal("3210.55")) == 0 }
             )
         }
-        verify(exactly = 1) { workerClient.getHyperliquidBalance("trader1", "test-key") }
-        verify(exactly = 1) { workerClient.getHyperliquidPositions("trader1", "test-key") }
+        verify(exactly = 2) { workerClient.getHyperliquidBalance("trader1", "test-key") }
+        verify(exactly = 2) { workerClient.getHyperliquidPositions("trader1", "test-key") }
 
         val patches = mutableListOf<RiskAccountStatePatch>()
-        verify(exactly = 1) { dbService.upsertRiskAccountState("trader1", capture(patches)) }
-        val patch = patches.single()
+        verify(exactly = 2) { dbService.upsertRiskAccountState("trader1", capture(patches)) }
+        val patch = patches.last()
         assertTrue(patch.accountEquityUsd?.compareTo(BigDecimal("12000.25")) == 0)
         assertTrue(patch.openExposureUsd?.compareTo(BigDecimal("18300")) == 0)
         assertTrue(patch.unrealizedPnlUsd?.compareTo(BigDecimal("105.5")) == 0)
@@ -1254,8 +1254,8 @@ class ApplicationTest {
 
         assertEquals(HttpStatusCode.OK, response.status)
         val patches = mutableListOf<RiskAccountStatePatch>()
-        verify(exactly = 1) { dbService.upsertRiskAccountState("trader1", capture(patches)) }
-        val patch = patches.single()
+        verify(exactly = 2) { dbService.upsertRiskAccountState("trader1", capture(patches)) }
+        val patch = patches.last()
         assertTrue(patch.openExposureUsd?.compareTo(BigDecimal("2800.0")) == 0)
         assertTrue(patch.unrealizedPnlUsd?.compareTo(BigDecimal("42.0")) == 0)
     }
@@ -2109,7 +2109,7 @@ class ApplicationTest {
                 payload["hyperliquidKey"] == "ref-test-key"
             })
         }
-        verify(exactly = 1) { workerClient.getHyperliquidBalance("trader1", "ref-test-key") }
+        verify(exactly = 2) { workerClient.getHyperliquidBalance("trader1", "ref-test-key") }
     }
 
     @Test

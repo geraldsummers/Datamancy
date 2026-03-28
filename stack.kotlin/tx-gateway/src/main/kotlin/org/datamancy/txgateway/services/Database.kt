@@ -1509,8 +1509,11 @@ class DatabaseService(
         val dailyRealized = patch.dailyRealizedPnlUsd ?: existing.dailyRealizedPnlUsd
         val dailyUnrealized = patch.dailyUnrealizedPnlUsd ?: existing.dailyUnrealizedPnlUsd
         val openExposure = (patch.openExposureUsd ?: existing.openExposureUsd).max(BigDecimal.ZERO)
-        val candidateHighWater = patch.highWaterMarkUsd ?: existing.highWaterMarkUsd
-        val highWater = maxOf(candidateHighWater, accountEquity, existing.highWaterMarkUsd)
+        val highWater = if (patch.highWaterMarkUsd != null) {
+            maxOf(patch.highWaterMarkUsd, accountEquity)
+        } else {
+            maxOf(existing.highWaterMarkUsd, accountEquity)
+        }
 
         val sql = """
             INSERT INTO risk_account_state (

@@ -116,19 +116,25 @@ class RiskEngineService(
         val dailyUnrealizedRaw = runCatching { accountState.dailyUnrealizedPnlUsd }.getOrDefault(BigDecimal.ZERO)
 
         if (killSwitch?.engaged == true) {
-            val killSwitchReason = if (killSwitch.manualAckRequired) {
+            val killSwitchReason = if (reduceOnly) {
+                "Kill switch engaged for account; only exposure-reducing orders allowed"
+            } else if (killSwitch.manualAckRequired) {
                 "Kill switch engaged for account; manual acknowledgement required"
             } else {
                 "Kill switch engaged for account"
             }
             val blocked = blockedDecision(
                 tier = RiskTier.HARD_KILL,
-                action = RiskAction.BLOCK_ALL,
+                action = if (reduceOnly) RiskAction.ALLOW else RiskAction.BLOCK_ALL,
                 reason = killSwitchReason,
                 policyId = policyRecord?.id?.toString(),
                 policyVersion = policyRecord?.version,
                 currentExposure = currentExposureRaw,
-                projectedExposure = currentExposureRaw,
+                projectedExposure = if (reduceOnly) {
+                    (currentExposureRaw - orderNotionalUsd).max(BigDecimal.ZERO)
+                } else {
+                    currentExposureRaw
+                },
                 accountEquity = accountEquityRaw,
                 highWaterMark = highWaterRaw,
                 dailyLossUsd = calculateDailyLoss(dailyRealizedRaw, dailyUnrealizedRaw),
@@ -246,7 +252,7 @@ class RiskEngineService(
             RiskTier.NORMAL -> RiskAction.ALLOW
             RiskTier.APPROACHING_LIMIT -> if (riskIncreasing) RiskAction.REJECT_NEW_RISK else RiskAction.ALLOW
             RiskTier.BREACH_UNWIND -> if (reduceOnly) RiskAction.ALLOW else RiskAction.UNWIND_ONLY
-            RiskTier.HARD_KILL -> RiskAction.BLOCK_ALL
+            RiskTier.HARD_KILL -> if (reduceOnly) RiskAction.ALLOW else RiskAction.BLOCK_ALL
         }
 
         val hardKillReason = if (policy.manualAckRequired) {
@@ -255,7 +261,11 @@ class RiskEngineService(
             "Hard risk kill-switch triggered"
         }
         val reason = when (action) {
-            RiskAction.ALLOW -> "Order allowed within active risk policy"
+            RiskAction.ALLOW -> if (tier == RiskTier.HARD_KILL) {
+                "Hard risk kill-switch triggered; only exposure-reducing orders allowed"
+            } else {
+                "Order allowed within active risk policy"
+            }
             RiskAction.REJECT_NEW_RISK -> "Account approaching risk limits; only exposure-reducing orders allowed"
             RiskAction.UNWIND_ONLY -> "Risk limits breached; slippage-managed unwind required"
             RiskAction.BLOCK_ALL -> hardKillReason

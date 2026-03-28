@@ -21,6 +21,7 @@ import org.datamancy.txgateway.services.CredentialResolver
 import org.datamancy.txgateway.services.DatabaseService
 import org.datamancy.txgateway.services.LdapService
 import org.datamancy.txgateway.services.LatestQuote
+import org.datamancy.txgateway.services.RiskAccountStateRecord
 import org.datamancy.txgateway.services.RiskPolicyRecord
 import org.datamancy.txgateway.services.TradingAccountAudit
 import org.datamancy.txgateway.services.TradingPermissionCatalog
@@ -58,6 +59,7 @@ private val maxQuoteAgeMs: Long = System.getenv("TX_GATEWAY_MAX_QUOTE_AGE_MS")
 private val symbolPattern = Regex("^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$")
 private val maxOrderSize = BigDecimal("1000000000")
 private val maxOrderPrice = BigDecimal("1000000000")
+private val bootstrapRiskHighWaterUsd = BigDecimal("100000")
 private const val PAPER_EXECUTION_STRATEGY = "tx_gateway_paper_execution"
 private const val LIVE_EXECUTION_STRATEGY = "tx_gateway_live_execution"
 private const val FORWARD_PAPER_EXECUTION_MODE = "forward_paper"
@@ -1339,6 +1341,33 @@ fun Route.unifiedExchangeRoutes(
                     return@post
                 }
 
+                val hyperliquidKey = credentialResolver.resolveHyperliquidCredential(
+                    username = username,
+                    providedCredential = call.request.headers["X-Credential-hyperliquid"],
+                    executionMode = executionMode
+                )
+                if (hyperliquidKey == null) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing Hyperliquid credentials"))
+                    return@post
+                }
+
+                runCatching {
+                    reconcileHyperliquidRiskState(
+                        dbService = dbService,
+                        workerClient = workerClient,
+                        username = username,
+                        hyperliquidKey = hyperliquidKey
+                    )
+                }.onFailure { syncError ->
+                    logger.warn(
+                        "Pre-trade Hyperliquid risk reconciliation failed for user={} exchange={} symbol={}: {}",
+                        username,
+                        exchange,
+                        orderRequest.symbol,
+                        syncError.message
+                    )
+                }
+
                 val riskDecision = riskEngine.evaluateOrder(
                     username = username,
                     symbol = orderRequest.symbol,
@@ -1369,16 +1398,6 @@ fun Route.unifiedExchangeRoutes(
                             "symbol" to orderRequest.symbol
                         )
                     )
-                    return@post
-                }
-
-                val hyperliquidKey = credentialResolver.resolveHyperliquidCredential(
-                    username = username,
-                    providedCredential = call.request.headers["X-Credential-hyperliquid"],
-                    executionMode = executionMode
-                )
-                if (hyperliquidKey == null) {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing Hyperliquid credentials"))
                     return@post
                 }
 
@@ -2333,6 +2352,7 @@ private fun reconcileHyperliquidRiskState(
     username: String,
     hyperliquidKey: String
 ) {
+    val existingState = dbService.getRiskAccountState(username)
     val balance = workerClient.getHyperliquidBalance(username, hyperliquidKey)
     val positions = workerClient.getHyperliquidPositions(username, hyperliquidKey)
 
@@ -2363,9 +2383,19 @@ private fun reconcileHyperliquidRiskState(
     val patch = RiskAccountStatePatch(
         accountEquityUsd = accountEquity,
         unrealizedPnlUsd = unrealizedPnlUsd,
-        openExposureUsd = openExposureUsd
+        openExposureUsd = openExposureUsd,
+        highWaterMarkUsd = accountEquity?.takeIf { shouldRebaseBootstrapHighWater(existingState, it) }
     )
     dbService.upsertRiskAccountState(username = username, patch = patch)
+}
+
+private fun shouldRebaseBootstrapHighWater(
+    existingState: RiskAccountStateRecord?,
+    accountEquity: BigDecimal
+): Boolean {
+    if (accountEquity <= BigDecimal.ZERO) return false
+    val highWater = existingState?.highWaterMarkUsd ?: return true
+    return highWater.compareTo(bootstrapRiskHighWaterUsd) == 0
 }
 
 private fun PaperOrderResponse.estimatedExecutedNotionalUsd(): BigDecimal? {

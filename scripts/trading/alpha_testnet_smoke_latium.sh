@@ -37,6 +37,19 @@ print(normalized if normalized else default)
 PY
 }
 
+read_secret_file() {
+  python3 - "$1" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1]).expanduser()
+if not path.exists():
+    print("")
+else:
+    print(path.read_text(encoding="utf-8").strip())
+PY
+}
+
 COOKIE_JAR="$(mktemp)"
 trap 'rm -f "$COOKIE_JAR"' EXIT
 
@@ -46,7 +59,11 @@ CLIENT_SECRET="$(env_or_file TRADING_E2E_OIDC_CLIENT_SECRET "$(env_or_file TEST_
 SCOPE="$(env_or_file TRADING_E2E_OIDC_SCOPE 'openid profile email groups')"
 USERNAME="$(env_or_file TRADING_E2E_USERNAME "$(env_or_file STACK_ADMIN_USER 'sysadmin')")"
 PASSWORD="$(env_or_file TRADING_E2E_PASSWORD "$(env_or_file STACK_ADMIN_PASSWORD '')")"
+HYPERLIQUID_KEY_FILE="$(env_or_file TRADING_E2E_HYPERLIQUID_KEY_FILE "$(env_or_file HYPERLIQUID_TESTNET_KEY_FILE "$HOME/.config/datamancy/hyperliquid_testnet.key")")"
 HYPERLIQUID_KEY="$(env_or_file TRADING_E2E_HYPERLIQUID_KEY "$(env_or_file HYPERLIQUID_TESTNET_KEY '')")"
+if [ -z "$HYPERLIQUID_KEY" ] && [ -n "$HYPERLIQUID_KEY_FILE" ]; then
+  HYPERLIQUID_KEY="$(read_secret_file "$HYPERLIQUID_KEY_FILE")"
+fi
 AUTHELIA_BASE_URL="$(env_or_file TRADING_E2E_AUTHELIA_URL "$(env_or_file AUTHELIA_URL 'https://auth.datamancy.net')")"
 
 if [ -z "$CLIENT_SECRET" ] || [ -z "$PASSWORD" ] || [ -z "$HYPERLIQUID_KEY" ]; then
