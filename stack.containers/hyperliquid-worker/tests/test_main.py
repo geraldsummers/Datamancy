@@ -961,6 +961,51 @@ class TestFlaskEndpoints:
         assert data['withdrawable'] == '123.45'
         assert data['accountSource'] == 'portfolio'
 
+    @patch('main.resolve_account_address', return_value='0xAddress')
+    @patch('main.get_info_client')
+    def test_get_balance_prefers_portfolio_equity_over_perp_margin_collateral(self, mock_get_info, _mock_resolve_account_address, client):
+        mock_info = Mock()
+        mock_info.user_state.return_value = {
+            'marginSummary': {
+                'accountValue': '6.6299',
+                'totalMarginUsed': '3.31585',
+                'totalNtlPos': '66.317',
+                'totalRawUsd': '-59.6871'
+            },
+            'crossMarginSummary': {
+                'accountValue': '6.6299',
+                'totalMarginUsed': '3.31585',
+                'totalNtlPos': '66.317',
+                'totalRawUsd': '-59.6871'
+            },
+            'withdrawable': '0.0'
+        }
+        mock_info.spot_user_state.return_value = {
+            'balances': [
+                {'coin': 'USDC', 'total': '988.480606'}
+            ],
+            'tokenToAvailableAfterMaintenance': [
+                [0, '987.651644']
+            ]
+        }
+        mock_info.portfolio.return_value = [
+            ['allTime', {'accountValueHistory': [[1774768646235, '988.488606']]}]
+        ]
+        mock_get_info.return_value = mock_info
+
+        response = client.post('/balance', json={
+            'user': 'testuser',
+            'hyperliquidKey': '0xAddress:testkey'
+        })
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['accountValue'] == '988.488606'
+        assert data['totalRawUsd'] == '988.488606'
+        assert data['withdrawable'] == '987.651644'
+        assert data['totalMarginUsed'] == '3.31585'
+        assert data['totalNtlPos'] == '66.317'
+        assert data['accountSource'] == 'portfolio'
+
     def test_get_balance_missing_key(self, client):
         """Test getting balance without API key"""
         response = client.post('/balance', json={'user': 'testuser'})

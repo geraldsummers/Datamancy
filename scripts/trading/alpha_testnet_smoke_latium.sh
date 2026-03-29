@@ -140,23 +140,148 @@ if [ -z "$BEARER_TOKEN" ]; then
   exit 1
 fi
 
-cat <<'JSON' >/tmp/alpha-submit.json
-{"exchange":"hyperliquid","symbol":"BTC","direction":"LONG","orderType":"MARKET","size":0.001,"mode":"TESTNET_LIVE","maxSlippageBps":35.0}
-JSON
+current_btc_position_size() {
+  docker exec -i -e HL_KEY="$HYPERLIQUID_KEY" hyperliquid-worker python - <<'PY'
+import os
+from eth_account import Account
+from hyperliquid.info import Info
+from hyperliquid.utils import constants
 
-RESPONSE="$(docker exec -e TX_TOKEN="$BEARER_TOKEN" -e HL_KEY="$HYPERLIQUID_KEY" -i alpha-execution-agent sh -lc '
-  cat >/tmp/alpha-submit.json
-  curl -fsS \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $TX_TOKEN" \
-    -H "X-Credential-hyperliquid: $HL_KEY" \
-    --data @/tmp/alpha-submit.json \
-    http://localhost:8080/api/v1/execution/submit
-' < /tmp/alpha-submit.json)"
+raw = os.environ.get("HL_KEY", "").strip()
+if ":" in raw:
+    address, private_key = raw.split(":", 1)
+    address = address.strip()
+else:
+    private_key = raw
+    address = ""
+if private_key and not address:
+    address = Account.from_key(private_key).address
+info = Info(base_url=constants.TESTNET_API_URL, skip_ws=True, spot_meta={"universe": [], "tokens": []})
+state = info.user_state(address) or {}
+size = 0.0
+for asset_position in state.get("assetPositions", []):
+    position = asset_position.get("position", {}) if isinstance(asset_position, dict) else {}
+    if str(position.get("coin", "")).upper() == "BTC":
+        try:
+            size = float(position.get("szi", 0.0))
+        except Exception:
+            size = 0.0
+        break
+print(size)
+PY
+}
 
-echo "$RESPONSE"
+submit_execution_request() {
+  local payload="$1"
+  printf '%s\n' "$payload" >/tmp/alpha-submit.json
+  docker exec -e TX_TOKEN="$BEARER_TOKEN" -e HL_KEY="$HYPERLIQUID_KEY" -i alpha-execution-agent sh -lc '
+    cat >/tmp/alpha-submit.json
+    curl -fsS \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $TX_TOKEN" \
+      -H "X-Credential-hyperliquid: $HL_KEY" \
+      --data @/tmp/alpha-submit.json \
+      http://localhost:8080/api/v1/execution/submit
+  ' < /tmp/alpha-submit.json
+}
 
-python3 - <<'PY' "$RESPONSE"
+build_market_payload() {
+  python3 - <<'PY' "$1" "$2" "$3"
+import json, sys
+direction = sys.argv[1]
+size = float(sys.argv[2])
+reduce_only = sys.argv[3].lower() == "true"
+print(json.dumps({
+    "exchange": "hyperliquid",
+    "symbol": "BTC",
+    "direction": direction,
+    "orderType": "MARKET",
+    "size": size,
+    "mode": "TESTNET_LIVE",
+    "reduceOnly": reduce_only,
+    "maxSlippageBps": 35.0
+}))
+PY
+}
+
+submit_and_check() {
+  local payload="$1"
+  local label="$2"
+  local response
+  response="$(submit_execution_request "$payload")"
+  echo "$response"
+  python3 - <<'PY' "$response" "$label"
+import json, sys
+payload = json.loads(sys.argv[1])
+label = sys.argv[2]
+accepted = bool(payload.get('accepted'))
+error = (payload.get('error') or '').lower()
+upstream_code = payload.get('upstreamCode')
+if accepted:
+    print(f'{label}: accepted order route')
+    sys.exit(0)
+blocked_markers = [
+    'risk',
+    'provision',
+    'not provisioned',
+    'insufficient',
+    'exchange returned a controlled blocker',
+    'invalid action format',
+    'price must be divisible',
+    'size must be divisible',
+    'margin',
+    'nonce',
+    'post only'
+]
+auth_markers = [
+    'authentication',
+    'authorization',
+    'missing bearer token',
+    'token',
+    'credential',
+    'invalid signature',
+    'missing hyperliquid credentials'
+]
+if any(marker in error for marker in auth_markers):
+    print(f'{label}: failed auth/credential path', file=sys.stderr)
+    sys.exit(1)
+if upstream_code is not None and (any(marker in error for marker in blocked_markers) or error):
+    print(f'{label}: reached exchange route with controlled rejection upstream_code={upstream_code}')
+    sys.exit(0)
+print(f'{label}: unexpected response shape', file=sys.stderr)
+sys.exit(1)
+PY
+}
+
+EXISTING_POSITION="$(current_btc_position_size)"
+if python3 - <<'PY' "$EXISTING_POSITION"
+import sys
+raise SystemExit(0 if abs(float(sys.argv[1])) > 1e-9 else 1)
+PY
+then
+  FLAT_DIRECTION="$(python3 - <<'PY' "$EXISTING_POSITION"
+import sys
+size = float(sys.argv[1])
+print("SHORT" if size > 0 else "LONG")
+PY
+)"
+  FLAT_SIZE="$(python3 - <<'PY' "$EXISTING_POSITION"
+import sys
+print(abs(float(sys.argv[1])))
+PY
+)"
+  submit_and_check "$(build_market_payload "$FLAT_DIRECTION" "$FLAT_SIZE" true)" "alpha testnet cleanup"
+fi
+
+OPEN_RESPONSE="$(submit_execution_request "$(build_market_payload LONG 0.001 false)")"
+echo "$OPEN_RESPONSE"
+OPEN_ACCEPTED="$(python3 - <<'PY' "$OPEN_RESPONSE"
+import json, sys
+print("true" if json.loads(sys.argv[1]).get('accepted') else "false")
+PY
+)"
+
+python3 - <<'PY' "$OPEN_RESPONSE"
 import json, sys
 payload = json.loads(sys.argv[1])
 accepted = bool(payload.get('accepted'))
@@ -196,4 +321,8 @@ if upstream_code is not None and (any(marker in error for marker in blocked_mark
 print('alpha testnet smoke: unexpected response shape', file=sys.stderr)
 sys.exit(1)
 PY
+
+if [ "$OPEN_ACCEPTED" = "true" ]; then
+  submit_and_check "$(build_market_payload SHORT 0.001 true)" "alpha testnet cleanup"
+fi
 REMOTE_EOF

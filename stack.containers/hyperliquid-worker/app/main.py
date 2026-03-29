@@ -535,16 +535,6 @@ def resolve_balance_snapshot(info: Info, address: str) -> dict:
     total_ntl_pos = margin.get('totalNtlPos') or cross_margin.get('totalNtlPos')
     total_raw_usd = margin.get('totalRawUsd') or cross_margin.get('totalRawUsd')
 
-    if account_value and account_value > 0:
-        return {
-            "accountValue": margin.get('accountValue') or cross_margin.get('accountValue') or decimal_to_plain_string(account_value),
-            "totalMarginUsed": total_margin_used,
-            "totalNtlPos": total_ntl_pos,
-            "totalRawUsd": total_raw_usd or decimal_to_plain_string(account_value),
-            "withdrawable": user_state.get('withdrawable') or margin.get('withdrawable') or decimal_to_plain_string(withdrawable or account_value),
-            "accountSource": "margin_summary"
-        }
-
     spot_user_state = info.spot_user_state(address) or {}
     unified_available = None
     token_available = spot_user_state.get('tokenToAvailableAfterMaintenance') if isinstance(spot_user_state, dict) else None
@@ -555,27 +545,17 @@ def resolve_balance_snapshot(info: Info, address: str) -> dict:
                 if unified_available is not None:
                     break
 
-    if unified_available is None and isinstance(spot_user_state, dict):
+    unified_total = None
+    if isinstance(spot_user_state, dict):
         balances = spot_user_state.get('balances')
         if isinstance(balances, list):
             for balance in balances:
                 if not isinstance(balance, dict):
                     continue
                 if str(balance.get('coin', '')).upper() == "USDC":
-                    unified_available = parse_decimal(balance.get('total'))
-                    if unified_available is not None:
+                    unified_total = parse_decimal(balance.get('total'))
+                    if unified_total is not None:
                         break
-
-    if unified_available is not None and unified_available > 0:
-        unified_text = decimal_to_plain_string(unified_available)
-        return {
-            "accountValue": unified_text,
-            "totalMarginUsed": total_margin_used or "0.0",
-            "totalNtlPos": total_ntl_pos or "0.0",
-            "totalRawUsd": unified_text,
-            "withdrawable": decimal_to_plain_string(withdrawable or unified_available),
-            "accountSource": "spot_user_state"
-        }
 
     portfolio = info.portfolio(address) or []
     if isinstance(portfolio, list):
@@ -600,9 +580,30 @@ def resolve_balance_snapshot(info: Info, address: str) -> dict:
                             "totalMarginUsed": total_margin_used or "0.0",
                             "totalNtlPos": total_ntl_pos or "0.0",
                             "totalRawUsd": portfolio_text,
-                            "withdrawable": decimal_to_plain_string(withdrawable or portfolio_value),
+                            "withdrawable": decimal_to_plain_string(unified_available or withdrawable or portfolio_value),
                             "accountSource": "portfolio"
                         }
+
+    if unified_total is not None and unified_total > 0:
+        unified_text = decimal_to_plain_string(unified_total)
+        return {
+            "accountValue": unified_text,
+            "totalMarginUsed": total_margin_used or "0.0",
+            "totalNtlPos": total_ntl_pos or "0.0",
+            "totalRawUsd": unified_text,
+            "withdrawable": decimal_to_plain_string(unified_available or withdrawable or unified_total),
+            "accountSource": "spot_user_state"
+        }
+
+    if account_value and account_value > 0:
+        return {
+            "accountValue": margin.get('accountValue') or cross_margin.get('accountValue') or decimal_to_plain_string(account_value),
+            "totalMarginUsed": total_margin_used,
+            "totalNtlPos": total_ntl_pos,
+            "totalRawUsd": total_raw_usd or decimal_to_plain_string(account_value),
+            "withdrawable": user_state.get('withdrawable') or margin.get('withdrawable') or decimal_to_plain_string(withdrawable or account_value),
+            "accountSource": "margin_summary"
+        }
 
     return {
         "accountValue": "0.0",

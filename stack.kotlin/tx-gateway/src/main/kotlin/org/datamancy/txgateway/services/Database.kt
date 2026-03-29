@@ -838,7 +838,7 @@ class DatabaseService(
                 estimated_cost_usd,
                 metadata
             ) VALUES (
-                NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb
+                NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb
             )
         """.trimIndent()
 
@@ -1060,7 +1060,7 @@ class DatabaseService(
                 AVG(COALESCE(l.submit_to_fill_ms, l.submit_to_ack_ms)) AS avg_submit_to_fill_ms,
                 AVG(
                     CASE
-                        WHEN c.metadata ? 'fillRatio'
+                        WHEN NULLIF(c.metadata ->> 'fillRatio', '') IS NOT NULL
                             THEN NULLIF(c.metadata ->> 'fillRatio', '')::DOUBLE PRECISION
                         ELSE NULL
                     END
