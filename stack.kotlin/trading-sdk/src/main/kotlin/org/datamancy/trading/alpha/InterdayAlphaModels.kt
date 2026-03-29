@@ -47,7 +47,10 @@ data class InterdayAlphaConfig(
     val holdEdgeFloorBps: Double = 0.25,
     val regimeStrengthThreshold: Double = 0.18,
     val regimeDirectionalSuppressionThreshold: Double = 0.55,
-    val regimeNetBiasScale: Double = 0.75
+    val regimeNetBiasScale: Double = 0.75,
+    val hierarchyMarketWeight: Double = 0.0,
+    val hierarchyCohortWeight: Double = 0.0,
+    val hierarchyResidualWeight: Double = 1.0
 )
 
 data class InterdaySearchSpace(
@@ -81,7 +84,10 @@ data class InterdaySearchSpace(
     val entryEdgeFloorBps: List<Double> = emptyList(),
     val holdEdgeFloorBps: List<Double> = emptyList(),
     val regimeDirectionalSuppressionThreshold: List<Double> = emptyList(),
-    val regimeNetBiasScale: List<Double> = emptyList()
+    val regimeNetBiasScale: List<Double> = emptyList(),
+    val hierarchyMarketWeight: List<Double> = emptyList(),
+    val hierarchyCohortWeight: List<Double> = emptyList(),
+    val hierarchyResidualWeight: List<Double> = emptyList()
 )
 
 data class InterdayAlphaSearchRequest(
@@ -149,6 +155,10 @@ data class InterdaySignalSnapshot(
     val openInterestScore: Double,
     val expansionScore: Double,
     val reversalRiskScore: Double,
+    val cohortId: String,
+    val marketComponentBps: Double,
+    val cohortComponentBps: Double,
+    val residualComponentBps: Double,
     val upperBound: Double,
     val lowerBound: Double,
     val expectedResidualReturnBps: Double,

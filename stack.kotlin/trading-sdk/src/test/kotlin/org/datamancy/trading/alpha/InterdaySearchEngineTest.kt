@@ -43,6 +43,10 @@ class InterdaySearchEngineTest {
         assertTrue(point.expectedResidualReturnBps.isFinite())
         assertTrue(point.expectedEntryCostBps.isFinite())
         assertTrue(point.entryEligible || response.targets.isEmpty())
+        assertTrue(response.selectedSignals.all { it.cohortId.isNotBlank() })
+        assertTrue(response.selectedSignals.all { it.marketComponentBps.isFinite() })
+        assertTrue(response.selectedSignals.all { it.cohortComponentBps.isFinite() })
+        assertTrue(response.selectedSignals.all { it.residualComponentBps.isFinite() })
     }
 
     @Test
