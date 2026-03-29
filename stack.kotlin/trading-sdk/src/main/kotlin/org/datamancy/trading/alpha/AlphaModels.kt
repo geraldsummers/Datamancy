@@ -22,6 +22,11 @@ enum class AlphaExecutionStyle {
     VWAP_TRACK
 }
 
+enum class InterdayAdjustmentMode {
+    REBALANCE_STEP,
+    CONTINUOUS_RAMP
+}
+
 data class UniverseBoundsSpec(
     val timeSeriesNormalization: String = "rolling_median_mad",
     val crossSectionalNormalization: String = "rank_gaussian",

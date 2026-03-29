@@ -68,6 +68,40 @@ class InterdaySearchEngineTest {
         assertEquals(2, response.leaderboard.size)
         assertTrue(response.leaderboard.all { it.selectedSignals.isNotEmpty() })
     }
+
+    @Test
+    fun `continuous ramp adds between rebalance turnover`() = kotlinx.coroutines.runBlocking {
+        val baseConfig = InterdayAlphaConfig(
+            exchange = "hyperliquid_mainnet",
+            signalBarMinutes = 240,
+            lookbackHours = 480,
+            forwardHours = 72,
+            rebalanceCadenceHours = 72,
+            selectionQuantile = 0.34,
+            minConfidence = 0.15,
+            executionWindowMinutes = 120
+        )
+
+        val stepResponse = engine.run(
+            InterdayAlphaRunRequest(
+                config = baseConfig.copy(adjustmentMode = InterdayAdjustmentMode.REBALANCE_STEP)
+            )
+        )
+        val continuousResponse = engine.run(
+            InterdayAlphaRunRequest(
+                config = baseConfig.copy(adjustmentMode = InterdayAdjustmentMode.CONTINUOUS_RAMP)
+            )
+        )
+
+        val stepInspection = requireNotNull(stepResponse.inspection)
+        val continuousInspection = requireNotNull(continuousResponse.inspection)
+        val stepTurnoverBars = stepInspection.portfolio.count { it.turnoverFraction > 1e-9 }
+        val continuousTurnoverBars = continuousInspection.portfolio.count { it.turnoverFraction > 1e-9 }
+
+        assertTrue(stepTurnoverBars > 0)
+        assertTrue(continuousTurnoverBars > stepTurnoverBars)
+        assertTrue(stepResponse.backtest.netReturnPct != continuousResponse.backtest.netReturnPct)
+    }
 }
 
 private fun syntheticPanel(): InterdayPanel {

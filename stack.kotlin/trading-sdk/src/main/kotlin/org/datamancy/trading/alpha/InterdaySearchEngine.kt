@@ -142,6 +142,10 @@ class InterdaySearchEngine(
         searchSpace: InterdaySearchSpace,
         maxEvaluations: Int
     ): List<InterdayAlphaConfig> {
+        val adjustmentModes = prioritizeAnchored(
+            searchSpace.adjustmentModes.ifEmpty { listOf(base.adjustmentMode) },
+            base.adjustmentMode
+        )
         val signalBars = prioritizeValues(searchSpace.signalBarMinutes.ifEmpty { listOf(base.signalBarMinutes) }, base.signalBarMinutes)
         val lookbacks = prioritizeValues(searchSpace.lookbackHours.ifEmpty { listOf(base.lookbackHours) }, base.lookbackHours)
         val forwards = prioritizeValues(searchSpace.forwardHours.ifEmpty { listOf(base.forwardHours) }, base.forwardHours)
@@ -166,54 +170,57 @@ class InterdaySearchEngine(
         val executionWindows = prioritizeValues(searchSpace.executionWindowMinutes.ifEmpty { listOf(base.executionWindowMinutes) }, base.executionWindowMinutes)
 
         val generated = mutableListOf<InterdayAlphaConfig>()
-        outer@ for (signalBar in signalBars) {
-            for (lookback in lookbacks) {
-                for (forward in forwards) {
-                    for (cadence in cadences) {
-                        for (quantile in quantiles) {
-                            for (fast in fastDays) {
-                                for (medium in mediumDays) {
-                                    for (slow in slowDays) {
-                                        if (!(fast <= medium && medium <= slow)) continue
-                                        for (regression in regressionDays) {
-                                            for (volatility in volatilityDays) {
-                                                for (adx in adxDays) {
-                                                    for (perturbBar in perturbBars) {
-                                                        for (perturbThreshold in perturbThresholds) {
-                                                            for (slopeWeight in slopeWeights) {
-                                                                for (fundingWeight in fundingWeights) {
-                                                                    for (openInterestWeight in openInterestWeights) {
-                                                                        for (pullbackWeight in pullbackWeights) {
-                                                                            for (adxThreshold in adxThresholds) {
-                                                                                for (minConfidence in minConfidences) {
-                                                                                    for (trailing in trailingStops) {
-                                                                                        for (takeProfit in takeProfits) {
-                                                                                            for (executionWindow in executionWindows) {
-                                                                                                generated += base.copy(
-                                                                                                    signalBarMinutes = signalBar,
-                                                                                                    lookbackHours = lookback,
-                                                                                                    forwardHours = forward,
-                                                                                                    rebalanceCadenceHours = cadence,
-                                                                                                    selectionQuantile = quantile,
-                                                                                                    fastTrendDays = fast,
-                                                                                                    mediumTrendDays = medium,
-                                                                                                    slowTrendDays = slow,
-                                                                                                    regressionDays = regression,
-                                                                                                    volatilityDays = volatility,
-                                                                                                    adxDays = adx,
-                                                                                                    perturbationLookbackBars = perturbBar,
-                                                                                                    perturbationThresholdZ = perturbThreshold,
-                                                                                                    slopeWeight = slopeWeight,
-                                                                                                    fundingWeight = fundingWeight,
-                                                                                                    openInterestWeight = openInterestWeight,
-                                                                                                    pullbackWeight = pullbackWeight,
-                                                                                                    adxThreshold = adxThreshold,
-                                                                                                    minConfidence = minConfidence,
-                                                                                                    trailingStopVolMultiple = trailing,
-                                                                                                    takeProfitVolMultiple = takeProfit,
-                                                                                                    executionWindowMinutes = executionWindow
-                                                                                                )
-                                                                                                if (generated.size >= maxEvaluations) break@outer
+        outer@ for (adjustmentMode in adjustmentModes) {
+            for (signalBar in signalBars) {
+                for (lookback in lookbacks) {
+                    for (forward in forwards) {
+                        for (cadence in cadences) {
+                            for (quantile in quantiles) {
+                                for (fast in fastDays) {
+                                    for (medium in mediumDays) {
+                                        for (slow in slowDays) {
+                                            if (!(fast <= medium && medium <= slow)) continue
+                                            for (regression in regressionDays) {
+                                                for (volatility in volatilityDays) {
+                                                    for (adx in adxDays) {
+                                                        for (perturbBar in perturbBars) {
+                                                            for (perturbThreshold in perturbThresholds) {
+                                                                for (slopeWeight in slopeWeights) {
+                                                                    for (fundingWeight in fundingWeights) {
+                                                                        for (openInterestWeight in openInterestWeights) {
+                                                                            for (pullbackWeight in pullbackWeights) {
+                                                                                for (adxThreshold in adxThresholds) {
+                                                                                    for (minConfidence in minConfidences) {
+                                                                                        for (trailing in trailingStops) {
+                                                                                            for (takeProfit in takeProfits) {
+                                                                                                for (executionWindow in executionWindows) {
+                                                                                                    generated += base.copy(
+                                                                                                        adjustmentMode = adjustmentMode,
+                                                                                                        signalBarMinutes = signalBar,
+                                                                                                        lookbackHours = lookback,
+                                                                                                        forwardHours = forward,
+                                                                                                        rebalanceCadenceHours = cadence,
+                                                                                                        selectionQuantile = quantile,
+                                                                                                        fastTrendDays = fast,
+                                                                                                        mediumTrendDays = medium,
+                                                                                                        slowTrendDays = slow,
+                                                                                                        regressionDays = regression,
+                                                                                                        volatilityDays = volatility,
+                                                                                                        adxDays = adx,
+                                                                                                        perturbationLookbackBars = perturbBar,
+                                                                                                        perturbationThresholdZ = perturbThreshold,
+                                                                                                        slopeWeight = slopeWeight,
+                                                                                                        fundingWeight = fundingWeight,
+                                                                                                        openInterestWeight = openInterestWeight,
+                                                                                                        pullbackWeight = pullbackWeight,
+                                                                                                        adxThreshold = adxThreshold,
+                                                                                                        minConfidence = minConfidence,
+                                                                                                        trailingStopVolMultiple = trailing,
+                                                                                                        takeProfitVolMultiple = takeProfit,
+                                                                                                        executionWindowMinutes = executionWindow
+                                                                                                    )
+                                                                                                    if (generated.size >= maxEvaluations) break@outer
+                                                                                                }
                                                                                             }
                                                                                         }
                                                                                     }
@@ -271,6 +278,8 @@ class InterdaySearchEngine(
         var grossAccumulator = 0.0
         var latestSignals = emptyList<InterdaySignalSnapshot>()
         var latestTargets = emptyList<AlphaPortfolioTarget>()
+        var latestDesiredWeights = emptyMap<String, Double>()
+        var latestSignalsBySymbol = emptyMap<String, InterdaySignalSnapshot>()
 
         for (index in 1 until panel.timeline.size) {
             val time = panel.timeline[index]
@@ -329,6 +338,7 @@ class InterdaySearchEngine(
                 latestSignals = signals
                     .sortedByDescending { abs(it.score) }
                     .take(32)
+                latestSignalsBySymbol = signals.associateBy { it.symbol }
                 if (includeInspection) {
                     signals.forEach { signal ->
                         signalHistory.getOrPut(signal.symbol) { mutableListOf() } += InterdayInspectionPoint(
@@ -372,21 +382,35 @@ class InterdaySearchEngine(
                         )
                     }
                 }
-                val desiredWeights = latestTargets.associate { target ->
+                latestDesiredWeights = latestTargets.associate { target ->
                     target.symbol to if (target.direction == AlphaDirection.LONG) target.weightFraction else -target.weightFraction
                 }
-                val step = policy.research.portfolio.rebalanceTargetExposureStep.coerceAtLeast(0.01)
-                val symbols = (currentWeights.keys + desiredWeights.keys).sorted()
+            }
+
+            val shouldAdjustBetweenRebalances = when (config.adjustmentMode) {
+                InterdayAdjustmentMode.REBALANCE_STEP -> rebalanceNow
+                InterdayAdjustmentMode.CONTINUOUS_RAMP -> latestDesiredWeights.isNotEmpty() || currentWeights.isNotEmpty()
+            }
+            if (shouldAdjustBetweenRebalances) {
+                val symbols = (currentWeights.keys + latestDesiredWeights.keys).sorted()
                 symbols.forEach { symbol ->
                     val currentSigned = currentWeights[symbol] ?: 0.0
-                    val targetSigned = desiredWeights[symbol] ?: 0.0
+                    val targetSigned = latestDesiredWeights[symbol] ?: 0.0
+                    val signal = latestSignalsBySymbol[symbol]
+                    val confidence = signal?.confidence ?: 0.5
+                    val step = adjustmentStep(
+                        baseStep = policy.research.portfolio.rebalanceTargetExposureStep.coerceAtLeast(0.01),
+                        rebalanceBars = rebalanceBars,
+                        confidence = confidence,
+                        mode = config.adjustmentMode
+                    )
                     val plannedDelta = gradualDelta(currentSigned, targetSigned, step)
                     if (abs(plannedDelta) <= 1e-9) return@forEach
                     val currentBar = seriesBySymbol[symbol]?.bars?.get(index) ?: return@forEach
                     equity *= 1.0 - estimateTransactionCostFraction(
                         weightDelta = abs(plannedDelta),
                         bar = currentBar,
-                        confidence = latestSignals.firstOrNull { it.symbol == symbol }?.confidence ?: 0.5,
+                        confidence = confidence,
                         config = config
                     )
                     applyDelta(
@@ -396,10 +420,10 @@ class InterdaySearchEngine(
                         symbol = symbol,
                         signedDelta = plannedDelta,
                         price = currentBar.close,
-                        volatility = latestSignals.firstOrNull { it.symbol == symbol }?.predictedVolatility ?: 0.01,
-                        confidence = latestSignals.firstOrNull { it.symbol == symbol }?.confidence ?: 0.5,
+                        volatility = signal?.predictedVolatility ?: 0.01,
+                        confidence = confidence,
                         time = time,
-                        reason = "rebalance",
+                        reason = if (rebalanceNow) "rebalance" else "continuous-ramp",
                         splitTime = splitTime
                     )
                     turnoverFraction += abs(plannedDelta)
@@ -728,6 +752,20 @@ class InterdaySearchEngine(
             -currentSigned.coerceIn(-step, step)
         } else {
             (targetSigned - currentSigned).coerceIn(-step, step)
+        }
+    }
+
+    private fun adjustmentStep(
+        baseStep: Double,
+        rebalanceBars: Int,
+        confidence: Double,
+        mode: InterdayAdjustmentMode
+    ): Double = when (mode) {
+        InterdayAdjustmentMode.REBALANCE_STEP -> baseStep
+        InterdayAdjustmentMode.CONTINUOUS_RAMP -> {
+            val perBarBase = baseStep / rebalanceBars.coerceAtLeast(1).toDouble()
+            val confidenceScaler = 0.35 + 0.65 * confidence.coerceIn(0.0, 1.0)
+            (perBarBase * confidenceScaler).coerceAtLeast(0.005)
         }
     }
 
@@ -1232,6 +1270,9 @@ private fun InterdayPanel.seriesBySymbol(): Map<String, InterdaySymbolSeries> = 
 
 private fun prioritizeValues(values: List<Int>, anchor: Int): List<Int> =
     values.distinct().sortedWith(compareBy<Int> { abs(it - anchor) }.thenBy { it })
+
+private fun <T> prioritizeAnchored(values: List<T>, anchor: T): List<T> =
+    listOf(anchor) + values.filter { it != anchor }.distinct()
 
 private fun prioritizeDoubles(values: List<Double>, anchor: Double): List<Double> =
     values.distinct().sortedWith(compareBy<Double> { abs(it - anchor) }.thenBy { it })

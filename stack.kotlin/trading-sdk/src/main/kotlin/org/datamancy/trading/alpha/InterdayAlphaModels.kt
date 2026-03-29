@@ -5,6 +5,7 @@ import java.time.Instant
 data class InterdayAlphaConfig(
     val strategyFamily: String = "interday_relative_strength_trend_v2",
     val exchange: String = "hyperliquid_mainnet",
+    val adjustmentMode: InterdayAdjustmentMode = InterdayAdjustmentMode.REBALANCE_STEP,
     val signalBarMinutes: Int = 240,
     val lookbackHours: Int = 1_080,
     val forwardHours: Int = 72,
@@ -39,6 +40,7 @@ data class InterdayAlphaConfig(
 )
 
 data class InterdaySearchSpace(
+    val adjustmentModes: List<InterdayAdjustmentMode> = emptyList(),
     val signalBarMinutes: List<Int> = emptyList(),
     val lookbackHours: List<Int> = emptyList(),
     val forwardHours: List<Int> = emptyList(),
