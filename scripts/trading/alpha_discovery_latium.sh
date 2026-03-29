@@ -116,12 +116,13 @@ JSON
 submit_with_auth() {
   local remote_request="/tmp/alpha-discovery-submit-$$.json"
   local cleanup_after="${DISCOVERY_CLOSE_ALL_AFTER:-false}"
+  local remote_cleanup_cmd="rm -f '$remote_request'"
   local positions_after_submit
   local cleanup_result=""
   local positions_after_cleanup=""
 
   rsync -az "$TMP_REQUEST" "$REMOTE_HOST:$remote_request"
-  trap 'ssh "$REMOTE_HOST" "rm -f '\''$remote_request'\''" >/dev/null 2>&1 || true; rm -f "$TMP_REQUEST"' EXIT
+  trap 'ssh "$REMOTE_HOST" "'"$remote_cleanup_cmd"'" >/dev/null 2>&1 || true; rm -f "$TMP_REQUEST"' EXIT
 
   ssh "$REMOTE_HOST" "REMOTE_ROOT='$REMOTE_ROOT' REQUEST_FILE='$remote_request' DISCOVERY_CLOSE_ALL_AFTER='$cleanup_after' bash -s" <<'REMOTE_EOF'
 set -euo pipefail

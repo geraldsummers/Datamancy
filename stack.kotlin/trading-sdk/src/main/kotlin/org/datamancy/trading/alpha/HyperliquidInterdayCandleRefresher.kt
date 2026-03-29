@@ -54,7 +54,7 @@ class HyperliquidInterdayCandleRefresher(
         val endTime = alignedWindowEnd(startedAt, request.signalBarMinutes)
         val startTime = endTime.minus(Duration.ofHours(request.lookbackHours.toLong()))
         val availableUniverse = fetchUniverse()
-        val requestedSymbols = request.symbols.map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        val requestedSymbols = request.symbols.orEmpty().map { it.trim() }.filter { it.isNotEmpty() }.toSet()
         val universe = if (requestedSymbols.isEmpty()) {
             availableUniverse
         } else {

@@ -79,7 +79,7 @@ data class AlphaDatasetRefreshRequest(
     val exchange: String? = null,
     val signalBarMinutes: Int,
     val lookbackHours: Int,
-    val symbols: List<String> = emptyList()
+    val symbols: List<String>? = emptyList()
 )
 
 data class AlphaDatasetRefreshResponse(
