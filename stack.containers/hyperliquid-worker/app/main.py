@@ -23,6 +23,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+DEFAULT_CLOSE_SLIPPAGE = 0.0035
 
 # Configuration
 # Note: Vault removed - using ephemeral user credentials
@@ -1110,7 +1111,8 @@ def close_position():
             symbol=symbol,
             is_buy=is_buy,
             size_float=abs(position_size),
-            reduce_only=True
+            reduce_only=True,
+            slippage=DEFAULT_CLOSE_SLIPPAGE
         )
 
         logger.info(f"Close result: {result}")
@@ -1180,7 +1182,8 @@ def close_all_positions():
                 symbol=symbol,
                 is_buy=is_buy,
                 size_float=abs(size),
-                reduce_only=True
+                reduce_only=True,
+                slippage=DEFAULT_CLOSE_SLIPPAGE
             )
             closed.append({
                 "symbol": symbol,
