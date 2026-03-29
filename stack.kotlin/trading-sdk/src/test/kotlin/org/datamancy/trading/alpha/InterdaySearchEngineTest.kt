@@ -111,7 +111,7 @@ class InterdaySearchEngineTest {
     }
 
     @Test
-    fun `high perturbation threshold suppresses entries`() = kotlinx.coroutines.runBlocking {
+    fun `high perturbation threshold still allows confirmed continuation entries`() = kotlinx.coroutines.runBlocking {
         val response = engine.run(
             InterdayAlphaRunRequest(
                 config = InterdayAlphaConfig(
@@ -128,8 +128,9 @@ class InterdaySearchEngineTest {
             )
         )
 
-        assertTrue(response.targets.isEmpty())
-        assertTrue(response.trades.isEmpty())
+        assertTrue(response.selectedSignals.isNotEmpty())
+        assertTrue(response.targets.isNotEmpty())
+        assertTrue(response.targets.all { it.expectedNetEdgeBps > 0.0 })
     }
 
     @Test

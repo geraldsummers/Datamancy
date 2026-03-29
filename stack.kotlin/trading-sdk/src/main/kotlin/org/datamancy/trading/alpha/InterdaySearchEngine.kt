@@ -130,7 +130,7 @@ class InterdaySearchEngine(
             inspection = evaluation.inspection,
             notes = listOf(
                 "Trend strength is built from multi-horizon relative returns, regression slope, moving-average separation, and ADX-style persistence.",
-                "Entries require the symbol to sit on a universe edge and show a local counter-trend perturbation before size is added."
+                "Entries size on universe-edge names when they show either a local pullback into trend or a confirmed continuation regime."
             )
         )
     }
@@ -434,22 +434,22 @@ class InterdaySearchEngine(
                 latestSignalsBySymbol = signals.associateBy { it.symbol }
                 val eligibleBySymbol = signals.associate { signal ->
                     val trendAgreementOk = signal.trendAgreement >= config.minTrendAgreement
-                    val pullbackOk = signal.pullbackScore >= config.perturbationThresholdZ
+                    val incumbentSameSide = holdsSignalDirection(currentWeights[signal.symbol] ?: 0.0, signal.direction)
+                    val entryStyleOk = incumbentSameSide || satisfiesEntryStyle(signal, config)
                     val regimeAllowed = isDirectionAllowedByRegime(
                         direction = signal.direction,
                         regimeScore = latestRegime.score,
                         config = config
                     )
-                    val universeEdgeOk = when (signal.direction) {
-                        AlphaDirection.LONG -> signal.expectedNetEdgeBps >= signal.upperBound
-                        AlphaDirection.SHORT -> signal.expectedNetEdgeBps <= signal.lowerBound
-                    }
-                    val incumbentSameSide = holdsSignalDirection(currentWeights[signal.symbol] ?: 0.0, signal.direction)
+                    val universeEdgeOk = withinDirectionalTail(
+                        signal = signal,
+                        plateauToleranceBps = searchPolicy.scorePlateauToleranceBps
+                    )
                     val edgeFloorOk = directionalEdgeBps(signal) >= if (incumbentSameSide) config.holdEdgeFloorBps else config.entryEdgeFloorBps
                     signal.symbol to (
                         signal.confidence >= config.minConfidence &&
                             trendAgreementOk &&
-                            pullbackOk &&
+                            entryStyleOk &&
                             regimeAllowed &&
                             edgeFloorOk &&
                             (universeEdgeOk || (incumbentSameSide && directionalEdgeBps(signal) >= config.holdEdgeFloorBps))
@@ -682,7 +682,7 @@ class InterdaySearchEngine(
         )
         val empiricalScores = raw.associate { candidate ->
             val features = featureVectors.getValue(candidate.symbol)
-            candidate.symbol to empiricalWeights.score(features)
+            candidate.symbol to empiricalWeights.score(features, config)
         }
         val empiricalRanks = centeredRanks(empiricalScores)
         val spreadRanks = centeredRanks(raw.associate { it.symbol to -(it.spreadBps) })
@@ -837,21 +837,29 @@ class InterdaySearchEngine(
         val spreadRanks = centeredRanks(raw.associate { it.symbol to -(it.spreadBps) })
 
         return raw.associate { candidate ->
-            val trend = listOf(
+            val slopeWeight = config.slopeWeight.coerceIn(0.0, 1.0)
+            val trendCore = listOf(
                 fastRanks.getValue(candidate.symbol),
                 mediumRanks.getValue(candidate.symbol),
                 slowRanks.getValue(candidate.symbol),
-                slopeRanks.getValue(candidate.symbol),
-                maRanks.getValue(candidate.symbol),
-                adxRanks.getValue(candidate.symbol)
-            ).average().coerceIn(-1.0, 1.0)
+                maRanks.getValue(candidate.symbol)
+            ).average()
+            val adxThreshold = config.adxThreshold.coerceAtLeast(1.0)
+            val adxSupport = ((candidate.adx - adxThreshold) / adxThreshold).coerceIn(-1.0, 1.0)
+            val trend = (
+                trendCore * (1.0 - slopeWeight) +
+                    slopeRanks.getValue(candidate.symbol) * slopeWeight +
+                    adxSupport * 0.15 +
+                    adxRanks.getValue(candidate.symbol) * 0.10
+                ).coerceIn(-1.0, 1.0)
             val trendDirection = if (trend >= 0.0) 1.0 else -1.0
             val trendAgreement = listOf(
                 trendDirection * fastRanks.getValue(candidate.symbol),
                 trendDirection * mediumRanks.getValue(candidate.symbol),
                 trendDirection * slowRanks.getValue(candidate.symbol),
                 trendDirection * slopeRanks.getValue(candidate.symbol),
-                trendDirection * maRanks.getValue(candidate.symbol)
+                trendDirection * maRanks.getValue(candidate.symbol),
+                trendDirection * adxSupport
             ).average().coerceIn(-1.0, 1.0)
             val pullbackSupport = (-trendDirection * candidate.perturbation).coerceAtLeast(0.0)
             val fundingSupport = (-trendDirection * fundingRanks.getValue(candidate.symbol)).coerceIn(-1.0, 1.0)
@@ -859,7 +867,8 @@ class InterdaySearchEngine(
             val expansion = listOf(
                 (trendDirection * mediumRanks.getValue(candidate.symbol)).coerceAtLeast(0.0),
                 (trendDirection * oiRanks.getValue(candidate.symbol)).coerceAtLeast(0.0),
-                adxRanks.getValue(candidate.symbol).coerceAtLeast(0.0)
+                adxRanks.getValue(candidate.symbol).coerceAtLeast(0.0),
+                adxSupport.coerceAtLeast(0.0)
             ).average().coerceIn(0.0, 1.0)
             val reversalRisk = listOf(
                 (trendDirection * candidate.perturbation).coerceAtLeast(0.0),
@@ -949,7 +958,7 @@ class InterdaySearchEngine(
         }
         val prior = bootstrapWeights(config)
         if (observations.isEmpty()) return prior
-        val fitted = ridgeFit(observations, lambda = config.empiricalFitRegularization)
+        val fitted = ridgeFit(observations, lambda = config.empiricalFitRegularization, config = config)
         val blend = (observations.size.toDouble() / config.empiricalMinTrainingObservations.toDouble()).coerceIn(0.0, 1.0)
         val coefficients = DoubleArray(prior.coefficients.size) { index ->
             prior.coefficients[index] * (1.0 - blend) + fitted.coefficients[index] * blend
@@ -995,14 +1004,15 @@ class InterdaySearchEngine(
 
     private fun ridgeFit(
         observations: List<FeatureObservation>,
-        lambda: Double
+        lambda: Double,
+        config: InterdayAlphaConfig
     ): EmpiricalWeights {
-        val dimension = observations.firstOrNull()?.features?.toArray()?.size ?: 0
+        val dimension = observations.firstOrNull()?.features?.toArray(config)?.size ?: 0
         if (dimension == 0) return EmpiricalWeights(0.0, DoubleArray(0), observations.size)
         val gram = Array(dimension + 1) { DoubleArray(dimension + 1) }
         val rhs = DoubleArray(dimension + 1)
         observations.forEach { observation ->
-            val row = doubleArrayOf(1.0, *observation.features.toArray())
+            val row = doubleArrayOf(1.0, *observation.features.toArray(config))
             for (left in row.indices) {
                 rhs[left] += row[left] * observation.targetResidualReturn
                 for (right in row.indices) {
@@ -1693,12 +1703,12 @@ class InterdaySearchEngine(
         val reversalRisk: Double,
         val liquidity: Double
     ) {
-        fun toArray(): DoubleArray = doubleArrayOf(
+        fun toArray(config: InterdayAlphaConfig): DoubleArray = doubleArrayOf(
             trend,
             trendAgreement,
-            pullback,
-            funding,
-            openInterest,
+            pullback * config.pullbackWeight.coerceAtLeast(0.05),
+            funding * config.fundingWeight.coerceAtLeast(0.05),
+            openInterest * config.openInterestWeight.coerceAtLeast(0.05),
             expansion,
             reversalRisk,
             liquidity
@@ -1710,8 +1720,8 @@ class InterdaySearchEngine(
         val coefficients: DoubleArray,
         val observations: Int
     ) {
-        fun score(features: FeatureVector): Double {
-            val vector = features.toArray()
+        fun score(features: FeatureVector, config: InterdayAlphaConfig): Double {
+            val vector = features.toArray(config)
             var total = intercept
             for (index in coefficients.indices) {
                 total += coefficients[index] * vector[index]
@@ -1857,6 +1867,28 @@ private fun directionalEdgeBps(signal: InterdaySignalSnapshot): Double =
         AlphaDirection.LONG -> signal.expectedNetEdgeBps
         AlphaDirection.SHORT -> -signal.expectedNetEdgeBps
     }
+
+private fun satisfiesEntryStyle(
+    signal: InterdaySignalSnapshot,
+    config: InterdayAlphaConfig
+): Boolean {
+    val pullbackEntry = signal.pullbackScore >= 1.0
+    val continuationEntry =
+        signal.expansionScore >= 0.55 &&
+            signal.trendAgreement >= max(config.minTrendAgreement, 0.25)
+    return pullbackEntry || continuationEntry
+}
+
+private fun withinDirectionalTail(
+    signal: InterdaySignalSnapshot,
+    plateauToleranceBps: Double
+): Boolean {
+    val directionalBound = when (signal.direction) {
+        AlphaDirection.LONG -> signal.upperBound
+        AlphaDirection.SHORT -> -signal.lowerBound
+    }
+    return directionalEdgeBps(signal) + plateauToleranceBps.coerceAtLeast(0.0) >= directionalBound
+}
 
 private fun shouldForceFlattenByRegime(
     currentSigned: Double,
