@@ -35,7 +35,11 @@ fun main() {
 fun Application.configureAlphaDatasetApp(
     validator: AlphaDatasetValidator = AlphaDatasetValidator(ActiveTradingPolicy::current),
     refresher: HyperliquidInterdayCandleRefresher = HyperliquidInterdayCandleRefresher(
-        dataSource = MarketDataDataSourceFactory.fromEnvironment("alpha-dataset-service")
+        dataSource = MarketDataDataSourceFactory.fromEnvironment("alpha-dataset-service"),
+        concurrency = 3,
+        requestSpacingMs = 500,
+        maxRetries = 5,
+        baseRetryDelayMs = 2_000
     )
 ) {
     routing {
