@@ -48,6 +48,17 @@ class UnifiedExchangeClient internal constructor(
         }
     }
 
+    suspend fun markets(exchange: ExchangeId): ApiResult<List<ExchangeMarketDescriptor>> {
+        val path = "/api/v1/exchanges/${exchange.apiName}/markets"
+        return when (val result = httpClient.get<Map<String, Any?>>(path)) {
+            is ApiResult.Success -> parseMarkets(exchange, result.data)
+            is ApiResult.Error -> ApiResult.Error(
+                "Market catalog unavailable for ${exchange.apiName}: ${result.message}",
+                result.code
+            )
+        }
+    }
+
     suspend fun quote(
         exchange: ExchangeId,
         symbol: String,
@@ -290,6 +301,39 @@ class UnifiedExchangeClient internal constructor(
             capabilities = capabilities,
             notes = raw["notes"]?.toString().orEmpty()
         )
+    }
+
+    private fun parseMarkets(
+        exchange: ExchangeId,
+        payload: Map<String, Any?>
+    ): ApiResult<List<ExchangeMarketDescriptor>> {
+        val exchangeName = payload["exchange"]?.toString()?.trim()?.lowercase()
+            ?: return ApiResult.Error("Invalid market catalog payload for ${exchange.apiName}")
+        if (exchangeName != exchange.apiName) {
+            return ApiResult.Error("Unexpected market catalog exchange: $exchangeName")
+        }
+        val marketNodes = payload["markets"] as? List<*>
+            ?: return ApiResult.Error("Invalid market catalog payload for ${exchange.apiName}")
+        val markets = marketNodes.mapNotNull(::parseMarketDescriptor)
+        if (markets.isEmpty() && marketNodes.isNotEmpty()) {
+            return ApiResult.Error("No valid market descriptors found for ${exchange.apiName}")
+        }
+        return ApiResult.Success(markets)
+    }
+
+    private fun parseMarketDescriptor(raw: Any?): ExchangeMarketDescriptor? {
+        val marketNode = raw as? Map<*, *> ?: return null
+        val symbol = marketNode["symbol"]?.toString()?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val attributes = (marketNode["attributes"] as? Map<*, *>)
+            ?.entries
+            ?.mapNotNull { (key, value) ->
+                val attributeKey = key?.toString()?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                val attributeValue = value?.toString()?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                attributeKey to attributeValue
+            }
+            ?.associate { it }
+            .orEmpty()
+        return ExchangeMarketDescriptor(symbol = symbol, attributes = attributes)
     }
 
     private fun parseBestQuotePayload(

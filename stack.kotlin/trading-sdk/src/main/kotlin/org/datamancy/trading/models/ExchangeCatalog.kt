@@ -32,3 +32,13 @@ data class ExchangeCatalogEntry(
     val capabilities: ExchangeCapabilities,
     val notes: String
 )
+
+data class ExchangeMarketDescriptor(
+    val symbol: String,
+    val attributes: Map<String, String> = emptyMap()
+)
+
+data class ExchangeMarketCatalog(
+    val exchange: ExchangeId,
+    val markets: List<ExchangeMarketDescriptor>
+)

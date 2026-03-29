@@ -40,13 +40,25 @@ class AlphaExecutionSubmitter(
             AlphaRunMode.TESTNET_LIVE -> TradingMode.TESTNET_LIVE
             AlphaRunMode.LIVE -> TradingMode.MAINNET_LIVE
         }
+        val requestedSize = BigDecimal.valueOf(request.size)
+        val marketCatalog = when (val result = gateway.exchanges.markets(exchange)) {
+            is ApiResult.Success -> result.data
+            is ApiResult.Error -> error("Unable to fetch market catalog for ${exchange.apiName}: ${result.message}")
+        }
+        val market = marketCatalog.firstOrNull { it.symbol.equals(request.symbol.trim(), ignoreCase = true) }
+            ?: error("No market metadata found for ${request.symbol} on ${exchange.apiName}")
+        val sizingDecision = ExchangeOrderSizing.quantizeSize(
+            symbol = request.symbol.trim(),
+            requestedSize = requestedSize,
+            market = market
+        )
 
         val gatewayRequest = UnifiedOrderRequest(
             exchange = exchange,
             symbol = request.symbol,
             side = side,
             type = orderType,
-            size = BigDecimal.valueOf(request.size),
+            size = sizingDecision.size,
             price = request.price?.let(BigDecimal::valueOf),
             executionMode = executionMode,
             reduceOnly = request.reduceOnly,
@@ -66,7 +78,7 @@ class AlphaExecutionSubmitter(
                 status = result.data.status.name,
                 filledSize = result.data.filledSize.toDouble(),
                 fillPrice = result.data.fillPrice?.toDouble(),
-                notes = listOf(
+                notes = sizingDecision.notes + listOf(
                     "Order reached tx-gateway and returned a concrete execution result.",
                     "Execution realism remains enforced by tx-gateway and venue-specific worker paths."
                 )
@@ -78,7 +90,7 @@ class AlphaExecutionSubmitter(
                 mode = request.mode,
                 upstreamCode = result.code,
                 error = result.message,
-                notes = listOf(
+                notes = sizingDecision.notes + listOf(
                     "Route reached tx-gateway but upstream execution was rejected or blocked.",
                     "Treat provisioning, risk, and credential errors separately from transport failures."
                 )
