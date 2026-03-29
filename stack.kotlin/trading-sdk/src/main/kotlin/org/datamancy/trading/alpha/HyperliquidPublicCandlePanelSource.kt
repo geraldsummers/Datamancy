@@ -24,11 +24,13 @@ import java.util.LinkedHashMap
 import java.util.concurrent.TimeUnit
 import javax.sql.DataSource
 import kotlin.math.pow
+import org.slf4j.LoggerFactory
 
 private const val DEFAULT_HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info"
 private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 private val DEFAULT_UNIVERSE_CACHE_TTL: Duration = Duration.ofMinutes(10)
 private const val DEFAULT_CANDLE_CACHE_MAX_ENTRIES = 512
+private val logger = LoggerFactory.getLogger(HyperliquidPublicCandlePanelSource::class.java)
 
 class HyperliquidPublicCandlePanelSource(
     private val dataSource: DataSource? = null,
@@ -56,6 +58,7 @@ class HyperliquidPublicCandlePanelSource(
     }
 
     override suspend fun load(request: InterdayPanelRequest): InterdayPanel = withContext(Dispatchers.IO) {
+        val startedAt = System.nanoTime()
         require(request.signalBarMinutes in setOf(240, 1_440)) {
             "Hyperliquid public interday source supports signalBarMinutes=240 or 1440 only"
         }
@@ -65,6 +68,14 @@ class HyperliquidPublicCandlePanelSource(
         require(selectedUniverse.isNotEmpty()) {
             "Hyperliquid public universe selection returned no symbols for exchange=${request.exchange}"
         }
+        logger.info(
+            "Loading public interday panel exchange={} bar={} start={} end={} symbols={}",
+            request.exchange,
+            request.signalBarMinutes,
+            request.startTime,
+            request.endTime,
+            selectedUniverse.size
+        )
 
         val carryBySymbol = loadCarrySeries(request, selectedUniverse)
         val series = coroutineScope {
@@ -106,6 +117,14 @@ class HyperliquidPublicCandlePanelSource(
             }
             InterdaySymbolSeries(candidate.symbol, aligned)
         }
+        logger.info(
+            "Loaded public interday panel exchange={} bar={} selectedSymbols={} timelineBars={} elapsedMs={}",
+            request.exchange,
+            request.signalBarMinutes,
+            selected.size,
+            timeline.size,
+            (System.nanoTime() - startedAt) / 1_000_000
+        )
         InterdayPanel(
             exchange = request.exchange,
             signalBarMinutes = request.signalBarMinutes,
