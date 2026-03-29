@@ -162,6 +162,31 @@ class InterdaySearchEngineTest {
         assertEquals(3, dailyBars)
         assertEquals(18, fourHourBars)
     }
+
+    @Test
+    fun `hierarchical score falls back to empirical score when market and cohort weights are zero`() {
+        val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod(
+                "hierarchicalScore",
+                Double::class.javaPrimitiveType,
+                Double::class.javaPrimitiveType,
+                Double::class.javaPrimitiveType,
+                Double::class.javaPrimitiveType,
+                Double::class.javaPrimitiveType,
+                Double::class.javaPrimitiveType,
+                Double::class.javaPrimitiveType,
+                Double::class.javaPrimitiveType,
+                Double::class.javaPrimitiveType
+            )
+        method.isAccessible = true
+
+        val result = method.invoke(null, 0.012, 0.004, 0.7, 0.6, 0.3, 0.01, 0.0, 0.0, 1.0)
+        val totalScore = result!!::class.java.getDeclaredField("totalScore").apply { isAccessible = true }.getDouble(result)
+        val residualComponent = result::class.java.getDeclaredField("residualComponent").apply { isAccessible = true }.getDouble(result)
+
+        assertEquals(0.012, totalScore, 1e-9)
+        assertEquals(0.012, residualComponent, 1e-9)
+    }
 }
 
 private fun syntheticPanel(): InterdayPanel {

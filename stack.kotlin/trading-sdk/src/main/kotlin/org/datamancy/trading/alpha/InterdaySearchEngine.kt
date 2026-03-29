@@ -719,14 +719,18 @@ class InterdaySearchEngine(
             anchorBetas = anchorBetas,
             empiricalScores = empiricalScores
         )
-        val weightTotal = (
-            config.hierarchyMarketWeight.coerceAtLeast(0.0) +
-                config.hierarchyCohortWeight.coerceAtLeast(0.0) +
-                config.hierarchyResidualWeight.coerceAtLeast(0.0)
-            ).coerceAtLeast(1e-6)
-        val marketWeight = config.hierarchyMarketWeight.coerceAtLeast(0.0) / weightTotal
-        val cohortWeight = config.hierarchyCohortWeight.coerceAtLeast(0.0) / weightTotal
-        val residualWeight = config.hierarchyResidualWeight.coerceAtLeast(0.0) / weightTotal
+        val hierarchyWeights = calibrateHierarchyWeights(
+            panel = panel,
+            currentIndex = index,
+            evaluationStartIndex = evaluationStartIndex,
+            rebalanceBars = rebalanceBars,
+            targetHorizonBars = targetHorizonBars,
+            config = config,
+            indicators = indicators,
+            liquidityRanks = liquidityRanks,
+            portfolioDefaults = portfolioDefaults,
+            empiricalWeights = empiricalWeights
+        )
         val marketScale = median(empiricalScores.values.map { abs(it) }.filter { it.isFinite() && it > 1e-9 }.ifEmpty { listOf(0.0) })
         val empiricalRanks = centeredRanks(empiricalScores)
         val spreadRanks = centeredRanks(raw.associate { it.symbol to -(it.spreadBps) })
@@ -741,9 +745,9 @@ class InterdaySearchEngine(
                 trendAgreement = features.trendAgreement,
                 regimeScore = regime.score,
                 marketScale = marketScale,
-                marketWeight = marketWeight,
-                cohortWeight = cohortWeight,
-                residualWeight = residualWeight
+                marketWeight = hierarchyWeights.marketWeight,
+                cohortWeight = hierarchyWeights.cohortWeight,
+                residualWeight = hierarchyWeights.residualWeight
             )
             val direction = if (hierarchicalScore.totalScore >= 0.0) AlphaDirection.LONG else AlphaDirection.SHORT
             val executionSupport = if (!config.useExecutionConditioning) {
@@ -1032,6 +1036,125 @@ class InterdaySearchEngine(
         return EmpiricalWeights(
             intercept = (prior.intercept * (1.0 - blend) + fitted.intercept * blend).finiteOrZero(),
             coefficients = coefficients.map { it.finiteOrZero() }.toDoubleArray(),
+            observations = observations.size
+        )
+    }
+
+    private fun calibrateHierarchyWeights(
+        panel: InterdayPanel,
+        currentIndex: Int,
+        evaluationStartIndex: Int,
+        rebalanceBars: Int,
+        targetHorizonBars: Int,
+        config: InterdayAlphaConfig,
+        indicators: IndicatorWindows,
+        liquidityRanks: Map<String, Double>,
+        portfolioDefaults: AlphaPortfolioDefaults,
+        empiricalWeights: EmpiricalWeights
+    ): HierarchyWeights {
+        val prior = normalizeHierarchyWeights(
+            config.hierarchyMarketWeight,
+            config.hierarchyCohortWeight,
+            config.hierarchyResidualWeight
+        )
+        if (prior.marketWeight <= 1e-9 && prior.cohortWeight <= 1e-9) return prior
+        val upperTrainingIndex = currentIndex - targetHorizonBars
+        if (upperTrainingIndex < evaluationStartIndex) return prior
+
+        val observations = mutableListOf<HierarchyObservation>()
+        var trainingIndex = evaluationStartIndex
+        while (trainingIndex <= upperTrainingIndex) {
+            val raw = collectRawSignals(panel, trainingIndex, config, indicators, liquidityRanks)
+            if (raw.isNotEmpty()) {
+                val features = buildFeatureVectors(raw, config)
+                val empiricalScores = raw.associate { candidate ->
+                    candidate.symbol to empiricalWeights.score(features.getValue(candidate.symbol), config)
+                }
+                val anchorBetas = computeAnchorBetas(panel, trainingIndex, indicators.mediumBars)
+                val cohorts = buildCohortMemberships(raw, anchorBetas, empiricalScores)
+                val regime = computeRegime(panel, trainingIndex, config, indicators, liquidityRanks)
+                val marketScale = median(empiricalScores.values.map { abs(it) }.filter { it.isFinite() && it > 1e-9 }.ifEmpty { listOf(0.0) })
+                val empiricalRanks = centeredRanks(empiricalScores)
+                val spreadRanks = centeredRanks(raw.associate { it.symbol to -(it.spreadBps) })
+                val futureReturns = futureResidualReturns(panel, trainingIndex, targetHorizonBars)
+                raw.forEach { candidate ->
+                    val futureReturn = futureReturns[candidate.symbol] ?: return@forEach
+                    val featureVector = features.getValue(candidate.symbol)
+                    val hierarchy = hierarchyComponents(
+                        empiricalScore = empiricalScores.getValue(candidate.symbol),
+                        cohortMeanScore = cohorts.getValue(candidate.symbol).meanScore,
+                        trend = featureVector.trend,
+                        trendAgreement = featureVector.trendAgreement,
+                        regimeScore = regime.score,
+                        marketScale = marketScale
+                    )
+                    val provisionalConfidence = listOf(
+                        abs(empiricalRanks.getValue(candidate.symbol)).coerceIn(0.0, 1.0),
+                        featureVector.trendAgreement.coerceAtLeast(0.0),
+                        featureVector.pullback.coerceIn(0.0, 1.0),
+                        featureVector.expansion.coerceIn(0.0, 1.0),
+                        featureVector.liquidity.coerceIn(0.0, 1.0),
+                        ((spreadRanks.getValue(candidate.symbol) + 1.0) / 2.0).coerceIn(0.0, 1.0)
+                    ).average().coerceIn(0.0, 1.0)
+                    val assumedWeight = assumedTargetWeightFraction(provisionalConfidence, portfolioDefaults)
+                    val entryCostFraction = estimateTransactionCostBps(
+                        weightDelta = assumedWeight,
+                        bar = candidate,
+                        confidence = provisionalConfidence,
+                        config = config
+                    ) / 10_000.0
+                    observations += HierarchyObservation(
+                        marketComponent = hierarchy.marketComponent,
+                        cohortComponent = hierarchy.cohortComponent,
+                        residualComponent = hierarchy.residualComponent,
+                        targetNetResidualReturn = futureReturn - entryCostFraction
+                    )
+                }
+            }
+            trainingIndex += rebalanceBars
+        }
+
+        if (observations.isEmpty()) return prior
+        val fitted = fitHierarchyWeights(observations, config.empiricalFitRegularization, prior)
+        val blend = (observations.size.toDouble() / config.empiricalMinTrainingObservations.toDouble()).coerceIn(0.0, 1.0)
+        return normalizeHierarchyWeights(
+            marketWeight = prior.marketWeight * (1.0 - blend) + fitted.marketWeight * blend,
+            cohortWeight = prior.cohortWeight * (1.0 - blend) + fitted.cohortWeight * blend,
+            residualWeight = prior.residualWeight * (1.0 - blend) + fitted.residualWeight * blend,
+            observations = observations.size
+        )
+    }
+
+    private fun fitHierarchyWeights(
+        observations: List<HierarchyObservation>,
+        lambda: Double,
+        prior: HierarchyWeights
+    ): HierarchyWeights {
+        val gram = Array(3) { DoubleArray(3) }
+        val rhs = DoubleArray(3)
+        observations.forEach { observation ->
+            val row = doubleArrayOf(
+                observation.marketComponent,
+                observation.cohortComponent,
+                observation.residualComponent
+            )
+            for (left in row.indices) {
+                rhs[left] += row[left] * observation.targetNetResidualReturn
+                for (right in row.indices) {
+                    gram[left][right] += row[left] * row[right]
+                }
+            }
+        }
+        val priorVector = doubleArrayOf(prior.marketWeight, prior.cohortWeight, prior.residualWeight)
+        for (index in 0 until 3) {
+            gram[index][index] += lambda
+            rhs[index] += lambda * priorVector[index]
+        }
+        val solved = solveLinearSystem(gram, rhs) ?: return prior
+        return normalizeHierarchyWeights(
+            marketWeight = solved.getOrElse(0) { 0.0 }.coerceAtLeast(0.0),
+            cohortWeight = solved.getOrElse(1) { 0.0 }.coerceAtLeast(0.0),
+            residualWeight = solved.getOrElse(2) { 0.0 }.coerceAtLeast(0.0),
             observations = observations.size
         )
     }
@@ -1827,6 +1950,20 @@ class InterdaySearchEngine(
         val totalScore: Double
     )
 
+    data class HierarchyWeights(
+        val marketWeight: Double,
+        val cohortWeight: Double,
+        val residualWeight: Double,
+        val observations: Int = 0
+    )
+
+    data class HierarchyObservation(
+        val marketComponent: Double,
+        val cohortComponent: Double,
+        val residualComponent: Double,
+        val targetNetResidualReturn: Double
+    )
+
     private data class RegimeState(
         val score: Double,
         val breadth: Double,
@@ -2065,6 +2202,31 @@ private fun buildCohortMemberships(
     }
 }
 
+private fun hierarchyComponents(
+    empiricalScore: Double,
+    cohortMeanScore: Double,
+    trend: Double,
+    trendAgreement: Double,
+    regimeScore: Double,
+    marketScale: Double
+): InterdaySearchEngine.HierarchicalScore {
+    val trendSign = when {
+        trend > 1e-9 -> 1.0
+        trend < -1e-9 -> -1.0
+        else -> 0.0
+    }
+    val agreementScaler = 0.35 + 0.65 * trendAgreement.coerceIn(0.0, 1.0)
+    val marketComponent = trendSign * regimeScore * marketScale * agreementScaler
+    val cohortComponent = cohortMeanScore
+    val residualComponent = empiricalScore - cohortMeanScore
+    return InterdaySearchEngine.HierarchicalScore(
+        marketComponent = marketComponent,
+        cohortComponent = cohortComponent,
+        residualComponent = residualComponent,
+        totalScore = empiricalScore
+    )
+}
+
 private fun hierarchicalScore(
     empiricalScore: Double,
     cohortMeanScore: Double,
@@ -2076,26 +2238,49 @@ private fun hierarchicalScore(
     cohortWeight: Double,
     residualWeight: Double
 ): InterdaySearchEngine.HierarchicalScore {
-    val trendSign = when {
-        trend > 1e-9 -> 1.0
-        trend < -1e-9 -> -1.0
-        else -> 0.0
-    }
-    val agreementScaler = 0.35 + 0.65 * trendAgreement.coerceIn(0.0, 1.0)
-    val marketComponent = trendSign * regimeScore * marketScale * agreementScaler
-    val cohortComponent = cohortMeanScore
-    val residualComponent = empiricalScore - cohortMeanScore
+    val components = hierarchyComponents(
+        empiricalScore = empiricalScore,
+        cohortMeanScore = cohortMeanScore,
+        trend = trend,
+        trendAgreement = trendAgreement,
+        regimeScore = regimeScore,
+        marketScale = marketScale
+    )
     val totalScore = if (marketWeight <= 1e-9 && cohortWeight <= 1e-9) {
         empiricalScore
     } else {
-        marketWeight * marketComponent + cohortWeight * cohortComponent + residualWeight * residualComponent
+        marketWeight * components.marketComponent +
+            cohortWeight * components.cohortComponent +
+            residualWeight * components.residualComponent
     }
     return InterdaySearchEngine.HierarchicalScore(
-        marketComponent = marketComponent,
-        cohortComponent = cohortComponent,
-        residualComponent = if (marketWeight <= 1e-9 && cohortWeight <= 1e-9) empiricalScore else residualComponent,
+        marketComponent = components.marketComponent,
+        cohortComponent = components.cohortComponent,
+        residualComponent = if (marketWeight <= 1e-9 && cohortWeight <= 1e-9) empiricalScore else components.residualComponent,
         totalScore = totalScore
     )
+}
+
+private fun normalizeHierarchyWeights(
+    marketWeight: Double,
+    cohortWeight: Double,
+    residualWeight: Double,
+    observations: Int = 0
+): InterdaySearchEngine.HierarchyWeights {
+    val positiveMarket = marketWeight.coerceAtLeast(0.0)
+    val positiveCohort = cohortWeight.coerceAtLeast(0.0)
+    val positiveResidual = residualWeight.coerceAtLeast(0.0)
+    val total = positiveMarket + positiveCohort + positiveResidual
+    return if (total <= 1e-9) {
+        InterdaySearchEngine.HierarchyWeights(0.0, 0.0, 1.0, observations)
+    } else {
+        InterdaySearchEngine.HierarchyWeights(
+            marketWeight = positiveMarket / total,
+            cohortWeight = positiveCohort / total,
+            residualWeight = positiveResidual / total,
+            observations = observations
+        )
+    }
 }
 
 private fun ternaryBucket(value: Double): String = when {
