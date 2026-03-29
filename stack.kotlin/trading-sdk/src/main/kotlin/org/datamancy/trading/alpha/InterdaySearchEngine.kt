@@ -29,14 +29,24 @@ class InterdaySearchEngine(
         val maxEvaluations = request.maxEvaluations ?: searchPolicy.maxEvaluations
         val leaderboardSize = request.leaderboardSize ?: searchPolicy.leaderboardSize
         val configs = generateConfigs(baseConfig, request.searchSpace, maxEvaluations)
-        val panelCache = mutableMapOf<PanelCacheKey, InterdayPanel>()
-        val evaluations = configs.map { config ->
-            runCatching {
-                val key = panelKeyFor(config)
-                val panel = panelCache[key] ?: loadPanel(config).also { panelCache[key] = it }
-                evaluate(config = config, panel = panel, mode = AlphaRunMode.OFFLINE_BACKTEST, includeInspection = false)
-            }.getOrElse { error ->
-                failedEvaluation(config, error)
+        val evaluations = buildList {
+            configs.groupBy(::panelKeyFor).values.forEach { groupedConfigs ->
+                val representative = groupedConfigs.first()
+                val panel = runCatching { loadPanelForSearch(representative) }.getOrElse { error ->
+                    groupedConfigs.forEach { config ->
+                        add(failedEvaluation(config, error))
+                    }
+                    return@forEach
+                }
+                groupedConfigs.forEach { config ->
+                    add(
+                        runCatching {
+                            evaluate(config = config, panel = panel, mode = AlphaRunMode.OFFLINE_BACKTEST, includeInspection = false)
+                        }.getOrElse { error ->
+                            failedEvaluation(config, error)
+                        }
+                    )
+                }
             }
         }
         val failedEvaluations = evaluations.count { !it.validation.accepted && it.validation.reasons.any { reason -> reason.startsWith("evaluation failed:") } }
@@ -67,6 +77,19 @@ class InterdaySearchEngine(
                 "Search isolates dead parameter regions instead of aborting the whole sweep; failed evaluations in this run=$failedEvaluations."
             )
         )
+    }
+
+    private suspend fun loadPanelForSearch(config: InterdayAlphaConfig): InterdayPanel {
+        var lastError: Throwable? = null
+        repeat(2) { attempt ->
+            try {
+                return loadPanel(config)
+            } catch (error: Throwable) {
+                lastError = error
+                if (attempt == 1) throw error
+            }
+        }
+        throw checkNotNull(lastError) { "search panel load failed without an exception" }
     }
 
     suspend fun run(request: InterdayAlphaRunRequest): InterdayAlphaRunResponse {

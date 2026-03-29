@@ -73,6 +73,44 @@ class InterdaySearchEngineTest {
     }
 
     @Test
+    fun `search loads shared panel once per panel key`() = kotlinx.coroutines.runBlocking {
+        var loadCount = 0
+        val countingEngine = InterdaySearchEngine(
+            panelSource = object : InterdayPanelSource {
+                override suspend fun load(request: InterdayPanelRequest): InterdayPanel {
+                    loadCount += 1
+                    return panel
+                }
+            },
+            policyProvider = { DatamancyTradingPolicy.default() }
+        )
+
+        val response = countingEngine.search(
+            InterdayAlphaSearchRequest(
+                baseConfig = InterdayAlphaConfig(
+                    exchange = "hyperliquid_mainnet",
+                    signalBarMinutes = 240,
+                    lookbackHours = 480,
+                    forwardHours = 72,
+                    rebalanceCadenceHours = 24,
+                    selectionQuantile = 0.34,
+                    minConfidence = 0.15,
+                    maxSymbols = 12
+                ),
+                searchSpace = InterdaySearchSpace(
+                    slopeWeight = listOf(0.15, 0.25),
+                    pullbackWeight = listOf(0.10, 0.20)
+                ),
+                maxEvaluations = 4,
+                leaderboardSize = 4
+            )
+        )
+
+        assertEquals(4, response.evaluatedConfigs)
+        assertEquals(1, loadCount)
+    }
+
+    @Test
     fun `high perturbation threshold suppresses entries`() = kotlinx.coroutines.runBlocking {
         val response = engine.run(
             InterdayAlphaRunRequest(
