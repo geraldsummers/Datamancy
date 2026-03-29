@@ -1061,8 +1061,18 @@ class TestFlaskEndpoints:
         mock_get_info.return_value = mock_info
 
         # Mock exchange
-        mock_exchange = Mock()
-        mock_exchange.market_order.return_value = {'status': 'ok'}
+        class ExchangeWithClose:
+            def __init__(self):
+                self.calls = []
+
+            def market_close(self, coin, sz):
+                self.calls.append((coin, sz))
+                return {'status': 'ok'}
+
+            def market_order(self, *args, **kwargs):
+                raise AssertionError("close route should use reduce-only helper path")
+
+        mock_exchange = ExchangeWithClose()
         mock_get_exchange.return_value = mock_exchange
 
         response = client.post('/close', json={
@@ -1075,6 +1085,7 @@ class TestFlaskEndpoints:
         data = response.get_json()
         assert data['status'] == 'closed'
         assert data['symbol'] == 'BTC'
+        assert mock_exchange.calls == [('BTC', 0.5)]
 
     @patch('main.resolve_account_address', return_value='0xAddress')
     @patch('main.get_info_client')
@@ -1110,6 +1121,44 @@ class TestFlaskEndpoints:
         assert response.status_code == 400
         data = response.get_json()
         assert data['error'] == 'Missing symbol'
+
+    @patch('main.resolve_account_address', return_value='0xAddress')
+    @patch('main.get_exchange_client')
+    @patch('main.get_info_client')
+    def test_close_all_positions_uses_reduce_only_helper(self, mock_get_info, mock_get_exchange, _mock_resolve_account_address, client):
+        mock_info = Mock()
+        mock_info.user_state.return_value = {
+            'assetPositions': [
+                {'position': {'coin': 'BTC', 'szi': '0.5'}},
+                {'position': {'coin': 'ETH', 'szi': '-1.25'}},
+            ]
+        }
+        mock_get_info.return_value = mock_info
+
+        class ExchangeWithClose:
+            def __init__(self):
+                self.calls = []
+
+            def market_close(self, coin, sz):
+                self.calls.append((coin, sz))
+                return {'status': 'ok'}
+
+            def market_order(self, *args, **kwargs):
+                raise AssertionError("close-all route should use reduce-only helper path")
+
+        mock_exchange = ExchangeWithClose()
+        mock_get_exchange.return_value = mock_exchange
+
+        response = client.post('/close-all', json={
+            'username': 'testuser',
+            'hyperliquidKey': '0xAddress:testkey'
+        })
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['status'] == 'completed'
+        assert data['closed'] == 2
+        assert mock_exchange.calls == [('BTC', 0.5), ('ETH', 1.25)]
 
 
 if __name__ == '__main__':

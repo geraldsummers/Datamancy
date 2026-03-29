@@ -1105,10 +1105,12 @@ def close_position():
             return jsonify({"error": str(exc)}), 400
         is_buy = position_size < 0  # If short, buy to close
 
-        result = exchange.market_order(
+        result = submit_market_order(
+            exchange=exchange,
             symbol=symbol,
             is_buy=is_buy,
-            sz=abs(position_size)
+            size_float=abs(position_size),
+            reduce_only=True
         )
 
         logger.info(f"Close result: {result}")
@@ -1173,10 +1175,12 @@ def close_all_positions():
         closed = []
         for symbol, size in positions:
             is_buy = size < 0  # short -> buy to close
-            result = exchange.market_order(
+            result = submit_market_order(
+                exchange=exchange,
                 symbol=symbol,
                 is_buy=is_buy,
-                sz=abs(size)
+                size_float=abs(size),
+                reduce_only=True
             )
             closed.append({
                 "symbol": symbol,
