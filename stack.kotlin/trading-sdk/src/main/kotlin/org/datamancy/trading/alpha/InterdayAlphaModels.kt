@@ -1,5 +1,6 @@
 package org.datamancy.trading.alpha
 
+import org.datamancy.trading.policy.AlphaSearchPolicy
 import java.time.Instant
 
 data class InterdayAlphaConfig(
@@ -93,7 +94,8 @@ data class InterdayAlphaSearchRequest(
     val searchSpace: InterdaySearchSpace = InterdaySearchSpace(),
     val maxEvaluations: Int? = null,
     val leaderboardSize: Int? = null,
-    val includeInspection: Boolean = true
+    val includeInspection: Boolean = true,
+    val thresholdCalibration: InterdayThresholdCalibrationRequest? = null
 )
 
 data class InterdayAlphaRunRequest(
@@ -253,6 +255,38 @@ data class InterdayCandidateEvaluation(
     val targets: List<AlphaPortfolioTarget>
 )
 
+data class InterdayThresholdCalibrationRequest(
+    val thresholdGridBps: List<Double> = emptyList(),
+    val thresholdStepBps: Double = 0.25,
+    val minThresholdBps: Double? = null,
+    val maxThresholdBps: Double? = null,
+    val minAcceptedCandidates: Int = 3,
+    val minForwardPositiveRatio: Double = 0.60,
+    val minMedianForwardEdgeBps: Double = 0.0
+)
+
+data class InterdayThresholdCalibrationPoint(
+    val minNetEdgeBps: Double,
+    val acceptedCandidates: Int,
+    val edgeOnlyRejectCount: Int,
+    val positiveForwardRatio: Double,
+    val medianBacktestEdgeBps: Double,
+    val medianForwardEdgeBps: Double,
+    val medianForwardCalmar: Double,
+    val medianForwardTrades: Double,
+    val feasible: Boolean
+)
+
+data class InterdayThresholdCalibrationResult(
+    val currentPolicy: AlphaSearchPolicy,
+    val recommendedPolicy: AlphaSearchPolicy,
+    val selectedMinNetEdgeBps: Double,
+    val sourceCandidates: Int,
+    val acceptedCandidatesAtSelectedThreshold: Int,
+    val thresholdSweep: List<InterdayThresholdCalibrationPoint>,
+    val notes: List<String>
+)
+
 data class InterdayExecutionPreview(
     val plan: AlphaExecutionPlan?,
     val submissions: List<AlphaExecutionSubmission>,
@@ -265,6 +299,7 @@ data class InterdayAlphaSearchResponse(
     val searchRequest: InterdayAlphaSearchRequest,
     val evaluatedConfigs: Int,
     val leaderboard: List<InterdayCandidateEvaluation>,
+    val thresholdCalibration: InterdayThresholdCalibrationResult? = null,
     val notes: List<String>
 )
 

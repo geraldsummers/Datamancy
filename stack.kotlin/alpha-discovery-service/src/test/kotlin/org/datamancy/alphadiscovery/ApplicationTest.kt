@@ -118,6 +118,59 @@ class ApplicationTest {
         assertTrue(body.contains("\"inspection\""))
         assertTrue(body.contains("\"expectedNetEdgeBps\""))
     }
+
+    @Test
+    fun `threshold calibration endpoint returns recommended policy`() = testApplication {
+        val panel = syntheticPanelForServiceTest()
+        application {
+            configureAlphaDiscoveryApp(
+                planner = AlphaDiscoveryPlanner { DatamancyTradingPolicy.default() },
+                engine = InterdaySearchEngine(
+                    panelSource = object : InterdayPanelSource {
+                        override suspend fun load(request: InterdayPanelRequest): InterdayPanel = panel
+                    },
+                    policyProvider = { DatamancyTradingPolicy.default() }
+                ),
+                latestSearch = AtomicReference(null)
+            )
+        }
+
+        val response = client.post("/api/v1/discovery/calibrate-thresholds") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "baseConfig": {
+                    "exchange": "hyperliquid_mainnet",
+                    "signalBarMinutes": 240,
+                    "lookbackHours": 480,
+                    "forwardHours": 72,
+                    "rebalanceCadenceHours": 24,
+                    "selectionQuantile": 0.34,
+                    "minConfidence": 0.15
+                  },
+                  "searchSpace": {
+                    "slopeWeight": [0.15, 0.25],
+                    "pullbackWeight": [0.10, 0.20]
+                  },
+                  "maxEvaluations": 4,
+                  "leaderboardSize": 2,
+                  "thresholdCalibration": {
+                    "thresholdGridBps": [0.5, 1.0, 1.5, 2.0],
+                    "minAcceptedCandidates": 1,
+                    "minForwardPositiveRatio": 0.0
+                  }
+                }
+                """.trimIndent()
+            )
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        assertTrue(body.contains("\"thresholdCalibration\""))
+        assertTrue(body.contains("\"recommendedPolicy\""))
+        assertTrue(body.contains("\"selectedMinNetEdgeBps\""))
+    }
 }
 
 private fun syntheticPanelForServiceTest(): InterdayPanel {

@@ -69,6 +69,7 @@ fun Application.configureAlphaDiscoveryApp(
                             "/api/v1/discovery/defaults",
                             "/api/v1/discovery/candidates",
                             "/api/v1/discovery/search",
+                            "/api/v1/discovery/calibrate-thresholds",
                             "/api/v1/discovery/run",
                             "/api/v1/discovery/leaderboard"
                         )
@@ -102,6 +103,23 @@ fun Application.configureAlphaDiscoveryApp(
                 .onFailure { logger.warn("Discovery search failed", it) }
                 .getOrElse {
                     call.respondText(gson.toJson(AlphaServiceError("discovery search failed: ${it.message}")), ContentType.Application.Json, HttpStatusCode.BadRequest)
+                    return@post
+                }
+            latestSearch.set(response)
+            call.respondText(gson.toJson(response), ContentType.Application.Json, HttpStatusCode.OK)
+        }
+        post("/api/v1/discovery/calibrate-thresholds") {
+            val request = runCatching { gson.fromJson(call.receiveText(), InterdayAlphaSearchRequest::class.java) }
+                .onFailure { logger.warn("Discovery threshold calibration request parse failed", it) }
+                .getOrElse {
+                    call.respondText(gson.toJson(AlphaServiceError("invalid discovery threshold calibration request")), ContentType.Application.Json, HttpStatusCode.BadRequest)
+                    return@post
+                }
+            val calibrationRequest = request.thresholdCalibration ?: org.datamancy.trading.alpha.InterdayThresholdCalibrationRequest()
+            val response = runCatching { engine.search(request.copy(thresholdCalibration = calibrationRequest)) }
+                .onFailure { logger.warn("Discovery threshold calibration failed", it) }
+                .getOrElse {
+                    call.respondText(gson.toJson(AlphaServiceError("discovery threshold calibration failed: ${it.message}")), ContentType.Application.Json, HttpStatusCode.BadRequest)
                     return@post
                 }
             latestSearch.set(response)

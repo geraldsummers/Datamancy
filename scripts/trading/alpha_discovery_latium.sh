@@ -323,6 +323,27 @@ case "$ACTION" in
     fi
     ssh "$REMOTE_HOST" "docker exec -i alpha-discovery-service curl -fsS -X POST -H 'Content-Type: application/json' --data @- http://localhost:8080/api/v1/discovery/search" < "$TMP_REQUEST"
     ;;
+  calibrate-thresholds)
+    if [ -n "$REQUEST_FILE" ]; then
+      cp "$REQUEST_FILE" "$TMP_REQUEST"
+    else
+      default_search_payload > "$TMP_REQUEST"
+      python3 - "$TMP_REQUEST" <<'PY'
+import json
+import sys
+path = sys.argv[1]
+payload = json.loads(open(path, "r", encoding="utf-8").read())
+payload["thresholdCalibration"] = {
+    "thresholdStepBps": 0.25,
+    "minAcceptedCandidates": 3,
+    "minForwardPositiveRatio": 0.60,
+    "minMedianForwardEdgeBps": 0.0
+}
+open(path, "w", encoding="utf-8").write(json.dumps(payload))
+PY
+    fi
+    ssh "$REMOTE_HOST" "docker exec -i alpha-discovery-service curl -fsS -X POST -H 'Content-Type: application/json' --data @- http://localhost:8080/api/v1/discovery/calibrate-thresholds" < "$TMP_REQUEST"
+    ;;
   run)
     if [ -n "$REQUEST_FILE" ]; then
       cp "$REQUEST_FILE" "$TMP_REQUEST"
@@ -339,7 +360,7 @@ case "$ACTION" in
     ssh "$REMOTE_HOST" "docker exec alpha-discovery-service curl -fsS http://localhost:8080/api/v1/discovery/leaderboard"
     ;;
   *)
-    echo "usage: $0 {defaults|candidates|search|run|submit|leaderboard} [request.json]" >&2
+    echo "usage: $0 {defaults|candidates|search|calibrate-thresholds|run|submit|leaderboard} [request.json]" >&2
     exit 1
     ;;
 esac

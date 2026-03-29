@@ -17,7 +17,8 @@ class InterdaySearchEngine(
     private val panelSource: InterdayPanelSource,
     private val policyProvider: () -> TradingPolicy,
     private val portfolioConstructor: AlphaPortfolioConstructor = AlphaPortfolioConstructor(policyProvider),
-    private val executionPlanner: AlphaExecutionPlanner = AlphaExecutionPlanner(policyProvider)
+    private val executionPlanner: AlphaExecutionPlanner = AlphaExecutionPlanner(policyProvider),
+    private val thresholdCalibrator: InterdayThresholdCalibrator = InterdayThresholdCalibrator()
 ) {
     fun defaults(): AlphaDiscoveryDefaults = AlphaDefaultsFactory.discoveryDefaults(policyProvider())
 
@@ -50,20 +51,17 @@ class InterdaySearchEngine(
             }
         }
         val failedEvaluations = evaluations.count { !it.validation.accepted && it.validation.reasons.any { reason -> reason.startsWith("evaluation failed:") } }
-        val ranked = evaluations
+        val rankedAll = evaluations
             .sortedWith(survivorOrdering())
-            .take(leaderboardSize)
-            .mapIndexed { index, bundle ->
-                InterdayCandidateEvaluation(
-                    rank = index + 1,
-                    config = bundle.config,
-                    backtest = bundle.backtest,
-                    forward = bundle.forward,
-                    validation = bundle.validation,
-                    selectedSignals = bundle.latestSignals.take(16),
-                    targets = bundle.latestTargets
-                )
-            }
+            .mapIndexed { index, bundle -> candidateEvaluation(index + 1, bundle) }
+        val ranked = rankedAll.take(leaderboardSize)
+        val thresholdCalibration = request.thresholdCalibration?.let {
+            thresholdCalibrator.calibrate(
+                evaluations = rankedAll,
+                currentPolicy = searchPolicy,
+                request = it
+            )
+        }
 
         return InterdayAlphaSearchResponse(
             generatedAt = Instant.now(),
@@ -71,6 +69,7 @@ class InterdaySearchEngine(
             searchRequest = request.copy(baseConfig = baseConfig),
             evaluatedConfigs = evaluations.size,
             leaderboard = ranked,
+            thresholdCalibration = thresholdCalibration,
             notes = listOf(
                 "Signals are ranked cross-sectionally relative to the active universe instead of using absolute token price levels.",
                 "Common market structure is removed before ranking so the engine searches for symbol-level residual trend instead of broad tape beta.",
@@ -160,6 +159,17 @@ class InterdaySearchEngine(
             lookbackHours = defaults.defaultLookbackHours,
             forwardHours = defaults.defaultForwardHours,
             rebalanceCadenceHours = defaults.rebalanceCadenceHours.firstOrNull() ?: 72
+        )
+
+    private fun candidateEvaluation(rank: Int, bundle: EvaluationBundle): InterdayCandidateEvaluation =
+        InterdayCandidateEvaluation(
+            rank = rank,
+            config = bundle.config,
+            backtest = bundle.backtest,
+            forward = bundle.forward,
+            validation = bundle.validation,
+            selectedSignals = bundle.latestSignals.take(16),
+            targets = bundle.latestTargets
         )
 
     private fun generateConfigs(
