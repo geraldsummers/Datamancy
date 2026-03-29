@@ -495,7 +495,8 @@ class InterdaySearchEngine(
             splitTime = splitTime,
             beforeSplit = true,
             signalBarMinutes = config.signalBarMinutes,
-            searchPolicy = searchPolicy
+            searchPolicy = searchPolicy,
+            regimeStrengthThreshold = config.regimeStrengthThreshold
         )
         val forward = buildPerformance(
             segment = "forward",
@@ -504,7 +505,8 @@ class InterdaySearchEngine(
             splitTime = splitTime,
             beforeSplit = false,
             signalBarMinutes = config.signalBarMinutes,
-            searchPolicy = searchPolicy
+            searchPolicy = searchPolicy,
+            regimeStrengthThreshold = config.regimeStrengthThreshold
         )
         val validation = validate(config, backtest, forward, searchPolicy)
         val inspection = if (includeInspection) {
@@ -961,7 +963,8 @@ class InterdaySearchEngine(
         splitTime: Instant?,
         beforeSplit: Boolean,
         signalBarMinutes: Int,
-        searchPolicy: org.datamancy.trading.policy.AlphaSearchPolicy
+        searchPolicy: org.datamancy.trading.policy.AlphaSearchPolicy,
+        regimeStrengthThreshold: Double
     ): InterdayPerformance {
         val segmentSnapshots = snapshots.filter { snapshot ->
             when {
@@ -1007,12 +1010,12 @@ class InterdaySearchEngine(
         val ulcerIndex = ulcerIndex(segmentSnapshots.map { it.equity })
         val timeUnderWaterPct = timeUnderWaterPct(segmentSnapshots.map { it.equity })
         val cvar1dPct = cvar1dPct(returns, signalBarMinutes)
-        val alignedParticipationRate = alignedParticipationRate(segmentSnapshots)
-        val wrongWayExposurePct = wrongWayExposurePct(segmentSnapshots)
+        val alignedParticipationRate = alignedParticipationRate(segmentSnapshots, regimeStrengthThreshold)
+        val wrongWayExposurePct = wrongWayExposurePct(segmentSnapshots, regimeStrengthThreshold)
         val profitGivebackPct = averageProfitGivebackPct(segmentTrades)
         val pnlSkew = pnlSkew(segmentTrades.map { it.pnlPct })
         val avgWinnerLoserRatio = avgWinnerLoserRatio(segmentTrades)
-        val killSwitchUtilizationMax = killSwitchUtilizationMax(segmentSnapshots, searchPolicy)
+        val killSwitchUtilizationMax = killSwitchUtilizationMax(segmentSnapshots, searchPolicy, regimeStrengthThreshold)
         return InterdayPerformance(
             segment = segment,
             startTime = segmentSnapshots.first().time,
@@ -1277,24 +1280,14 @@ class InterdaySearchEngine(
         val longExposure = currentWeights.values.filter { it > 0.0 }.sum()
         val shortExposure = currentWeights.values.filter { it < 0.0 }.sumOf { abs(it) }
         val net = currentWeights.values.sum()
-        val regimeStrong = abs(regime.score) >= config.regimeStrengthThreshold
-        val alignedExposure = if (!regimeStrong) {
-            0.0
-        } else if (regime.score >= 0.0) {
-            longExposure
-        } else {
-            shortExposure
-        }
-        val wrongWayExposure = if (!regimeStrong) {
-            0.0
-        } else if (regime.score >= 0.0) {
-            shortExposure
-        } else {
-            longExposure
-        }
+        val regimeWeight = regimeParticipationWeight(abs(regime.score), config.regimeStrengthThreshold)
+        val signedNetAligned = if (regime.score >= 0.0) net else -net
+        val alignedExposure = signedNetAligned.coerceAtLeast(0.0) * regimeWeight
+        val wrongWayExposure = (-signedNetAligned).coerceAtLeast(0.0) * regimeWeight
         val drawdownPct = if (peakEquity <= 1e-9) 0.0 else ((peakEquity - equity).coerceAtLeast(0.0) / peakEquity) * 100.0
         val drawdownUtilization = if (searchPolicy.maxSearchDrawdownPct <= 0.0) 0.0 else drawdownPct / searchPolicy.maxSearchDrawdownPct
-        val wrongWayPct = if (gross <= 1e-9) 0.0 else wrongWayExposure / gross * 100.0
+        val weightedGross = gross * regimeWeight
+        val wrongWayPct = if (weightedGross <= 1e-9) 0.0 else wrongWayExposure / weightedGross * 100.0
         val wrongWayUtilization = if (searchPolicy.maxWrongWayExposurePct <= 0.0) 0.0 else wrongWayPct / searchPolicy.maxWrongWayExposurePct
         val killSwitchUtilization = max(drawdownUtilization, wrongWayUtilization).coerceAtLeast(0.0)
         return InterdayPortfolioSnapshot(
@@ -1766,16 +1759,24 @@ private fun cvar1dPct(logReturns: List<Double>, signalBarMinutes: Int): Double {
     return sorted.take(tailCount).average()
 }
 
-private fun alignedParticipationRate(snapshots: List<InterdayPortfolioSnapshot>): Double {
-    val eligible = snapshots.filter { it.regimeStrength > 0.0 }
-    if (eligible.isEmpty()) return 0.0
-    val aligned = eligible.sumOf { it.alignedExposureFraction }
-    val gross = eligible.sumOf { it.grossExposureFraction }.coerceAtLeast(1e-9)
-    return (aligned / gross).coerceIn(0.0, 1.0)
+private fun alignedParticipationRate(
+    snapshots: List<InterdayPortfolioSnapshot>,
+    regimeStrengthThreshold: Double
+): Double {
+    val weightedGross = snapshots.sumOf {
+        it.grossExposureFraction * regimeParticipationWeight(it.regimeStrength, regimeStrengthThreshold)
+    }.coerceAtLeast(1e-9)
+    val aligned = snapshots.sumOf { it.alignedExposureFraction }
+    return (aligned / weightedGross).coerceIn(0.0, 1.0)
 }
 
-private fun wrongWayExposurePct(snapshots: List<InterdayPortfolioSnapshot>): Double {
-    val gross = snapshots.sumOf { it.grossExposureFraction }.coerceAtLeast(1e-9)
+private fun wrongWayExposurePct(
+    snapshots: List<InterdayPortfolioSnapshot>,
+    regimeStrengthThreshold: Double
+): Double {
+    val gross = snapshots.sumOf {
+        it.grossExposureFraction * regimeParticipationWeight(it.regimeStrength, regimeStrengthThreshold)
+    }.coerceAtLeast(1e-9)
     val wrongWay = snapshots.sumOf { it.wrongWayExposureFraction }
     return (wrongWay / gross * 100.0).coerceAtLeast(0.0)
 }
@@ -1802,7 +1803,8 @@ private fun avgWinnerLoserRatio(trades: List<InterdayTradeRecord>): Double {
 
 private fun killSwitchUtilizationMax(
     snapshots: List<InterdayPortfolioSnapshot>,
-    searchPolicy: org.datamancy.trading.policy.AlphaSearchPolicy
+    searchPolicy: org.datamancy.trading.policy.AlphaSearchPolicy,
+    regimeStrengthThreshold: Double
 ): Double {
     if (snapshots.isEmpty()) return 0.0
     val wrongWayCeiling = searchPolicy.maxWrongWayExposurePct.coerceAtLeast(1.0)
@@ -1811,9 +1813,15 @@ private fun killSwitchUtilizationMax(
     return snapshots.maxOf { snapshot ->
         peak = max(peak, snapshot.equity)
         val drawdownPct = if (peak <= 0.0) 0.0 else ((peak - snapshot.equity).coerceAtLeast(0.0) / peak) * 100.0
-        val wrongWayPct = if (snapshot.grossExposureFraction <= 1e-9) 0.0 else snapshot.wrongWayExposureFraction / snapshot.grossExposureFraction * 100.0
+        val weightedGross = snapshot.grossExposureFraction * regimeParticipationWeight(snapshot.regimeStrength, regimeStrengthThreshold)
+        val wrongWayPct = if (weightedGross <= 1e-9) 0.0 else snapshot.wrongWayExposureFraction / weightedGross * 100.0
         max(drawdownPct / drawdownCeiling, wrongWayPct / wrongWayCeiling)
     }
+}
+
+private fun regimeParticipationWeight(regimeStrength: Double, regimeStrengthThreshold: Double): Double {
+    val denominator = regimeStrengthThreshold.coerceAtLeast(0.05)
+    return (regimeStrength / denominator).coerceIn(0.0, 1.0)
 }
 
 private fun solveLinearSystem(matrix: Array<DoubleArray>, rhs: DoubleArray): DoubleArray? {
