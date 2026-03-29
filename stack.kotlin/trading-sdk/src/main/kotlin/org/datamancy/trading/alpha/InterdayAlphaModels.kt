@@ -37,7 +37,10 @@ data class InterdayAlphaConfig(
     val maxSymbols: Int = 0,
     val requireFunding: Boolean = false,
     val requireOpenInterest: Boolean = false,
-    val useExecutionConditioning: Boolean = false
+    val useExecutionConditioning: Boolean = false,
+    val empiricalFitRegularization: Double = 0.35,
+    val empiricalMinTrainingObservations: Int = 96,
+    val regimeStrengthThreshold: Double = 0.18
 )
 
 data class InterdaySearchSpace(
@@ -88,6 +91,7 @@ data class InterdayPerformance(
     val startTime: Instant?,
     val endTime: Instant?,
     val netReturnPct: Double,
+    val annualizedReturnPct: Double,
     val grossReturnPct: Double,
     val sharpe: Double,
     val maxDrawdownPct: Double,
@@ -97,7 +101,17 @@ data class InterdayPerformance(
     val edgeAfterCostBps: Double,
     val bootstrapReturnP05Pct: Double,
     val bootstrapSharpeP05: Double,
-    val stabilityScore: Double
+    val stabilityScore: Double,
+    val calmar: Double,
+    val ulcerIndex: Double,
+    val timeUnderWaterPct: Double,
+    val cvar1dPct: Double,
+    val alignedParticipationRate: Double,
+    val wrongWayExposurePct: Double,
+    val profitGivebackPct: Double,
+    val pnlSkew: Double,
+    val avgWinnerLoserRatio: Double,
+    val killSwitchUtilizationMax: Double
 )
 
 data class InterdayValidation(
@@ -111,6 +125,7 @@ data class InterdaySignalSnapshot(
     val symbol: String,
     val direction: AlphaDirection,
     val score: Double,
+    val empiricalScore: Double,
     val confidence: Double,
     val liquidityScore: Double,
     val trendScore: Double,
@@ -118,6 +133,8 @@ data class InterdaySignalSnapshot(
     val pullbackScore: Double,
     val fundingScore: Double,
     val openInterestScore: Double,
+    val expansionScore: Double,
+    val reversalRiskScore: Double,
     val upperBound: Double,
     val lowerBound: Double,
     val close: Double,
@@ -133,6 +150,8 @@ data class InterdayTradeRecord(
     val exitPrice: Double,
     val weightFraction: Double,
     val pnlPct: Double,
+    val maxFavorablePnlPct: Double,
+    val profitGivebackPct: Double,
     val reason: String,
     val segment: String
 )
@@ -141,15 +160,27 @@ data class InterdayPortfolioSnapshot(
     val time: Instant,
     val equity: Double,
     val grossExposureFraction: Double,
+    val longExposureFraction: Double,
+    val shortExposureFraction: Double,
     val netExposureFraction: Double,
     val openPositions: Int,
-    val turnoverFraction: Double
+    val turnoverFraction: Double,
+    val regimeScore: Double = 0.0,
+    val regimeStrength: Double = 0.0,
+    val alignedExposureFraction: Double = 0.0,
+    val wrongWayExposureFraction: Double = 0.0,
+    val killSwitchUtilization: Double = 0.0
 )
 
 data class InterdayInspectionPoint(
     val time: Instant,
     val close: Double,
     val score: Double,
+    val empiricalScore: Double,
+    val confidence: Double,
+    val regimeScore: Double,
+    val expansionScore: Double,
+    val reversalRiskScore: Double,
     val upperBound: Double,
     val lowerBound: Double,
     val positionWeight: Double
@@ -162,7 +193,23 @@ data class InterdaySymbolInspection(
 
 data class InterdayInspection(
     val portfolio: List<InterdayPortfolioSnapshot>,
-    val symbols: List<InterdaySymbolInspection>
+    val symbols: List<InterdaySymbolInspection>,
+    val regimes: List<InterdayRegimeSnapshot>
+)
+
+data class InterdayRegimeSnapshot(
+    val time: Instant,
+    val regimeScore: Double,
+    val breadth: Double,
+    val anchorTrend: Double,
+    val dispersion: Double,
+    val grossExposureFraction: Double,
+    val longExposureFraction: Double,
+    val shortExposureFraction: Double,
+    val netExposureFraction: Double,
+    val alignedExposureFraction: Double,
+    val wrongWayExposureFraction: Double,
+    val killSwitchUtilization: Double
 )
 
 data class InterdayCandidateEvaluation(

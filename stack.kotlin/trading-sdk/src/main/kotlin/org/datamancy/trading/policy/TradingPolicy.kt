@@ -238,6 +238,12 @@ data class AlphaSearchPolicy(
     val minForwardTrades: Int = 4,
     val minNetEdgeBps: Double = 2.0,
     val maxSearchDrawdownPct: Double = 14.0,
+    val minForwardCalmar: Double = 0.10,
+    val maxTimeUnderWaterPct: Double = 92.0,
+    val maxCvar1dPct: Double = 8.0,
+    val minAlignedParticipationRate: Double = 0.15,
+    val maxWrongWayExposurePct: Double = 65.0,
+    val maxKillSwitchUtilization: Double = 1.0,
     val scorePlateauToleranceBps: Double = 1.0
 )
 
@@ -814,6 +820,12 @@ class AlphaSearchPolicyBuilder {
     var minForwardTrades: Int = 4
     var minNetEdgeBps: Double = 2.0
     var maxSearchDrawdownPct: Double = 14.0
+    var minForwardCalmar: Double = 0.10
+    var maxTimeUnderWaterPct: Double = 92.0
+    var maxCvar1dPct: Double = 8.0
+    var minAlignedParticipationRate: Double = 0.15
+    var maxWrongWayExposurePct: Double = 65.0
+    var maxKillSwitchUtilization: Double = 1.0
     var scorePlateauToleranceBps: Double = 1.0
 
     fun build(): AlphaSearchPolicy = AlphaSearchPolicy(
@@ -825,6 +837,12 @@ class AlphaSearchPolicyBuilder {
         minForwardTrades = minForwardTrades,
         minNetEdgeBps = minNetEdgeBps,
         maxSearchDrawdownPct = maxSearchDrawdownPct,
+        minForwardCalmar = minForwardCalmar,
+        maxTimeUnderWaterPct = maxTimeUnderWaterPct,
+        maxCvar1dPct = maxCvar1dPct,
+        minAlignedParticipationRate = minAlignedParticipationRate,
+        maxWrongWayExposurePct = maxWrongWayExposurePct,
+        maxKillSwitchUtilization = maxKillSwitchUtilization,
         scorePlateauToleranceBps = scorePlateauToleranceBps
     )
 }
