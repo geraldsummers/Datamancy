@@ -372,6 +372,7 @@ class TestFlaskEndpoints:
         mock_get_info.return_value = mock_info
 
         mock_exchange = Mock()
+        mock_exchange._slippage_price.return_value = 50025.0
         mock_exchange.order.return_value = {
             'status': 'ok',
             'response': {
@@ -403,7 +404,8 @@ class TestFlaskEndpoints:
         call_kwargs = mock_exchange.order.call_args.kwargs
         assert call_kwargs['order_type'] == {'limit': {'tif': 'Ioc'}}
         assert call_kwargs['is_buy'] is True
-        assert float(call_kwargs['limit_px']) > 50000.0
+        assert float(call_kwargs['limit_px']) == 50025.0
+        mock_exchange._slippage_price.assert_called_once_with(name='BTC', is_buy=True, slippage=0.0005)
 
     @patch('main.get_exchange_client')
     def test_limit_order_post_only_uses_alo_tif(self, mock_get_exchange, client):

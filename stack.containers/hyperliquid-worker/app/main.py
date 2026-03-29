@@ -241,13 +241,22 @@ def submit_market_order(
 
     # Slippage-constrained market orders are executed as IOC limit orders for deterministic bounds.
     if slippage is not None and hasattr(exchange, "order"):
-        slippage_bps = Decimal(str(slippage)) * Decimal("10000")
-        reference_price = resolve_reference_price(symbol=symbol, order_type="MARKET", explicit_price=None)
-        limit_px = derive_limit_price_from_slippage(
-            side="BUY" if is_buy else "SELL",
-            reference_price=reference_price,
-            max_slippage_bps=slippage_bps
-        )
+        limit_px = None
+        slippage_price_fn = getattr(exchange, "_slippage_price", None)
+        if callable(slippage_price_fn):
+            try:
+                limit_px = parse_decimal(slippage_price_fn(name=symbol, is_buy=is_buy, slippage=slippage))
+            except TypeError:
+                limit_px = None
+
+        if limit_px is None:
+            slippage_bps = Decimal(str(slippage)) * Decimal("10000")
+            reference_price = resolve_reference_price(symbol=symbol, order_type="MARKET", explicit_price=None)
+            limit_px = derive_limit_price_from_slippage(
+                side="BUY" if is_buy else "SELL",
+                reference_price=reference_price,
+                max_slippage_bps=slippage_bps
+            )
         return submit_limit_order(
             exchange=exchange,
             symbol=symbol,

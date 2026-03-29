@@ -106,8 +106,7 @@ require_value "$KEY_REF" "$KEY_VALUE"
 ACCOUNT_ADDRESS="$(env_or_file TRADING_E2E_HYPERLIQUID_ACCOUNT_ADDRESS "$(env_or_file HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS '')")"
 if [ -z "$ACCOUNT_ADDRESS" ]; then
   ACCOUNT_ADDRESS="$(
-    docker exec -e KEY="$KEY_VALUE" hyperliquid-worker sh -lc '
-python - <<\"PY\"
+    docker exec -e KEY="$KEY_VALUE" hyperliquid-worker python -c '
 import os
 from eth_account import Account
 raw = os.environ["KEY"].strip()
@@ -122,7 +121,7 @@ if ":" in raw:
 else:
     key = raw if raw.startswith("0x") else "0x" + raw
     print(Account.from_key(key).address)
-PY'
+'
   )"
 fi
 require_value "TRADING_E2E_HYPERLIQUID_ACCOUNT_ADDRESS" "$ACCOUNT_ADDRESS"
