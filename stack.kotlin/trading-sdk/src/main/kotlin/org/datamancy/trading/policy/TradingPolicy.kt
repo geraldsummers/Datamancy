@@ -236,7 +236,7 @@ data class AlphaSearchPolicy(
     val leaderboardSize: Int = 12,
     val minBacktestTrades: Int = 12,
     val minForwardTrades: Int = 4,
-    val minNetEdgeBps: Double = 2.0,
+    val minNetEdgeBps: Double = 1.5,
     val maxSearchDrawdownPct: Double = 14.0,
     val minForwardCalmar: Double = 0.10,
     val maxTimeUnderWaterPct: Double = 92.0,
@@ -818,7 +818,7 @@ class AlphaSearchPolicyBuilder {
     var leaderboardSize: Int = 12
     var minBacktestTrades: Int = 12
     var minForwardTrades: Int = 4
-    var minNetEdgeBps: Double = 2.0
+    var minNetEdgeBps: Double = 1.5
     var maxSearchDrawdownPct: Double = 14.0
     var minForwardCalmar: Double = 0.10
     var maxTimeUnderWaterPct: Double = 92.0
@@ -1196,7 +1196,7 @@ object DatamancyTradingPolicy {
                     leaderboardSize = 12
                     minBacktestTrades = 12
                     minForwardTrades = 4
-                    minNetEdgeBps = 2.0
+                    minNetEdgeBps = 1.5
                     maxSearchDrawdownPct = 14.0
                     scorePlateauToleranceBps = 1.0
                 }
