@@ -35,7 +35,9 @@ class CredentialResolver(
     ): String? {
         sanitizeCredential(providedCredential)?.let { return it }
 
-        resolveKeyRef(ldapService.getHyperliquidKeyRef(username))?.let { return it }
+        resolveKeyRef(ldapService.getHyperliquidKeyRef(username))
+            ?.let { composeHyperliquidCredential(it, ldapService.getUserInfo(username)?.evmAddress) }
+            ?.let { return it }
 
         val normalizedMode = (executionMode ?: defaultHyperliquidExecutionMode)
             .trim()
@@ -44,11 +46,25 @@ class CredentialResolver(
             ?: return null
 
         val fallbackRefs = when (normalizedMode) {
-            "testnet_live" -> listOf("HYPERLIQUID_TESTNET_KEY", "TRADING_E2E_HYPERLIQUID_KEY")
-            "mainnet_live" -> listOf("HYPERLIQUID_MAINNET_KEY")
+            "testnet_live" -> listOf(
+                HyperliquidCredentialRef(
+                    keyRefs = listOf("HYPERLIQUID_TESTNET_KEY"),
+                    addressRefs = listOf("HYPERLIQUID_TESTNET_ACCOUNT_ADDRESS", "HYPERLIQUID_TESTNET_ADDRESS")
+                ),
+                HyperliquidCredentialRef(
+                    keyRefs = listOf("TRADING_E2E_HYPERLIQUID_KEY"),
+                    addressRefs = listOf("TRADING_E2E_HYPERLIQUID_ACCOUNT_ADDRESS", "TRADING_E2E_HYPERLIQUID_ADDRESS")
+                )
+            )
+            "mainnet_live" -> listOf(
+                HyperliquidCredentialRef(
+                    keyRefs = listOf("HYPERLIQUID_MAINNET_KEY"),
+                    addressRefs = listOf("HYPERLIQUID_MAINNET_ACCOUNT_ADDRESS", "HYPERLIQUID_MAINNET_ADDRESS")
+                )
+            )
             else -> emptyList()
         }
-        return fallbackRefs.firstNotNullOfOrNull(::resolveKeyRef)
+        return fallbackRefs.firstNotNullOfOrNull(::resolveHyperliquidFallback)
     }
 
     fun resolveEvmCredential(username: String, providedCredential: String?): String? {
@@ -129,7 +145,24 @@ class CredentialResolver(
             ?.trim()
             ?.takeIf { it.isNotEmpty() }
     }
+
+    private fun resolveHyperliquidFallback(ref: HyperliquidCredentialRef): String? {
+        val key = ref.keyRefs.firstNotNullOfOrNull(::resolveKeyRef) ?: return null
+        val address = ref.addressRefs.firstNotNullOfOrNull(::resolveKeyRef)
+        return composeHyperliquidCredential(key, address)
+    }
+
+    private fun composeHyperliquidCredential(key: String, address: String?): String {
+        if (":" in key) return key
+        val normalizedAddress = sanitizeCredential(address) ?: return key
+        return "$normalizedAddress:$key"
+    }
 }
+
+private data class HyperliquidCredentialRef(
+    val keyRefs: List<String>,
+    val addressRefs: List<String>
+)
 
 private fun resolveDefaultCredentialStoreFile(
     envProvider: (String) -> String? = { key -> System.getenv(key) }

@@ -872,7 +872,8 @@ class TestFlaskEndpoints:
                 'totalNtlPos': '50000.0',
                 'totalRawUsd': '100000.0',
                 'withdrawable': '75000.0'
-            }
+            },
+            'withdrawable': '75000.0'
         }
         mock_get_info.return_value = mock_info
 
@@ -884,6 +885,79 @@ class TestFlaskEndpoints:
         data = response.get_json()
         assert data['accountValue'] == '100000.0'
         assert data['withdrawable'] == '75000.0'
+        assert data['accountSource'] == 'margin_summary'
+
+    @patch('main.resolve_account_address', return_value='0xAddress')
+    @patch('main.get_info_client')
+    def test_get_balance_falls_back_to_spot_collateral_for_unified_accounts(self, mock_get_info, _mock_resolve_account_address, client):
+        mock_info = Mock()
+        mock_info.user_state.return_value = {
+            'marginSummary': {
+                'accountValue': '0.0',
+                'totalMarginUsed': '0.0',
+                'totalNtlPos': '0.0',
+                'totalRawUsd': '0.0'
+            },
+            'crossMarginSummary': {
+                'accountValue': '0.0',
+                'totalMarginUsed': '0.0',
+                'totalNtlPos': '0.0',
+                'totalRawUsd': '0.0'
+            },
+            'withdrawable': '0.0'
+        }
+        mock_info.spot_user_state.return_value = {
+            'balances': [
+                {'coin': 'USDC', 'total': '988.518452'}
+            ],
+            'tokenToAvailableAfterMaintenance': [
+                [0, '988.518452']
+            ]
+        }
+        mock_info.portfolio.return_value = []
+        mock_get_info.return_value = mock_info
+
+        response = client.post('/balance', json={
+            'user': 'testuser',
+            'hyperliquidKey': '0xAddress:testkey'
+        })
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['accountValue'] == '988.518452'
+        assert data['totalRawUsd'] == '988.518452'
+        assert data['withdrawable'] == '988.518452'
+        assert data['accountSource'] == 'spot_user_state'
+
+    @patch('main.resolve_account_address', return_value='0xAddress')
+    @patch('main.get_info_client')
+    def test_get_balance_falls_back_to_portfolio_when_margin_and_spot_are_empty(self, mock_get_info, _mock_resolve_account_address, client):
+        mock_info = Mock()
+        mock_info.user_state.return_value = {
+            'marginSummary': {
+                'accountValue': '0.0',
+                'totalMarginUsed': '0.0',
+                'totalNtlPos': '0.0',
+                'totalRawUsd': '0.0'
+            }
+        }
+        mock_info.spot_user_state.return_value = {
+            'balances': [],
+            'tokenToAvailableAfterMaintenance': []
+        }
+        mock_info.portfolio.return_value = [
+            ['allTime', {'accountValueHistory': [[1774768093631, '123.45']]}]
+        ]
+        mock_get_info.return_value = mock_info
+
+        response = client.post('/balance', json={
+            'user': 'testuser',
+            'hyperliquidKey': '0xAddress:testkey'
+        })
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['accountValue'] == '123.45'
+        assert data['withdrawable'] == '123.45'
+        assert data['accountSource'] == 'portfolio'
 
     def test_get_balance_missing_key(self, client):
         """Test getting balance without API key"""

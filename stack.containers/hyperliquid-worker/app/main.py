@@ -107,6 +107,26 @@ def parse_positive_decimal(raw_value, field_name: str):
     return parsed, None
 
 
+def parse_decimal(raw_value):
+    if raw_value is None:
+        return None
+    try:
+        return Decimal(str(raw_value))
+    except Exception:
+        return None
+
+
+def decimal_to_plain_string(value: Decimal | None) -> str | None:
+    if value is None:
+        return None
+    text = format(value, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+        if "." not in text:
+            text = f"{text}.0"
+    return text
+
+
 def parse_bool(raw_value, field_name: str, default: bool = False):
     if raw_value is None:
         return default, None
@@ -490,6 +510,99 @@ def get_info_client() -> Info:
         _cached_info_client = fresh_client
         _cached_info_client_built_at = now
         return fresh_client
+
+
+def resolve_balance_snapshot(info: Info, address: str) -> dict:
+    user_state = info.user_state(address) or {}
+    margin = user_state.get('marginSummary', {}) if isinstance(user_state, dict) else {}
+    cross_margin = user_state.get('crossMarginSummary', {}) if isinstance(user_state, dict) else {}
+
+    margin_account_value = parse_decimal(margin.get('accountValue')) or parse_decimal(margin.get('totalRawUsd'))
+    cross_account_value = parse_decimal(cross_margin.get('accountValue')) or parse_decimal(cross_margin.get('totalRawUsd'))
+    account_value = margin_account_value if margin_account_value and margin_account_value > 0 else cross_account_value
+
+    withdrawable = parse_decimal(user_state.get('withdrawable')) or parse_decimal(margin.get('withdrawable'))
+    total_margin_used = margin.get('totalMarginUsed') or cross_margin.get('totalMarginUsed')
+    total_ntl_pos = margin.get('totalNtlPos') or cross_margin.get('totalNtlPos')
+    total_raw_usd = margin.get('totalRawUsd') or cross_margin.get('totalRawUsd')
+
+    if account_value and account_value > 0:
+        return {
+            "accountValue": margin.get('accountValue') or cross_margin.get('accountValue') or decimal_to_plain_string(account_value),
+            "totalMarginUsed": total_margin_used,
+            "totalNtlPos": total_ntl_pos,
+            "totalRawUsd": total_raw_usd or decimal_to_plain_string(account_value),
+            "withdrawable": user_state.get('withdrawable') or margin.get('withdrawable') or decimal_to_plain_string(withdrawable or account_value),
+            "accountSource": "margin_summary"
+        }
+
+    spot_user_state = info.spot_user_state(address) or {}
+    unified_available = None
+    token_available = spot_user_state.get('tokenToAvailableAfterMaintenance') if isinstance(spot_user_state, dict) else None
+    if isinstance(token_available, list):
+        for entry in token_available:
+            if isinstance(entry, (list, tuple)) and len(entry) >= 2 and str(entry[0]) == "0":
+                unified_available = parse_decimal(entry[1])
+                if unified_available is not None:
+                    break
+
+    if unified_available is None and isinstance(spot_user_state, dict):
+        balances = spot_user_state.get('balances')
+        if isinstance(balances, list):
+            for balance in balances:
+                if not isinstance(balance, dict):
+                    continue
+                if str(balance.get('coin', '')).upper() == "USDC":
+                    unified_available = parse_decimal(balance.get('total'))
+                    if unified_available is not None:
+                        break
+
+    if unified_available is not None and unified_available > 0:
+        unified_text = decimal_to_plain_string(unified_available)
+        return {
+            "accountValue": unified_text,
+            "totalMarginUsed": total_margin_used or "0.0",
+            "totalNtlPos": total_ntl_pos or "0.0",
+            "totalRawUsd": unified_text,
+            "withdrawable": decimal_to_plain_string(withdrawable or unified_available),
+            "accountSource": "spot_user_state"
+        }
+
+    portfolio = info.portfolio(address) or []
+    if isinstance(portfolio, list):
+        for bucket_name in ("allTime", "month", "week", "day"):
+            for entry in portfolio:
+                if not isinstance(entry, (list, tuple)) or len(entry) < 2 or entry[0] != bucket_name:
+                    continue
+                payload = entry[1]
+                if not isinstance(payload, dict):
+                    continue
+                history = payload.get("accountValueHistory")
+                if not isinstance(history, list):
+                    continue
+                for point in reversed(history):
+                    if not isinstance(point, (list, tuple)) or len(point) < 2:
+                        continue
+                    portfolio_value = parse_decimal(point[1])
+                    if portfolio_value is not None and portfolio_value > 0:
+                        portfolio_text = decimal_to_plain_string(portfolio_value)
+                        return {
+                            "accountValue": portfolio_text,
+                            "totalMarginUsed": total_margin_used or "0.0",
+                            "totalNtlPos": total_ntl_pos or "0.0",
+                            "totalRawUsd": portfolio_text,
+                            "withdrawable": decimal_to_plain_string(withdrawable or portfolio_value),
+                            "accountSource": "portfolio"
+                        }
+
+    return {
+        "accountValue": "0.0",
+        "totalMarginUsed": total_margin_used or "0.0",
+        "totalNtlPos": total_ntl_pos or "0.0",
+        "totalRawUsd": total_raw_usd or "0.0",
+        "withdrawable": decimal_to_plain_string(withdrawable) or "0.0",
+        "accountSource": "empty"
+    }
 
 
 def load_markets_payload(force_refresh: bool = False) -> dict:
@@ -881,23 +994,7 @@ def get_balance():
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         info = get_info_client()
-
-        user_state = info.user_state(address)
-
-        if user_state and 'marginSummary' in user_state:
-            margin = user_state['marginSummary']
-            return jsonify({
-                "accountValue": margin.get('accountValue'),
-                "totalMarginUsed": margin.get('totalMarginUsed'),
-                "totalNtlPos": margin.get('totalNtlPos'),
-                "totalRawUsd": margin.get('totalRawUsd'),
-                "withdrawable": margin.get('withdrawable')
-            })
-
-        return jsonify({
-            "accountValue": "0.0",
-            "withdrawable": "0.0"
-        })
+        return jsonify(resolve_balance_snapshot(info, address))
 
     except Exception as e:
         logger.error(f"Get balance failed: {e}", exc_info=True)
