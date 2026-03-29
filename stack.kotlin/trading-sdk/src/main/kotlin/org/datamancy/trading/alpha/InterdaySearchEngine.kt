@@ -170,6 +170,10 @@ class InterdaySearchEngine(
         val takeProfits = prioritizeDoubles(searchSpace.takeProfitVolMultiple.ifEmpty { listOf(base.takeProfitVolMultiple) }, base.takeProfitVolMultiple)
         val executionWindows = prioritizeValues(searchSpace.executionWindowMinutes.ifEmpty { listOf(base.executionWindowMinutes) }, base.executionWindowMinutes)
         val targetGrossFractionScales = prioritizeDoubles(searchSpace.targetGrossFractionScale.ifEmpty { listOf(base.targetGrossFractionScale) }, base.targetGrossFractionScale)
+        val regimeDirectionalSuppressionThresholds = prioritizeDoubles(
+            searchSpace.regimeDirectionalSuppressionThreshold.ifEmpty { listOf(base.regimeDirectionalSuppressionThreshold) },
+            base.regimeDirectionalSuppressionThreshold
+        )
         val regimeNetBiasScales = prioritizeDoubles(searchSpace.regimeNetBiasScale.ifEmpty { listOf(base.regimeNetBiasScale) }, base.regimeNetBiasScale)
 
         val generated = mutableListOf<InterdayAlphaConfig>()
@@ -199,36 +203,39 @@ class InterdaySearchEngine(
                                                                                                 for (takeProfit in takeProfits) {
                                                                                                     for (executionWindow in executionWindows) {
                                                                                                         for (targetGrossFractionScale in targetGrossFractionScales) {
-                                                                                                            for (regimeNetBiasScale in regimeNetBiasScales) {
-                                                                                                                generated += base.copy(
-                                                                                                                    adjustmentMode = adjustmentMode,
-                                                                                                                    signalBarMinutes = signalBar,
-                                                                                                                    lookbackHours = lookback,
-                                                                                                                    forwardHours = forward,
-                                                                                                                    rebalanceCadenceHours = cadence,
-                                                                                                                    selectionQuantile = quantile,
-                                                                                                                    fastTrendDays = fast,
-                                                                                                                    mediumTrendDays = medium,
-                                                                                                                    slowTrendDays = slow,
-                                                                                                                    regressionDays = regression,
-                                                                                                                    volatilityDays = volatility,
-                                                                                                                    adxDays = adx,
-                                                                                                                    perturbationLookbackBars = perturbBar,
-                                                                                                                    perturbationThresholdZ = perturbThreshold,
-                                                                                                                    slopeWeight = slopeWeight,
-                                                                                                                    fundingWeight = fundingWeight,
-                                                                                                                    openInterestWeight = openInterestWeight,
-                                                                                                                    pullbackWeight = pullbackWeight,
-                                                                                                                    minTrendAgreement = minTrendAgreement,
-                                                                                                                    adxThreshold = adxThreshold,
-                                                                                                                    minConfidence = minConfidence,
-                                                                                                                    trailingStopVolMultiple = trailing,
-                                                                                                                    takeProfitVolMultiple = takeProfit,
-                                                                                                                    executionWindowMinutes = executionWindow,
-                                                                                                                    targetGrossFractionScale = targetGrossFractionScale,
-                                                                                                                    regimeNetBiasScale = regimeNetBiasScale
-                                                                                                                )
-                                                                                                                if (generated.size >= maxEvaluations) break@outer
+                                                                                                            for (regimeDirectionalSuppressionThreshold in regimeDirectionalSuppressionThresholds) {
+                                                                                                                for (regimeNetBiasScale in regimeNetBiasScales) {
+                                                                                                                    generated += base.copy(
+                                                                                                                        adjustmentMode = adjustmentMode,
+                                                                                                                        signalBarMinutes = signalBar,
+                                                                                                                        lookbackHours = lookback,
+                                                                                                                        forwardHours = forward,
+                                                                                                                        rebalanceCadenceHours = cadence,
+                                                                                                                        selectionQuantile = quantile,
+                                                                                                                        fastTrendDays = fast,
+                                                                                                                        mediumTrendDays = medium,
+                                                                                                                        slowTrendDays = slow,
+                                                                                                                        regressionDays = regression,
+                                                                                                                        volatilityDays = volatility,
+                                                                                                                        adxDays = adx,
+                                                                                                                        perturbationLookbackBars = perturbBar,
+                                                                                                                        perturbationThresholdZ = perturbThreshold,
+                                                                                                                        slopeWeight = slopeWeight,
+                                                                                                                        fundingWeight = fundingWeight,
+                                                                                                                        openInterestWeight = openInterestWeight,
+                                                                                                                        pullbackWeight = pullbackWeight,
+                                                                                                                        minTrendAgreement = minTrendAgreement,
+                                                                                                                        adxThreshold = adxThreshold,
+                                                                                                                        minConfidence = minConfidence,
+                                                                                                                        trailingStopVolMultiple = trailing,
+                                                                                                                        takeProfitVolMultiple = takeProfit,
+                                                                                                                        executionWindowMinutes = executionWindow,
+                                                                                                                        targetGrossFractionScale = targetGrossFractionScale,
+                                                                                                                        regimeDirectionalSuppressionThreshold = regimeDirectionalSuppressionThreshold,
+                                                                                                                        regimeNetBiasScale = regimeNetBiasScale
+                                                                                                                    )
+                                                                                                                    if (generated.size >= maxEvaluations) break@outer
+                                                                                                                }
                                                                                                             }
                                                                                                         }
                                                                                                     }
@@ -395,9 +402,14 @@ class InterdaySearchEngine(
                 val eligible = signals.filter {
                     val trendAgreementOk = it.trendAgreement >= config.minTrendAgreement
                     val pullbackOk = it.pullbackScore >= config.perturbationThresholdZ
+                    val regimeAllowed = isDirectionAllowedByRegime(
+                        direction = it.direction,
+                        regimeScore = latestRegime.score,
+                        config = config
+                    )
                     when (it.direction) {
-                        AlphaDirection.LONG -> it.score >= it.upperBound && it.confidence >= config.minConfidence && trendAgreementOk && pullbackOk
-                        AlphaDirection.SHORT -> it.score <= it.lowerBound && it.confidence >= config.minConfidence && trendAgreementOk && pullbackOk
+                        AlphaDirection.LONG -> it.score >= it.upperBound && it.confidence >= config.minConfidence && trendAgreementOk && pullbackOk && regimeAllowed
+                        AlphaDirection.SHORT -> it.score <= it.lowerBound && it.confidence >= config.minConfidence && trendAgreementOk && pullbackOk && regimeAllowed
                     }
                 }
                 val portfolioSignals = eligible.map {
@@ -1588,6 +1600,20 @@ private fun scaledTargetGrossFraction(
     defaults: AlphaPortfolioDefaults,
     config: InterdayAlphaConfig
 ): Double = defaults.targetGrossFraction * config.targetGrossFractionScale.coerceIn(0.05, 1.0)
+
+private fun isDirectionAllowedByRegime(
+    direction: AlphaDirection,
+    regimeScore: Double,
+    config: InterdayAlphaConfig
+): Boolean {
+    val threshold = config.regimeDirectionalSuppressionThreshold.coerceIn(0.0, 1.0)
+    if (abs(regimeScore) < threshold) return true
+    return when {
+        regimeScore > 0.0 -> direction != AlphaDirection.SHORT
+        regimeScore < 0.0 -> direction != AlphaDirection.LONG
+        else -> true
+    }
+}
 
 private fun barsForDays(days: Int, signalBarMinutes: Int): Int =
     max(1, ceil((days * 24.0 * 60.0) / signalBarMinutes.toDouble()).toInt())

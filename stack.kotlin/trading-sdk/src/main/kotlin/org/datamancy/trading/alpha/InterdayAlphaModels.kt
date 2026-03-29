@@ -42,6 +42,7 @@ data class InterdayAlphaConfig(
     val empiricalFitRegularization: Double = 0.35,
     val empiricalMinTrainingObservations: Int = 96,
     val regimeStrengthThreshold: Double = 0.18,
+    val regimeDirectionalSuppressionThreshold: Double = 0.55,
     val regimeNetBiasScale: Double = 0.75
 )
 
@@ -71,6 +72,7 @@ data class InterdaySearchSpace(
     val takeProfitVolMultiple: List<Double> = emptyList(),
     val executionWindowMinutes: List<Int> = emptyList(),
     val targetGrossFractionScale: List<Double> = emptyList(),
+    val regimeDirectionalSuppressionThreshold: List<Double> = emptyList(),
     val regimeNetBiasScale: List<Double> = emptyList()
 )
 
