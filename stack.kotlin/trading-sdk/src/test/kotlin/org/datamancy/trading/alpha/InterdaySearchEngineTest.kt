@@ -162,6 +162,40 @@ class InterdaySearchEngineTest {
     }
 
     @Test
+    fun `structural factor lookback honors requested daily window once minimum signal history is satisfied`() {
+        val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod(
+                "structuralLookbackBars",
+                Int::class.javaPrimitiveType,
+                InterdayAlphaConfig::class.java,
+                InterdaySearchEngine.IndicatorWindows::class.java
+            )
+        method.isAccessible = true
+
+        fun lookbackFor(days: Int): Int {
+            val config = InterdayAlphaConfig(
+                signalBarMinutes = 1440,
+                factorLookbackDays = days,
+                fastTrendDays = 3,
+                mediumTrendDays = 7,
+                slowTrendDays = 14,
+                regressionDays = 14,
+                volatilityDays = 14,
+                adxDays = 14,
+                perturbationLookbackBars = 3
+            )
+            val indicators = InterdaySearchEngine.IndicatorWindows.fromConfig(config)
+            return method.invoke(null, 64, config, indicators) as Int
+        }
+
+        assertEquals(14, lookbackFor(3))
+        assertEquals(14, lookbackFor(14))
+        assertEquals(16, lookbackFor(16))
+        assertEquals(18, lookbackFor(18))
+        assertEquals(21, lookbackFor(21))
+    }
+
+    @Test
     fun `market residualization exposes market beta on signal snapshots`() = kotlinx.coroutines.runBlocking {
         val response = engine.run(
             InterdayAlphaRunRequest(

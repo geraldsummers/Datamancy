@@ -2018,14 +2018,8 @@ private fun buildStructuralState(
 
     if (!enabled || raw.size < 4) return disabledState()
 
-    val lookbackReturns = min(
-        index,
-        max(
-            barsForDays(config.factorLookbackDays, config.signalBarMinutes),
-            max(indicators.requiredBars, indicators.slowBars + 2)
-        )
-    )
-    if (lookbackReturns < max(indicators.slowBars, 6)) return disabledState()
+    val lookbackReturns = structuralLookbackBars(index, config, indicators)
+    if (lookbackReturns < minimumStructuralLookbackBars(indicators, config.perturbationLookbackBars)) return disabledState()
 
     val seriesBySymbol = panel.seriesBySymbol()
     val returnsBySymbol = raw.mapNotNull { candidate ->
@@ -2101,6 +2095,26 @@ private fun rollingReturnWindow(
         logReturnAt(safeBars, cursor) ?: return null
     }
 }
+
+private fun structuralLookbackBars(
+    index: Int,
+    config: InterdayAlphaConfig,
+    indicators: InterdaySearchEngine.IndicatorWindows
+): Int = min(
+    index,
+    max(
+        barsForDays(config.factorLookbackDays, config.signalBarMinutes),
+        minimumStructuralLookbackBars(indicators, config.perturbationLookbackBars)
+    )
+)
+
+private fun minimumStructuralLookbackBars(
+    indicators: InterdaySearchEngine.IndicatorWindows,
+    perturbationLookbackBars: Int
+): Int = max(
+    max(indicators.slowBars, max(indicators.regressionBars, max(indicators.volatilityBars, indicators.adxBars))),
+    max(perturbationLookbackBars, 4)
+)
 
 private fun averageSeries(series: List<List<Double>>): List<Double> {
     val valid = series.filter { it.isNotEmpty() }
