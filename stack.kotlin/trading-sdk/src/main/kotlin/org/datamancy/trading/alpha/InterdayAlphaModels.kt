@@ -34,13 +34,15 @@ data class InterdayAlphaConfig(
     val takeProfitMultipliers: List<Double> = listOf(1.0, 1.6),
     val executionWindowMinutes: Int = 120,
     val capitalUsd: Double = 10_000.0,
+    val targetGrossFractionScale: Double = 1.0,
     val maxSymbols: Int = 0,
     val requireFunding: Boolean = false,
     val requireOpenInterest: Boolean = false,
     val useExecutionConditioning: Boolean = false,
     val empiricalFitRegularization: Double = 0.35,
     val empiricalMinTrainingObservations: Int = 96,
-    val regimeStrengthThreshold: Double = 0.18
+    val regimeStrengthThreshold: Double = 0.18,
+    val regimeNetBiasScale: Double = 0.75
 )
 
 data class InterdaySearchSpace(
@@ -67,7 +69,9 @@ data class InterdaySearchSpace(
     val minConfidence: List<Double> = emptyList(),
     val trailingStopVolMultiple: List<Double> = emptyList(),
     val takeProfitVolMultiple: List<Double> = emptyList(),
-    val executionWindowMinutes: List<Int> = emptyList()
+    val executionWindowMinutes: List<Int> = emptyList(),
+    val targetGrossFractionScale: List<Double> = emptyList(),
+    val regimeNetBiasScale: List<Double> = emptyList()
 )
 
 data class InterdayAlphaSearchRequest(

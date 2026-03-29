@@ -46,13 +46,17 @@ class HyperliquidPublicCandlePanelSource(
         require(request.signalBarMinutes in setOf(240, 1_440)) {
             "Hyperliquid public interday source supports signalBarMinutes=240 or 1440 only"
         }
-        val universe = fetchUniverse()
-        require(universe.isNotEmpty()) { "Hyperliquid public universe resolution returned no tradable symbols" }
+        val tradableUniverse = fetchUniverse()
+        require(tradableUniverse.isNotEmpty()) { "Hyperliquid public universe resolution returned no tradable symbols" }
+        val selectedUniverse = resolveUniverse(request, tradableUniverse)
+        require(selectedUniverse.isNotEmpty()) {
+            "Hyperliquid public universe selection returned no symbols for exchange=${request.exchange}"
+        }
 
-        val carryBySymbol = loadCarrySeries(request)
+        val carryBySymbol = loadCarrySeries(request, selectedUniverse)
         val series = coroutineScope {
             val semaphore = Semaphore(concurrency.coerceAtLeast(1))
-            universe.map { symbol ->
+            selectedUniverse.map { symbol ->
                 async {
                     semaphore.withPermit {
                         fetchSeries(symbol = symbol, request = request, carryByTime = carryBySymbol[symbol].orEmpty())
@@ -72,11 +76,7 @@ class HyperliquidPublicCandlePanelSource(
             }
             .sortedByDescending { it.second }
 
-        val selected = if (request.maxSymbols > 0) {
-            ranked.take(request.maxSymbols).map { it.first }
-        } else {
-            ranked.map { it.first }
-        }
+        val selected = ranked.take(request.maxSymbols.takeIf { it > 0 } ?: ranked.size).map { it.first }
 
         val timeline = selected
             .flatMap { seriesCandidate -> seriesCandidate.bars.filterNotNull().map { it.time } }
@@ -99,6 +99,14 @@ class HyperliquidPublicCandlePanelSource(
             timeline = timeline,
             series = alignedSeries
         )
+    }
+
+    private fun resolveUniverse(request: InterdayPanelRequest, tradableUniverse: List<String>): List<String> {
+        if (request.maxSymbols <= 0) return tradableUniverse
+        val preferred = loadRecentLiquidUniverse(request, request.maxSymbols)
+        if (preferred.isEmpty()) return tradableUniverse.take(request.maxSymbols)
+        val tradable = tradableUniverse.toHashSet()
+        return preferred.filter { it in tradable }.ifEmpty { tradableUniverse.take(request.maxSymbols) }
     }
 
     private suspend fun fetchSeries(
@@ -229,8 +237,12 @@ class HyperliquidPublicCandlePanelSource(
         return (baseRetryDelayMs * multiplier).coerceAtMost(30_000)
     }
 
-    private fun loadCarrySeries(request: InterdayPanelRequest): Map<String, Map<Instant, CarryBar>> {
+    private fun loadCarrySeries(
+        request: InterdayPanelRequest,
+        universe: List<String>
+    ): Map<String, Map<Instant, CarryBar>> {
         val source = dataSource ?: return emptyMap()
+        if (universe.isEmpty()) return emptyMap()
         val sql = """
             WITH aggregated AS (
                 SELECT
@@ -241,6 +253,7 @@ class HyperliquidPublicCandlePanelSource(
                 FROM market_data
                 WHERE exchange = ?
                   AND data_type IN ('funding', 'open_interest')
+                  AND symbol = ANY(?)
                   AND time >= ?
                   AND time <= ?
                 GROUP BY 1, 2
@@ -253,8 +266,9 @@ class HyperliquidPublicCandlePanelSource(
             connection.prepareStatement(sql).use { statement ->
                 statement.setInt(1, request.signalBarMinutes)
                 statement.setString(2, request.exchange)
-                statement.setTimestamp(3, Timestamp.from(request.startTime))
-                statement.setTimestamp(4, Timestamp.from(request.endTime))
+                statement.setArray(3, connection.createArrayOf("text", universe.toTypedArray()))
+                statement.setTimestamp(4, Timestamp.from(request.startTime))
+                statement.setTimestamp(5, Timestamp.from(request.endTime))
                 statement.executeQuery().use { rs ->
                     while (rs.next()) {
                         val bucket = rs.getTimestamp("bucket").toInstant().truncatedTo(ChronoUnit.MINUTES)
@@ -272,6 +286,47 @@ class HyperliquidPublicCandlePanelSource(
             }
         }
         return rows
+    }
+
+    private fun loadRecentLiquidUniverse(
+        request: InterdayPanelRequest,
+        limit: Int
+    ): List<String> {
+        val source = dataSource ?: return emptyList()
+        if (limit <= 0) return emptyList()
+        val end = request.endTime.truncatedTo(ChronoUnit.MINUTES)
+        val start = end.minus(24, ChronoUnit.HOURS)
+        val sql = """
+            SELECT symbol
+            FROM (
+                SELECT
+                    symbol,
+                    AVG(COALESCE(close, 0) * COALESCE(volume, 0)) AS avg_dollar_volume
+                FROM research_features_1m
+                WHERE exchange = ?
+                  AND is_finalized
+                  AND time >= ?
+                  AND time <= ?
+                GROUP BY symbol
+            ) ranked
+            ORDER BY avg_dollar_volume DESC, symbol ASC
+            LIMIT ?
+        """.trimIndent()
+        val symbols = mutableListOf<String>()
+        source.connection.use { connection ->
+            connection.prepareStatement(sql).use { statement ->
+                statement.setString(1, request.exchange)
+                statement.setTimestamp(2, Timestamp.from(start))
+                statement.setTimestamp(3, Timestamp.from(end))
+                statement.setInt(4, limit)
+                statement.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        symbols += rs.getString("symbol")
+                    }
+                }
+            }
+        }
+        return symbols
     }
 
     private data class PublicCandle(
