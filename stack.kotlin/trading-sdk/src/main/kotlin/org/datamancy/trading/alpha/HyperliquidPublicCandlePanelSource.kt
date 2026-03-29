@@ -34,7 +34,7 @@ class HyperliquidPublicCandlePanelSource(
         .readTimeout(30, TimeUnit.SECONDS)
         .callTimeout(40, TimeUnit.SECONDS)
         .build(),
-    private val concurrency: Int = 4,
+    private val concurrency: Int = 3,
     private val requestSpacingMs: Long = 250,
     private val maxRetries: Int = 5,
     private val baseRetryDelayMs: Long = 1_000
@@ -204,10 +204,12 @@ class HyperliquidPublicCandlePanelSource(
                     return response.body?.string().orEmpty()
                 }
                 if (response.code == 429 || response.code in 500..599) {
+                    val retryDelayMs = retryDelayMs(attempt, response.header("Retry-After"))
+                    applyRetryCooldown(retryDelayMs)
                     if (attempt == maxRetries - 1) {
                         error("Hyperliquid public candle request failed after ${attempt + 1} attempts: HTTP ${response.code}")
                     }
-                    delay(retryDelayMs(attempt, response.header("Retry-After")))
+                    delay(retryDelayMs)
                     return@repeat
                 }
                 error("Hyperliquid public candle request failed: HTTP ${response.code}")
@@ -225,6 +227,13 @@ class HyperliquidPublicCandlePanelSource(
                 delay(waitMs)
             }
             nextRequestEarliestMs = maxOf(System.currentTimeMillis(), nextRequestEarliestMs) + requestSpacingMs
+        }
+    }
+
+    private suspend fun applyRetryCooldown(retryDelayMs: Long) {
+        if (retryDelayMs <= 0) return
+        requestGate.withLock {
+            nextRequestEarliestMs = maxOf(System.currentTimeMillis(), nextRequestEarliestMs) + retryDelayMs
         }
     }
 

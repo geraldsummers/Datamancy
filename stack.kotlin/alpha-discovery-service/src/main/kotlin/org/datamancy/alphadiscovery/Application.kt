@@ -47,8 +47,8 @@ fun Application.configureAlphaDiscoveryApp(
     engine: InterdaySearchEngine = InterdaySearchEngine(
         panelSource = HyperliquidPublicCandlePanelSource(
             dataSource = MarketDataDataSourceFactory.fromEnvironment("alpha-discovery-service"),
-            concurrency = 8,
-            requestSpacingMs = 75
+            concurrency = 3,
+            requestSpacingMs = 250
         ),
         policyProvider = ActiveTradingPolicy::current
     ),
