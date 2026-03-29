@@ -132,7 +132,7 @@ class AlphaPortfolioConstructor(
                 it.liquidityScore.coerceIn(0.1, 1.0) / volatility
         }
         val totalRaw = rawWeights.values.sum().coerceAtLeast(0.0001)
-        return signals.map { signal ->
+        return signals.mapNotNull { signal ->
             val normalized = rawWeights.getValue(signal) / totalRaw
             val weight = (sideTarget * normalized).coerceAtMost(maxWeightPerSymbol)
             val currentSigned = signal.currentWeightFraction
@@ -141,6 +141,9 @@ class AlphaPortfolioConstructor(
             val realizedTurnoverPenaltyBps = turnoverPenaltyBps(turnoverDeltaFraction, maxWeightPerSymbol, defaults)
             val adjustedExpectedNetEdgeBps = signal.expectedNetEdgeBps -
                 (realizedTurnoverPenaltyBps - signal.expectedTurnoverPenaltyBps)
+            if (adjustedExpectedNetEdgeBps <= 0.0 || !adjustedExpectedNetEdgeBps.isFinite()) {
+                return@mapNotNull null
+            }
             AlphaPortfolioTarget(
                 symbol = signal.symbol,
                 direction = direction,
@@ -154,7 +157,7 @@ class AlphaPortfolioConstructor(
                 turnoverDeltaFraction = turnoverDeltaFraction,
                 trailingStopVolMultiple = defaults.trailingStopVolMultiple,
                 takeProfitVolMultiple = defaults.takeProfitVolMultiple,
-                rationale = "${direction.name.lowercase()} edge=${signal.expectedNetEdgeBps}bps residual=${signal.expectedResidualReturnBps}bps current=${signal.currentWeightFraction} turnover=${turnoverDeltaFraction}"
+                rationale = "${direction.name.lowercase()} edge=${adjustedExpectedNetEdgeBps}bps residual=${signal.expectedResidualReturnBps}bps current=${signal.currentWeightFraction} turnover=${turnoverDeltaFraction}"
             )
         }
     }

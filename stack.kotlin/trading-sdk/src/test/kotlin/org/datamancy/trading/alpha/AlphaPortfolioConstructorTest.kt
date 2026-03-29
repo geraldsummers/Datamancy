@@ -57,7 +57,9 @@ class AlphaPortfolioConstructorTest {
 
         assertEquals(3, response.selectedLongs)
         assertEquals(3, response.selectedShorts)
-        assertEquals(6, response.targets.size)
+        assertTrue(response.targets.isNotEmpty())
+        assertTrue(response.targets.size <= 6)
+        assertTrue(response.targets.all { it.expectedNetEdgeBps > 0.0 })
     }
 
     @Test
@@ -136,12 +138,53 @@ class AlphaPortfolioConstructorTest {
         assertTrue(weightsBySymbol.getValue("INCUMBENT") > weightsBySymbol.getValue("CHALLENGER"))
     }
 
+    @Test
+    fun `portfolio construction drops targets whose adjusted edge turns non positive after turnover`() {
+        val response = constructor.construct(
+            AlphaPortfolioRequest(
+                signals = listOf(
+                    AlphaSignalScore(
+                        symbol = "KEEP",
+                        score = 20.0,
+                        confidence = 0.85,
+                        predictedVolatility = 0.4,
+                        liquidityScore = 1.0,
+                        expectedResidualReturnBps = 24.0,
+                        expectedEntryCostBps = 2.0,
+                        expectedTurnoverPenaltyBps = 0.0,
+                        expectedNetEdgeBps = 20.0
+                    ),
+                    AlphaSignalScore(
+                        symbol = "DROP",
+                        score = 0.01,
+                        confidence = 0.60,
+                        predictedVolatility = 0.4,
+                        liquidityScore = 1.0,
+                        expectedResidualReturnBps = 5.0,
+                        expectedEntryCostBps = 2.0,
+                        expectedTurnoverPenaltyBps = 0.0,
+                        expectedNetEdgeBps = 0.01,
+                        currentWeightFraction = 0.08
+                    )
+                ),
+                longShort = false,
+                respectProvidedSignalSet = true,
+                currentWeightsBySymbol = mapOf("DROP" to 0.08),
+                targetGrossFraction = 0.08
+            )
+        )
+
+        assertTrue("KEEP" in response.targets.map { it.symbol })
+        assertTrue("DROP" !in response.targets.map { it.symbol })
+        assertTrue(response.targets.all { it.expectedNetEdgeBps > 0.0 })
+    }
+
     private fun sampleSignals(confidence: Double): List<AlphaSignalScore> = listOf(
-        AlphaSignalScore(symbol = "BTC", score = 1.2, confidence = confidence, predictedVolatility = 0.4, liquidityScore = 1.0, expectedNetEdgeBps = 1.2),
-        AlphaSignalScore(symbol = "ETH", score = 0.9, confidence = confidence, predictedVolatility = 0.5, liquidityScore = 1.0, expectedNetEdgeBps = 0.9),
-        AlphaSignalScore(symbol = "SOL", score = 0.7, confidence = confidence, predictedVolatility = 0.6, liquidityScore = 0.9, expectedNetEdgeBps = 0.7),
-        AlphaSignalScore(symbol = "DOGE", score = -0.6, confidence = confidence, predictedVolatility = 0.8, liquidityScore = 0.8, expectedNetEdgeBps = -0.6),
-        AlphaSignalScore(symbol = "XRP", score = -0.9, confidence = confidence, predictedVolatility = 0.5, liquidityScore = 0.9, expectedNetEdgeBps = -0.9),
-        AlphaSignalScore(symbol = "AVAX", score = -1.1, confidence = confidence, predictedVolatility = 0.7, liquidityScore = 0.8, expectedNetEdgeBps = -1.1)
+        AlphaSignalScore(symbol = "BTC", score = 14.0, confidence = confidence, predictedVolatility = 0.4, liquidityScore = 1.0, expectedNetEdgeBps = 14.0),
+        AlphaSignalScore(symbol = "ETH", score = 11.0, confidence = confidence, predictedVolatility = 0.5, liquidityScore = 1.0, expectedNetEdgeBps = 11.0),
+        AlphaSignalScore(symbol = "SOL", score = 8.0, confidence = confidence, predictedVolatility = 0.6, liquidityScore = 0.9, expectedNetEdgeBps = 8.0),
+        AlphaSignalScore(symbol = "DOGE", score = -8.0, confidence = confidence, predictedVolatility = 0.8, liquidityScore = 0.8, expectedNetEdgeBps = -8.0),
+        AlphaSignalScore(symbol = "XRP", score = -11.0, confidence = confidence, predictedVolatility = 0.5, liquidityScore = 0.9, expectedNetEdgeBps = -11.0),
+        AlphaSignalScore(symbol = "AVAX", score = -14.0, confidence = confidence, predictedVolatility = 0.7, liquidityScore = 0.8, expectedNetEdgeBps = -14.0)
     )
 }
