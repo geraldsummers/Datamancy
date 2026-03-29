@@ -319,6 +319,7 @@ class InterdaySearchEngine(
         require(panel.series.isNotEmpty()) { "panel contains no symbol series" }
         val indicators = IndicatorWindows.fromConfig(config)
         val rebalanceBars = barsForHours(config.rebalanceCadenceHours, config.signalBarMinutes).coerceAtLeast(1)
+        val targetHorizonBars = trainingTargetBars(config)
         val latestTime = panel.timeline.lastOrNull() ?: error("panel timeline is empty")
         val splitTime = latestTime.minus(Duration.ofHours(config.forwardHours.toLong()))
         val lookbackStart = latestTime.minus(Duration.ofHours((config.lookbackHours + config.forwardHours).toLong()))
@@ -426,7 +427,8 @@ class InterdaySearchEngine(
                     portfolioDefaults = portfolioDefaults,
                     currentWeights = currentWeights,
                     evaluationStartIndex = evaluationStartIndex,
-                    rebalanceBars = rebalanceBars
+                    rebalanceBars = rebalanceBars,
+                    targetHorizonBars = targetHorizonBars
                 )
                 latestSignals = signals
                     .sortedByDescending { abs(it.score) }
@@ -666,7 +668,8 @@ class InterdaySearchEngine(
         portfolioDefaults: AlphaPortfolioDefaults,
         currentWeights: Map<String, Double>,
         evaluationStartIndex: Int,
-        rebalanceBars: Int
+        rebalanceBars: Int,
+        targetHorizonBars: Int
     ): List<InterdaySignalSnapshot> {
         val raw = collectRawSignals(panel, index, config, indicators, liquidityRanks)
         if (raw.isEmpty()) return emptyList()
@@ -676,6 +679,7 @@ class InterdaySearchEngine(
             currentIndex = index,
             evaluationStartIndex = evaluationStartIndex,
             rebalanceBars = rebalanceBars,
+            targetHorizonBars = targetHorizonBars,
             config = config,
             indicators = indicators,
             liquidityRanks = liquidityRanks
@@ -935,19 +939,20 @@ class InterdaySearchEngine(
         currentIndex: Int,
         evaluationStartIndex: Int,
         rebalanceBars: Int,
+        targetHorizonBars: Int,
         config: InterdayAlphaConfig,
         indicators: IndicatorWindows,
         liquidityRanks: Map<String, Double>
     ): EmpiricalWeights {
         val observations = mutableListOf<FeatureObservation>()
-        val upperTrainingIndex = currentIndex - rebalanceBars
+        val upperTrainingIndex = currentIndex - targetHorizonBars
         if (upperTrainingIndex >= evaluationStartIndex) {
             var trainingIndex = evaluationStartIndex
             while (trainingIndex <= upperTrainingIndex) {
                 val raw = collectRawSignals(panel, trainingIndex, config, indicators, liquidityRanks)
                 if (raw.isNotEmpty()) {
                     val vectors = buildFeatureVectors(raw, config)
-                    val futureReturns = futureResidualReturns(panel, trainingIndex, rebalanceBars)
+                    val futureReturns = futureResidualReturns(panel, trainingIndex, targetHorizonBars)
                     vectors.forEach { (symbol, features) ->
                         val target = futureReturns[symbol] ?: return@forEach
                         observations += FeatureObservation(features = features, targetResidualReturn = target)
@@ -1906,6 +1911,9 @@ private fun barsForDays(days: Int, signalBarMinutes: Int): Int =
 
 private fun barsForHours(hours: Int, signalBarMinutes: Int): Int =
     max(1, ceil((hours * 60.0) / signalBarMinutes.toDouble()).toInt())
+
+private fun trainingTargetBars(config: InterdayAlphaConfig): Int =
+    barsForHours(config.forwardHours, config.signalBarMinutes).coerceAtLeast(1)
 
 private fun scaledReturn(bars: List<InterdayBar?>, index: Int, lookbackBars: Int): Double? {
     if (index - lookbackBars < 0) return null

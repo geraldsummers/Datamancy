@@ -145,6 +145,19 @@ class InterdaySearchEngineTest {
         assertTrue(!allowed)
         assertTrue(blocked)
     }
+
+    @Test
+    fun `training target bars follow forward horizon rather than rebalance cadence`() {
+        val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod("trainingTargetBars", InterdayAlphaConfig::class.java)
+        method.isAccessible = true
+
+        val dailyBars = method.invoke(null, InterdayAlphaConfig(signalBarMinutes = 1440, forwardHours = 72, rebalanceCadenceHours = 24)) as Int
+        val fourHourBars = method.invoke(null, InterdayAlphaConfig(signalBarMinutes = 240, forwardHours = 72, rebalanceCadenceHours = 24)) as Int
+
+        assertEquals(3, dailyBars)
+        assertEquals(18, fourHourBars)
+    }
 }
 
 private fun syntheticPanel(): InterdayPanel {
