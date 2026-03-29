@@ -119,14 +119,49 @@ Empirical research stance:
 - prefer strategy families with demonstrated real-world support after costs
 - translate research into falsifiable hypotheses, not inspiration theater
 - if the research and the live measurements disagree, investigate the disagreement rather than forcing the backtest to win
+- treat `deep-research-report.md` as the authoritative local research brief for the current engine direction unless newer verified evidence contradicts it
+
+Adjustment discipline:
+- every strategy adjustment must be grounded in an explicit research mechanism before implementation or promotion
+- for each material adjustment, state:
+  - research basis
+  - exact report finding, model family, or formula class it comes from
+  - expected mechanism
+  - measurable hypothesis
+  - validation method
+- do not make ad hoc changes just because a parameter happened to improve one run
+- do not loosen thresholds, widen features, or alter execution assumptions without empirical justification
+- if an adjustment cannot be linked to a finding in `deep-research-report.md` or another high-quality source, treat it as speculative and deprioritize it
+- prefer adjustments that the report specifically supports for multi-day cross-sectional trend:
+  - relative-strength full-universe ranking
+  - volatility-normalized multi-horizon returns
+  - regression slope / t-stat style trend strength
+  - moving-average style filters as stabilizers, not as magical standalone alpha
+  - robust per-asset normalization followed by cross-sectional rank normalization
+  - explicit cost-aware net scoring
+  - order book / flow variables as liquidity, impact, and execution conditioners rather than the definition of multi-day trend
+- for Hyperliquid specifically:
+  - treat the public L2 feed as block-snapshot data, not full microstructure truth
+  - align daily accounting and fee logic to UTC boundaries
+  - use maker/taker fee reality and depth-based impact estimates as first-class terms in evaluation
+- default validation gatekeepers for search-space changes should include:
+  - walk-forward or nested out-of-sample evaluation
+  - purged / embargoed validation for overlapping horizons
+  - Deflated Sharpe Ratio
+  - White's Reality Check or equivalent multiplicity-aware testing
+- prefer robust parameter plateaus over knife-edge peaks; parameter heatmaps and neighborhood stability are required evidence when changing horizons, tails, or weighting schemes
 
 Research priorities, in order:
-1. Interday cross-sectional residual trend on `1d` bars with `72h` forward horizons
-2. Funding-aware trend overlays that improve trend selection without increasing fragility
-3. Risk and portfolio construction that keep capital alive while preserving convex upside
-4. Execution calibration for slower-horizon trend strategies
-5. Only after the above: broader carry, toxicity filters, slower stat-arb, and selective multi-venue work
-6. Do not spend cycles on reversion, cohort layering, or triangular arb unless fresh evidence proves they are worth reviving
+1. Interday cross-sectional residual trend on `1d` bars with `72h` forward horizons, framed as a relative-strength universe ranking problem
+2. Improve the core trend definition using research-supported building blocks:
+   - multi-horizon volatility-normalized returns
+   - regression slope / t-stat
+   - stabilizing moving-average filters
+3. Funding-aware trend overlays that improve trend selection without increasing fragility
+4. Risk and portfolio construction that keep capital alive while preserving convex upside
+5. Execution calibration for slower-horizon trend strategies using spread, depth, and impact conditioning
+6. Only after the above: broader carry, toxicity filters, slower stat-arb, and selective multi-venue work
+7. Do not spend cycles on reversion, cohort layering, or triangular arb unless fresh evidence proves they are worth reviving
 
 What to optimize for money:
 - higher after-cost edge per trade
@@ -142,6 +177,7 @@ Strategy framework:
 - risk model enforces inventory bounds, drawdown brakes, kill switches, venue limits, and liquidation distance
 - portfolio construction converts signal strength into diversified, gradual, confidence-aware exposure
 - do not accept any result that depends on optimistic mid-price fills
+- the multi-day trend definition itself should be built primarily from research-supported return and trend-strength features, not from short-horizon microstructure proxies
 
 Risk philosophy:
 - primary objective is survival first, then scaling
@@ -163,6 +199,7 @@ Execution realism requirements:
 - fail-to-fill behavior
 - funding / basis drift where relevant
 - testnet trading is a reality check, not a substitute for robust offline evidence
+- use order book and trade-flow inputs primarily to estimate execution quality, impact, and tradeability for multi-day strategies unless stronger evidence justifies promoting them into the alpha definition
 
 Universe and normalization requirements:
 - think in terms of the exchange universe, not isolated token prices
@@ -210,18 +247,25 @@ Research questions to answer continuously:
 - which horizons actually work now on this stack?
 - which parameter regions are stable rather than locally overfit?
 - what improves forward more than backtest, and why?
+- which adjustments are actually supported by the research report, and which are merely plausible but unproven?
 - where does funding help and where does it just overfit?
 - when does open interest help, and when does it damage the signal?
 - where does execution realism erase nominal alpha?
 - is the current `2.0` bps backtest gate correctly calibrated for the observed turnover, trade count, and capital base?
+- are daily boundaries, normalization, and cost accounting aligned with the research-supported construction?
 
 Immediate priorities:
 1. improve the current `1d / 72h` residual trend engine until it either clears promotion gates or clearly fails under honest testing
-2. use empirical research to upgrade the trend model itself, not to justify random feature sprawl
-3. calibrate promotion/search thresholds empirically rather than arbitrarily, while keeping standards strict
-4. keep execution and risk models separate from the price-prediction model
-5. use testnet only when there is a clear question it can answer about fills, drift, or cost realism
-6. do not revive dead paths without new evidence: reversion, cohort alpha, hierarchy blending, triangular arb
+2. use `deep-research-report.md` to upgrade the trend model itself, not to justify random feature sprawl
+3. explicitly test the report-supported core trend stack first:
+   - multi-horizon vol-normalized returns
+   - regression slope / t-stat
+   - stabilizing MA filter variants
+   - robust normalization + cross-sectional ranking
+4. calibrate promotion/search thresholds empirically rather than arbitrarily, while keeping standards strict
+5. keep execution and risk models separate from the price-prediction model
+6. use testnet only when there is a clear question it can answer about fills, drift, or cost realism
+7. do not revive dead paths without new evidence: reversion, cohort alpha, hierarchy blending, triangular arb
 
 Promotion criteria:
 - positive realized edge after full costs
@@ -248,6 +292,7 @@ Reporting style:
 - distinguish clearly between verified fact, live measurement, and inference
 - include exact timestamps for live checks
 - leave short practical notes only:
+  - research basis
   - hypothesis
   - experiment
   - result
