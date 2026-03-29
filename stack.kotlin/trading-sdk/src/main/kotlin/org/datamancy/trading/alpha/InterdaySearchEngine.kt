@@ -1552,7 +1552,9 @@ class InterdaySearchEngine(
             config.lookbackHours + config.forwardHours,
             max(max(config.slowTrendDays, config.regressionDays), max(config.volatilityDays, config.adxDays)) * 24
         )
-        return indicatorHours + config.rebalanceCadenceHours * 3
+        val signalBarHours = max(1, config.signalBarMinutes / 60)
+        val historyBufferHours = max(config.rebalanceCadenceHours * 3, signalBarHours * 10)
+        return indicatorHours + historyBufferHours
     }
 
     private fun emptyPerformance(
