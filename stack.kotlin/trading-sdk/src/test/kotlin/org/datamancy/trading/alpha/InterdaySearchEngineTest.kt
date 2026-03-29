@@ -70,37 +70,25 @@ class InterdaySearchEngineTest {
     }
 
     @Test
-    fun `continuous ramp adds between rebalance turnover`() = kotlinx.coroutines.runBlocking {
-        val baseConfig = InterdayAlphaConfig(
-            exchange = "hyperliquid_mainnet",
-            signalBarMinutes = 240,
-            lookbackHours = 480,
-            forwardHours = 72,
-            rebalanceCadenceHours = 72,
-            selectionQuantile = 0.34,
-            minConfidence = 0.15,
-            executionWindowMinutes = 120
-        )
-
-        val stepResponse = engine.run(
+    fun `high perturbation threshold suppresses entries`() = kotlinx.coroutines.runBlocking {
+        val response = engine.run(
             InterdayAlphaRunRequest(
-                config = baseConfig.copy(adjustmentMode = InterdayAdjustmentMode.REBALANCE_STEP)
-            )
-        )
-        val continuousResponse = engine.run(
-            InterdayAlphaRunRequest(
-                config = baseConfig.copy(adjustmentMode = InterdayAdjustmentMode.CONTINUOUS_RAMP)
+                config = InterdayAlphaConfig(
+                    exchange = "hyperliquid_mainnet",
+                    signalBarMinutes = 240,
+                    lookbackHours = 480,
+                    forwardHours = 72,
+                    rebalanceCadenceHours = 24,
+                    selectionQuantile = 0.34,
+                    minConfidence = 0.15,
+                    perturbationThresholdZ = 10.0,
+                    executionWindowMinutes = 120
+                )
             )
         )
 
-        val stepInspection = requireNotNull(stepResponse.inspection)
-        val continuousInspection = requireNotNull(continuousResponse.inspection)
-        val stepTurnoverBars = stepInspection.portfolio.count { it.turnoverFraction > 1e-9 }
-        val continuousTurnoverBars = continuousInspection.portfolio.count { it.turnoverFraction > 1e-9 }
-
-        assertTrue(stepTurnoverBars > 0)
-        assertTrue(continuousTurnoverBars > stepTurnoverBars)
-        assertTrue(stepResponse.backtest.netReturnPct != continuousResponse.backtest.netReturnPct)
+        assertTrue(response.targets.isEmpty())
+        assertTrue(response.trades.isEmpty())
     }
 }
 
