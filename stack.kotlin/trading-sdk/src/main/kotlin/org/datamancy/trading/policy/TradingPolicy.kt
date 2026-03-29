@@ -1330,7 +1330,9 @@ object ActiveTradingPolicy {
     private val json = Json {
         prettyPrint = true
         encodeDefaults = true
-        ignoreUnknownKeys = false
+        // Hot-path services should tolerate additive policy fields so a policy artifact
+        // update does not brick ingestion on the next restart.
+        ignoreUnknownKeys = true
     }
 
     @Volatile

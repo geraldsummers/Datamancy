@@ -41,4 +41,22 @@ class TradingPolicyTest {
         assertEquals(5L, policy.venue("hyperliquid").features.refreshOverlapMinutes)
         assertEquals(3L, policy.venue("hyperliquid").features.backfillChunkHours)
     }
+
+    @Test
+    fun `active trading policy ignores additive future keys`() {
+        val tempFile = Files.createTempFile("datamancy-trading-policy-forward", ".json").toFile()
+        val json = DatamancyTradingPolicy.defaultJson().replace(
+            "\"allowRawFallback\": false,",
+            "\"allowRawFallback\": false,\n        \"futurePolicyField\": {\"enabled\": true},"
+        )
+
+        try {
+            tempFile.writeText(json)
+            val loaded = ActiveTradingPolicy.fromFile(tempFile)
+            assertFalse(loaded.research.allowRawFallback)
+            assertEquals(72, loaded.research.datasets.defaultForwardHours)
+        } finally {
+            tempFile.delete()
+        }
+    }
 }
