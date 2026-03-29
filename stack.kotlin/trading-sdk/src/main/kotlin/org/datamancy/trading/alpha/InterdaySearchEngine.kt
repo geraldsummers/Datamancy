@@ -73,7 +73,7 @@ class InterdaySearchEngine(
             leaderboard = ranked,
             notes = listOf(
                 "Signals are ranked cross-sectionally relative to the active universe instead of using absolute token price levels.",
-                "Hierarchical decomposition separates market regime, cohort drift, and symbol residual so discovery does not confuse broad tape motion with idiosyncratic edge.",
+                "Common market structure is removed before ranking so the engine searches for symbol-level residual trend instead of broad tape beta.",
                 "Execution conditioning is attached as a cost and liquidity model so long-range signal research can run beyond shallow orderbook history.",
                 "Search isolates dead parameter regions instead of aborting the whole sweep; failed evaluations in this run=$failedEvaluations."
             )
@@ -131,7 +131,7 @@ class InterdaySearchEngine(
             inspection = evaluation.inspection,
             notes = listOf(
                 "Trend strength is built from multi-horizon relative returns, regression slope, moving-average separation, and ADX-style persistence.",
-                "Alpha is decomposed into market regime, structural cohort drift, and symbol residual so the engine can stay diversified without mistaking beta for edge.",
+                "Alpha is ranked on residualized symbol trend after removing common market structure, then penalized by expected execution cost.",
                 "Entries size on universe-edge names when they show either a local pullback into trend or a confirmed continuation regime."
             )
         )
@@ -171,10 +171,18 @@ class InterdaySearchEngine(
             searchSpace.adjustmentModes.ifEmpty { listOf(base.adjustmentMode) },
             base.adjustmentMode
         )
+        val residualizationModes = prioritizeAnchored(
+            searchSpace.residualizationModes.ifEmpty { listOf(base.residualizationMode) },
+            base.residualizationMode
+        )
         val signalBars = prioritizeValues(searchSpace.signalBarMinutes.ifEmpty { listOf(base.signalBarMinutes) }, base.signalBarMinutes)
         val lookbacks = prioritizeValues(searchSpace.lookbackHours.ifEmpty { listOf(base.lookbackHours) }, base.lookbackHours)
         val forwards = prioritizeValues(searchSpace.forwardHours.ifEmpty { listOf(base.forwardHours) }, base.forwardHours)
         val cadences = prioritizeValues(searchSpace.rebalanceCadenceHours.ifEmpty { listOf(base.rebalanceCadenceHours) }, base.rebalanceCadenceHours)
+        val factorLookbackDays = prioritizeValues(
+            searchSpace.factorLookbackDays.ifEmpty { listOf(base.factorLookbackDays) },
+            base.factorLookbackDays
+        )
         val quantiles = prioritizeDoubles(searchSpace.selectionQuantiles.ifEmpty { listOf(base.selectionQuantile) }, base.selectionQuantile)
         val fastDays = prioritizeValues(searchSpace.fastTrendDays.ifEmpty { listOf(base.fastTrendDays) }, base.fastTrendDays)
         val mediumDays = prioritizeValues(searchSpace.mediumTrendDays.ifEmpty { listOf(base.mediumTrendDays) }, base.mediumTrendDays)
@@ -210,26 +218,16 @@ class InterdaySearchEngine(
             base.regimeDirectionalSuppressionThreshold
         )
         val regimeNetBiasScales = prioritizeDoubles(searchSpace.regimeNetBiasScale.ifEmpty { listOf(base.regimeNetBiasScale) }, base.regimeNetBiasScale)
-        val hierarchyMarketWeights = prioritizeDoubles(
-            searchSpace.hierarchyMarketWeight.ifEmpty { listOf(base.hierarchyMarketWeight) },
-            base.hierarchyMarketWeight
-        )
-        val hierarchyCohortWeights = prioritizeDoubles(
-            searchSpace.hierarchyCohortWeight.ifEmpty { listOf(base.hierarchyCohortWeight) },
-            base.hierarchyCohortWeight
-        )
-        val hierarchyResidualWeights = prioritizeDoubles(
-            searchSpace.hierarchyResidualWeight.ifEmpty { listOf(base.hierarchyResidualWeight) },
-            base.hierarchyResidualWeight
-        )
 
         val generated = mutableListOf<InterdayAlphaConfig>()
         outer@ for (adjustmentMode in adjustmentModes) {
-            for (signalBar in signalBars) {
-                for (lookback in lookbacks) {
-                    for (forward in forwards) {
-                        for (cadence in cadences) {
-                            for (quantile in quantiles) {
+            for (residualizationMode in residualizationModes) {
+                for (signalBar in signalBars) {
+                    for (lookback in lookbacks) {
+                        for (forward in forwards) {
+                            for (cadence in cadences) {
+                                for (factorLookbackDay in factorLookbackDays) {
+                                    for (quantile in quantiles) {
                                 for (fast in fastDays) {
                                     for (medium in mediumDays) {
                                         for (slow in slowDays) {
@@ -256,15 +254,14 @@ class InterdaySearchEngine(
                                                                                                                         for (holdEdgeFloor in holdEdgeFloorBps) {
                                                                                                                             for (regimeDirectionalSuppressionThreshold in regimeDirectionalSuppressionThresholds) {
                                                                                                                                 for (regimeNetBiasScale in regimeNetBiasScales) {
-                                                                                                                                    for (hierarchyMarketWeight in hierarchyMarketWeights) {
-                                                                                                                                        for (hierarchyCohortWeight in hierarchyCohortWeights) {
-                                                                                                                                            for (hierarchyResidualWeight in hierarchyResidualWeights) {
-                                                                                                                                                generated += base.copy(
+                                                                                                                                    generated += base.copy(
                                                                                                                                         adjustmentMode = adjustmentMode,
+                                                                                                                                        residualizationMode = residualizationMode,
                                                                                                                                         signalBarMinutes = signalBar,
                                                                                                                                         lookbackHours = lookback,
                                                                                                                                         forwardHours = forward,
                                                                                                                                         rebalanceCadenceHours = cadence,
+                                                                                                                                        factorLookbackDays = factorLookbackDay,
                                                                                                                                         selectionQuantile = quantile,
                                                                                                                                         fastTrendDays = fast,
                                                                                                                                         mediumTrendDays = medium,
@@ -290,15 +287,9 @@ class InterdaySearchEngine(
                                                                                                                                         entryEdgeFloorBps = entryEdgeFloor,
                                                                                                                                         holdEdgeFloorBps = holdEdgeFloor,
                                                                                                                                         regimeDirectionalSuppressionThreshold = regimeDirectionalSuppressionThreshold,
-                                                                                                                                        regimeNetBiasScale = regimeNetBiasScale,
-                                                                                                                                        hierarchyMarketWeight = hierarchyMarketWeight,
-                                                                                                                                        hierarchyCohortWeight = hierarchyCohortWeight,
-                                                                                                                                        hierarchyResidualWeight = hierarchyResidualWeight
+                                                                                                                                        regimeNetBiasScale = regimeNetBiasScale
                                                                                                                                     )
-                                                                                                                                                if (generated.size >= maxEvaluations) break@outer
-                                                                                                                                            }
-                                                                                                                                        }
-                                                                                                                                    }
+                                                                                                                                    if (generated.size >= maxEvaluations) break@outer
                                                                                                                                 }
                                                                                                                             }
                                                                                                                         }
@@ -324,11 +315,13 @@ class InterdaySearchEngine(
                                 }
                             }
                         }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
-        }
-        }
         }
         return generated.distinct()
     }
@@ -698,14 +691,13 @@ class InterdaySearchEngine(
     ): List<InterdaySignalSnapshot> {
         val raw = collectRawSignals(panel, index, config, indicators, liquidityRanks)
         if (raw.isEmpty()) return emptyList()
-        val hierarchyEnabled = hierarchyActive(config)
         val structuralState = buildStructuralState(
             panel = panel,
             index = index,
             raw = raw,
             config = config,
             indicators = indicators,
-            enabled = hierarchyEnabled
+            enabled = residualizationActive(config)
         )
         val scoringRaw = structuralState.residualizedRaw
         val featureVectors = buildFeatureVectors(scoringRaw, config)
@@ -718,39 +710,18 @@ class InterdaySearchEngine(
             config = config,
             indicators = indicators,
             liquidityRanks = liquidityRanks,
-            hierarchyEnabled = hierarchyEnabled
+            residualizationEnabled = structuralState.enabled
         )
         val empiricalScores = scoringRaw.associate { candidate ->
             candidate.symbol to empiricalWeights.score(featureVectors.getValue(candidate.symbol), config)
         }
-        val hierarchyWeights = calibrateHierarchyWeights(
-            panel = panel,
-            currentIndex = index,
-            evaluationStartIndex = evaluationStartIndex,
-            rebalanceBars = rebalanceBars,
-            targetHorizonBars = targetHorizonBars,
-            config = config,
-            indicators = indicators,
-            liquidityRanks = liquidityRanks,
-            portfolioDefaults = portfolioDefaults,
-            empiricalWeights = empiricalWeights,
-            hierarchyEnabled = hierarchyEnabled
-        )
         val empiricalRanks = centeredRanks(empiricalScores)
         val spreadRanks = centeredRanks(raw.associate { it.symbol to -(it.spreadBps) })
         val edgeEstimates = raw.associate { candidate ->
             val features = featureVectors.getValue(candidate.symbol)
             val empiricalScore = empiricalScores.getValue(candidate.symbol)
-            val cohortMembership = structuralState.cohortMemberships.getValue(candidate.symbol)
-            val hierarchicalScore = hierarchicalScore(
-                marketComponent = structuralState.marketComponent(candidate.symbol),
-                cohortComponent = structuralState.cohortComponent(candidate.symbol),
-                residualComponent = empiricalScore,
-                marketWeight = hierarchyWeights.marketWeight,
-                cohortWeight = hierarchyWeights.cohortWeight,
-                residualWeight = hierarchyWeights.residualWeight
-            )
-            val direction = if (hierarchicalScore.totalScore >= 0.0) AlphaDirection.LONG else AlphaDirection.SHORT
+            val residualRank = empiricalRanks.getValue(candidate.symbol)
+            val direction = if (empiricalScore >= 0.0) AlphaDirection.LONG else AlphaDirection.SHORT
             val executionSupport = if (!config.useExecutionConditioning) {
                 1.0
             } else {
@@ -771,7 +742,7 @@ class InterdaySearchEngine(
                 defaults = portfolioDefaults
             )
             val signedAssumedTarget = signedWeight(direction, assumedWeight)
-            val expectedResidualReturnBps = hierarchicalScore.totalScore * 10_000.0
+            val expectedResidualReturnBps = empiricalScore * 10_000.0
             val expectedEntryCostBps = estimateTransactionCostBps(
                 weightDelta = assumedWeight,
                 bar = candidate,
@@ -788,16 +759,13 @@ class InterdaySearchEngine(
                 config.turnoverPenaltyWeight * expectedTurnoverPenaltyBps
             candidate.symbol to SignalEdgeEstimate(
                 empiricalScore = empiricalScore,
+                residualRank = residualRank,
                 expectedResidualReturnBps = expectedResidualReturnBps,
                 expectedEntryCostBps = expectedEntryCostBps,
                 expectedTurnoverPenaltyBps = expectedTurnoverPenaltyBps,
                 expectedNetEdgeBps = expectedNetEdgeBps,
                 executionSupport = executionSupport,
-                provisionalConfidence = provisionalConfidence,
-                cohortId = cohortMembership.id,
-                marketComponentBps = hierarchicalScore.marketComponent * 10_000.0,
-                cohortComponentBps = hierarchicalScore.cohortComponent * 10_000.0,
-                residualComponentBps = hierarchicalScore.residualComponent * 10_000.0
+                provisionalConfidence = provisionalConfidence
             )
         }
         val expectedEdgeScores = edgeEstimates.mapValues { (_, estimate) -> estimate.expectedNetEdgeBps }
@@ -809,7 +777,6 @@ class InterdaySearchEngine(
         return raw.map { candidate ->
             val features = featureVectors.getValue(candidate.symbol)
             val estimate = edgeEstimates.getValue(candidate.symbol)
-            val cohortMembership = structuralState.cohortMemberships.getValue(candidate.symbol)
             val totalScore = estimate.expectedNetEdgeBps
             val direction = if (totalScore >= 0.0) AlphaDirection.LONG else AlphaDirection.SHORT
             val confidence = listOf(
@@ -826,6 +793,7 @@ class InterdaySearchEngine(
                 direction = direction,
                 score = totalScore,
                 empiricalScore = estimate.empiricalScore,
+                residualRank = estimate.residualRank,
                 confidence = confidence,
                 liquidityScore = candidate.liquidityRank.coerceIn(0.1, 1.0),
                 trendScore = features.trend,
@@ -835,10 +803,7 @@ class InterdaySearchEngine(
                 openInterestScore = features.openInterest,
                 expansionScore = features.expansion,
                 reversalRiskScore = features.reversalRisk,
-                cohortId = cohortMembership.id,
-                marketComponentBps = estimate.marketComponentBps,
-                cohortComponentBps = estimate.cohortComponentBps,
-                residualComponentBps = estimate.residualComponentBps,
+                marketBeta = structuralState.marketBetaBySymbol[candidate.symbol] ?: 0.0,
                 upperBound = upperBound,
                 lowerBound = lowerBound,
                 expectedResidualReturnBps = estimate.expectedResidualReturnBps,
@@ -1009,7 +974,7 @@ class InterdaySearchEngine(
         config: InterdayAlphaConfig,
         indicators: IndicatorWindows,
         liquidityRanks: Map<String, Double>,
-        hierarchyEnabled: Boolean
+        residualizationEnabled: Boolean
     ): EmpiricalWeights {
         val observations = mutableListOf<FeatureObservation>()
         val upperTrainingIndex = currentIndex - targetHorizonBars
@@ -1024,11 +989,11 @@ class InterdaySearchEngine(
                         raw = raw,
                         config = config,
                         indicators = indicators,
-                        enabled = hierarchyEnabled
+                        enabled = residualizationEnabled
                     )
                     val scoringRaw = structuralState.residualizedRaw
                     val vectors = buildFeatureVectors(scoringRaw, config)
-                    val futureReturns = if (hierarchyEnabled) {
+                    val futureReturns = if (residualizationEnabled) {
                         futureStructuralResidualReturns(panel, trainingIndex, targetHorizonBars, structuralState)
                     } else {
                         futureResidualReturns(panel, trainingIndex, targetHorizonBars)
@@ -1051,131 +1016,6 @@ class InterdaySearchEngine(
         return EmpiricalWeights(
             intercept = (prior.intercept * (1.0 - blend) + fitted.intercept * blend).finiteOrZero(),
             coefficients = coefficients.map { it.finiteOrZero() }.toDoubleArray(),
-            observations = observations.size
-        )
-    }
-
-    private fun calibrateHierarchyWeights(
-        panel: InterdayPanel,
-        currentIndex: Int,
-        evaluationStartIndex: Int,
-        rebalanceBars: Int,
-        targetHorizonBars: Int,
-        config: InterdayAlphaConfig,
-        indicators: IndicatorWindows,
-        liquidityRanks: Map<String, Double>,
-        portfolioDefaults: AlphaPortfolioDefaults,
-        empiricalWeights: EmpiricalWeights,
-        hierarchyEnabled: Boolean
-    ): HierarchyWeights {
-        val prior = normalizeHierarchyWeights(
-            config.hierarchyMarketWeight,
-            config.hierarchyCohortWeight,
-            config.hierarchyResidualWeight
-        )
-        if (prior.marketWeight <= 1e-9 && prior.cohortWeight <= 1e-9) return prior
-        val upperTrainingIndex = currentIndex - targetHorizonBars
-        if (upperTrainingIndex < evaluationStartIndex) return prior
-
-        val observations = mutableListOf<HierarchyObservation>()
-        var trainingIndex = evaluationStartIndex
-        while (trainingIndex <= upperTrainingIndex) {
-            val raw = collectRawSignals(panel, trainingIndex, config, indicators, liquidityRanks)
-            if (raw.isNotEmpty()) {
-                val structuralState = buildStructuralState(
-                    panel = panel,
-                    index = trainingIndex,
-                    raw = raw,
-                    config = config,
-                    indicators = indicators,
-                    enabled = hierarchyEnabled
-                )
-                val scoringRaw = structuralState.residualizedRaw
-                val features = buildFeatureVectors(scoringRaw, config)
-                val empiricalScores = scoringRaw.associate { candidate ->
-                    candidate.symbol to empiricalWeights.score(features.getValue(candidate.symbol), config)
-                }
-                val empiricalRanks = centeredRanks(empiricalScores)
-                val spreadRanks = centeredRanks(raw.associate { it.symbol to -(it.spreadBps) })
-                val futureReturns = futureResidualReturns(panel, trainingIndex, targetHorizonBars)
-                raw.forEach { candidate ->
-                    val futureReturn = futureReturns[candidate.symbol] ?: return@forEach
-                    val featureVector = features.getValue(candidate.symbol)
-                    val hierarchy = hierarchicalScore(
-                        marketComponent = structuralState.marketComponent(candidate.symbol),
-                        cohortComponent = structuralState.cohortComponent(candidate.symbol),
-                        residualComponent = empiricalScores.getValue(candidate.symbol),
-                        marketWeight = 1.0,
-                        cohortWeight = 1.0,
-                        residualWeight = 1.0
-                    )
-                    val provisionalConfidence = listOf(
-                        abs(empiricalRanks.getValue(candidate.symbol)).coerceIn(0.0, 1.0),
-                        featureVector.trendAgreement.coerceAtLeast(0.0),
-                        featureVector.pullback.coerceIn(0.0, 1.0),
-                        featureVector.expansion.coerceIn(0.0, 1.0),
-                        featureVector.liquidity.coerceIn(0.0, 1.0),
-                        ((spreadRanks.getValue(candidate.symbol) + 1.0) / 2.0).coerceIn(0.0, 1.0)
-                    ).average().coerceIn(0.0, 1.0)
-                    val assumedWeight = assumedTargetWeightFraction(provisionalConfidence, portfolioDefaults)
-                    val entryCostFraction = estimateTransactionCostBps(
-                        weightDelta = assumedWeight,
-                        bar = candidate,
-                        confidence = provisionalConfidence,
-                        config = config
-                    ) / 10_000.0
-                    observations += HierarchyObservation(
-                        marketComponent = hierarchy.marketComponent,
-                        cohortComponent = hierarchy.cohortComponent,
-                        residualComponent = hierarchy.residualComponent,
-                        targetNetResidualReturn = futureReturn - entryCostFraction
-                    )
-                }
-            }
-            trainingIndex += rebalanceBars
-        }
-
-        if (observations.isEmpty()) return prior
-        val fitted = fitHierarchyWeights(observations, config.empiricalFitRegularization, prior)
-        val blend = (observations.size.toDouble() / config.empiricalMinTrainingObservations.toDouble()).coerceIn(0.0, 1.0)
-        return normalizeHierarchyWeights(
-            marketWeight = prior.marketWeight * (1.0 - blend) + fitted.marketWeight * blend,
-            cohortWeight = prior.cohortWeight * (1.0 - blend) + fitted.cohortWeight * blend,
-            residualWeight = prior.residualWeight * (1.0 - blend) + fitted.residualWeight * blend,
-            observations = observations.size
-        )
-    }
-
-    private fun fitHierarchyWeights(
-        observations: List<HierarchyObservation>,
-        lambda: Double,
-        prior: HierarchyWeights
-    ): HierarchyWeights {
-        val gram = Array(3) { DoubleArray(3) }
-        val rhs = DoubleArray(3)
-        observations.forEach { observation ->
-            val row = doubleArrayOf(
-                observation.marketComponent,
-                observation.cohortComponent,
-                observation.residualComponent
-            )
-            for (left in row.indices) {
-                rhs[left] += row[left] * observation.targetNetResidualReturn
-                for (right in row.indices) {
-                    gram[left][right] += row[left] * row[right]
-                }
-            }
-        }
-        val priorVector = doubleArrayOf(prior.marketWeight, prior.cohortWeight, prior.residualWeight)
-        for (index in 0 until 3) {
-            gram[index][index] += lambda
-            rhs[index] += lambda * priorVector[index]
-        }
-        val solved = solveLinearSystem(gram, rhs) ?: return prior
-        return normalizeHierarchyWeights(
-            marketWeight = solved.getOrElse(0) { 0.0 }.coerceAtLeast(0.0),
-            cohortWeight = solved.getOrElse(1) { 0.0 }.coerceAtLeast(0.0),
-            residualWeight = solved.getOrElse(2) { 0.0 }.coerceAtLeast(0.0),
             observations = observations.size
         )
     }
@@ -1206,7 +1046,6 @@ class InterdaySearchEngine(
         if (!structuralState.enabled) return futureResidualReturns(panel, index, horizonBars)
         val futureIndex = index + horizonBars
         if (futureIndex >= panel.timeline.size) return emptyMap()
-        val membersByCohort = structuralState.cohortMemberships.entries.groupBy({ it.value.id }, { it.key })
         val totals = mutableMapOf<String, Double>()
         for (cursor in (index + 1)..futureIndex) {
             val rawReturns = panel.series.mapNotNull { series ->
@@ -1214,15 +1053,9 @@ class InterdaySearchEngine(
             }.toMap()
             if (rawReturns.isEmpty()) continue
             val marketReturn = rawReturns.values.averageOrZero()
-            structuralState.cohortMemberships.forEach { (symbol, membership) ->
+            structuralState.marketBetaBySymbol.forEach { (symbol, marketBeta) ->
                 val symbolReturn = rawReturns[symbol] ?: return@forEach
-                val peers = membersByCohort[membership.id].orEmpty().filter { it != symbol }
-                val peerReturn = peers.mapNotNull { rawReturns[it] }.averageOrZero()
-                val peerOrthogonalReturn =
-                    peerReturn - (structuralState.cohortMarketBetaById[membership.id] ?: 0.0) * marketReturn
-                val residualReturn = symbolReturn -
-                    (structuralState.marketBetaBySymbol[symbol] ?: 0.0) * marketReturn -
-                    (structuralState.cohortBetaBySymbol[symbol] ?: 0.0) * peerOrthogonalReturn
+                val residualReturn = symbolReturn - marketBeta * marketReturn
                 totals[symbol] = (totals[symbol] ?: 0.0) + residualReturn
             }
         }
@@ -1981,58 +1814,21 @@ class InterdaySearchEngine(
 
     private data class SignalEdgeEstimate(
         val empiricalScore: Double,
+        val residualRank: Double,
         val expectedResidualReturnBps: Double,
         val expectedEntryCostBps: Double,
         val expectedTurnoverPenaltyBps: Double,
         val expectedNetEdgeBps: Double,
         val executionSupport: Double,
-        val provisionalConfidence: Double,
-        val cohortId: String,
-        val marketComponentBps: Double,
-        val cohortComponentBps: Double,
-        val residualComponentBps: Double
-    )
-
-    data class CohortMembership(
-        val id: String,
-        val meanScore: Double
-    )
-
-    data class HierarchicalScore(
-        val marketComponent: Double,
-        val cohortComponent: Double,
-        val residualComponent: Double,
-        val totalScore: Double
-    )
-
-    data class HierarchyWeights(
-        val marketWeight: Double,
-        val cohortWeight: Double,
-        val residualWeight: Double,
-        val observations: Int = 0
-    )
-
-    data class HierarchyObservation(
-        val marketComponent: Double,
-        val cohortComponent: Double,
-        val residualComponent: Double,
-        val targetNetResidualReturn: Double
+        val provisionalConfidence: Double
     )
 
     data class StructuralState(
         val enabled: Boolean,
         val residualizedRaw: List<RawSignal>,
-        val cohortMemberships: Map<String, CohortMembership>,
         val marketBetaBySymbol: Map<String, Double>,
-        val cohortBetaBySymbol: Map<String, Double>,
-        val cohortMarketBetaById: Map<String, Double>,
-        val marketComponentBySymbol: Map<String, Double>,
-        val cohortComponentBySymbol: Map<String, Double>
-    ) {
-        fun marketComponent(symbol: String): Double = marketComponentBySymbol[symbol] ?: 0.0
-
-        fun cohortComponent(symbol: String): Double = cohortComponentBySymbol[symbol] ?: 0.0
-    }
+        val factorLookbackBars: Int
+    )
 
     data class DerivedTrendSignal(
         val volatility: Double,
@@ -2201,8 +1997,8 @@ private fun shouldForceFlattenByRegime(
     return (regimeScore > 0.0 && currentSigned < 0.0) || (regimeScore < 0.0 && currentSigned > 0.0)
 }
 
-private fun hierarchyActive(config: InterdayAlphaConfig): Boolean =
-    config.hierarchyMarketWeight > 1e-9 || config.hierarchyCohortWeight > 1e-9
+private fun residualizationActive(config: InterdayAlphaConfig): Boolean =
+    config.residualizationMode != InterdayResidualizationMode.NONE
 
 private fun buildStructuralState(
     panel: InterdayPanel,
@@ -2212,19 +2008,12 @@ private fun buildStructuralState(
     indicators: InterdaySearchEngine.IndicatorWindows,
     enabled: Boolean
 ): InterdaySearchEngine.StructuralState {
-    val baselineMemberships = raw.associate { candidate ->
-        candidate.symbol to InterdaySearchEngine.CohortMembership(id = "baseline", meanScore = 0.0)
-    }
     fun disabledState(): InterdaySearchEngine.StructuralState =
         InterdaySearchEngine.StructuralState(
             enabled = false,
             residualizedRaw = raw,
-            cohortMemberships = baselineMemberships,
             marketBetaBySymbol = raw.associate { it.symbol to 0.0 },
-            cohortBetaBySymbol = raw.associate { it.symbol to 0.0 },
-            cohortMarketBetaById = mapOf("baseline" to 0.0),
-            marketComponentBySymbol = raw.associate { it.symbol to 0.0 },
-            cohortComponentBySymbol = raw.associate { it.symbol to 0.0 }
+            factorLookbackBars = 0
         )
 
     if (!enabled || raw.size < 4) return disabledState()
@@ -2232,8 +2021,8 @@ private fun buildStructuralState(
     val lookbackReturns = min(
         index,
         max(
-            indicators.requiredBars,
-            max(indicators.slowBars * 2, indicators.mediumBars + indicators.fastBars + 2)
+            barsForDays(config.factorLookbackDays, config.signalBarMinutes),
+            max(indicators.requiredBars, indicators.slowBars + 2)
         )
     )
     if (lookbackReturns < max(indicators.slowBars, 6)) return disabledState()
@@ -2245,69 +2034,28 @@ private fun buildStructuralState(
     }.toMap()
     if (returnsBySymbol.size < 4) return disabledState()
 
-    val cohortIdsBySymbol = learnRollingCohortIds(
-        returnsBySymbol = returnsBySymbol,
-        liquidityBySymbol = raw.associate { it.symbol to it.liquidityRank }
-    )
-    val membersByCohort = cohortIdsBySymbol.entries.groupBy({ it.value }, { it.key })
     val marketSeries = averageSeries(returnsBySymbol.values.toList())
     if (marketSeries.size < 4) return disabledState()
 
-    val marketTrend = factorTrendScore(marketSeries, indicators, config)
     val marketBetaBySymbol = returnsBySymbol.mapValues { (_, returns) ->
         beta(returns, marketSeries).coerceIn(-3.0, 3.0)
     }
-    val marketExposureRanks = centeredRanks(marketBetaBySymbol)
-
-    val cohortTrendById = mutableMapOf<String, Double>()
-    val cohortMarketBetaById = mutableMapOf<String, Double>()
-    membersByCohort.forEach { (cohortId, members) ->
-        val cohortSeries = averageSeries(members.mapNotNull { returnsBySymbol[it] })
-        val cohortMarketBeta = beta(cohortSeries, marketSeries).coerceIn(-3.0, 3.0)
-        cohortMarketBetaById[cohortId] = cohortMarketBeta
-        cohortTrendById[cohortId] = factorTrendScore(
-            subtractSeries(cohortSeries, marketSeries, cohortMarketBeta),
-            indicators,
-            config
-        )
-    }
 
     val derivedBySymbol = mutableMapOf<String, InterdaySearchEngine.DerivedTrendSignal>()
-    val cohortBetaBySymbol = mutableMapOf<String, Double>()
     raw.forEach { candidate ->
         val symbolReturns = returnsBySymbol[candidate.symbol] ?: return@forEach
-        val cohortId = cohortIdsBySymbol[candidate.symbol] ?: return@forEach
-        val peerSymbols = membersByCohort[cohortId].orEmpty().filter { it != candidate.symbol }
-        val peerSeries = averageSeries(peerSymbols.mapNotNull { returnsBySymbol[it] })
-        val peerMarketBeta = if (peerSeries.isEmpty()) 0.0 else beta(peerSeries, marketSeries).coerceIn(-3.0, 3.0)
-        val peerOrthogonalSeries = if (peerSeries.isEmpty()) {
-            List(symbolReturns.size) { 0.0 }
-        } else {
-            subtractSeries(peerSeries, marketSeries, peerMarketBeta)
-        }
         val marketBeta = marketBetaBySymbol[candidate.symbol] ?: 0.0
-        val marketResidualSeries = subtractSeries(symbolReturns, marketSeries, marketBeta)
-        val cohortBeta = if (peerSymbols.isEmpty()) {
-            0.0
-        } else {
-            beta(marketResidualSeries, peerOrthogonalSeries).coerceIn(-3.0, 3.0)
+        val residualSeries = when (config.residualizationMode) {
+            InterdayResidualizationMode.NONE -> symbolReturns
+            InterdayResidualizationMode.MARKET -> subtractSeries(symbolReturns, marketSeries, marketBeta)
         }
-        cohortBetaBySymbol[candidate.symbol] = cohortBeta
         deriveTrendSignal(
-            returns = subtractSeries(marketResidualSeries, peerOrthogonalSeries, cohortBeta),
+            returns = residualSeries,
             indicators = indicators,
             perturbationLookbackBars = config.perturbationLookbackBars
-        )?.let { derivedBySymbol[candidate.symbol] = it }
+        )?.let { derived -> derivedBySymbol[candidate.symbol] = derived }
     }
 
-    val cohortExposureRanks = centeredRanks(cohortBetaBySymbol)
-    val cohortMemberships = raw.associate { candidate ->
-        val cohortId = cohortIdsBySymbol[candidate.symbol] ?: "solo:${candidate.symbol}"
-        candidate.symbol to InterdaySearchEngine.CohortMembership(
-            id = cohortId,
-            meanScore = cohortTrendById[cohortId] ?: 0.0
-        )
-    }
     val residualizedRaw = raw.map { candidate ->
         val derived = derivedBySymbol[candidate.symbol]
         if (derived == null) {
@@ -2328,17 +2076,8 @@ private fun buildStructuralState(
     return InterdaySearchEngine.StructuralState(
         enabled = true,
         residualizedRaw = residualizedRaw,
-        cohortMemberships = cohortMemberships,
         marketBetaBySymbol = raw.associate { candidate -> candidate.symbol to (marketBetaBySymbol[candidate.symbol] ?: 0.0) },
-        cohortBetaBySymbol = raw.associate { candidate -> candidate.symbol to (cohortBetaBySymbol[candidate.symbol] ?: 0.0) },
-        cohortMarketBetaById = cohortMarketBetaById.toMap(),
-        marketComponentBySymbol = raw.associate { candidate ->
-            candidate.symbol to (marketTrend * (marketExposureRanks[candidate.symbol] ?: 0.0))
-        },
-        cohortComponentBySymbol = raw.associate { candidate ->
-            val cohortId = cohortIdsBySymbol[candidate.symbol] ?: "solo:${candidate.symbol}"
-            candidate.symbol to ((cohortTrendById[cohortId] ?: 0.0) * (cohortExposureRanks[candidate.symbol] ?: 0.0))
-        }
+        factorLookbackBars = lookbackReturns
     )
 }
 
@@ -2360,28 +2099,6 @@ private fun rollingReturnWindow(
     if (start < 1) return null
     return (start..index).map { cursor ->
         logReturnAt(safeBars, cursor) ?: return null
-    }
-}
-
-private fun learnRollingCohortIds(
-    returnsBySymbol: Map<String, List<Double>>,
-    liquidityBySymbol: Map<String, Double>
-): Map<String, String> {
-    val orderedSymbols = returnsBySymbol.keys.sortedByDescending { symbol ->
-        (liquidityBySymbol[symbol] ?: 0.0) * 1_000.0 + returnsBySymbol.getValue(symbol).sumOf { abs(it) }
-    }
-    val targetSeeds = sqrt(returnsBySymbol.size.toDouble()).toInt().coerceIn(3, min(returnsBySymbol.size, 10))
-    val seeds = mutableListOf<String>()
-    for (candidate in orderedSymbols) {
-        if (seeds.all { seed -> correlation(returnsBySymbol.getValue(candidate), returnsBySymbol.getValue(seed)) < 0.75 }) {
-            seeds += candidate
-        }
-        if (seeds.size >= targetSeeds) break
-    }
-    if (seeds.isEmpty() && orderedSymbols.isNotEmpty()) seeds += orderedSymbols.first()
-    return returnsBySymbol.keys.associateWith { symbol ->
-        val seed = seeds.maxByOrNull { correlation(returnsBySymbol.getValue(symbol), returnsBySymbol.getValue(it)) } ?: symbol
-        "cluster:$seed"
     }
 }
 
@@ -2413,27 +2130,6 @@ private fun beta(left: List<Double>, right: List<Double>): Double {
     } / size.toDouble()
     if (variance <= 1e-10) return 0.0
     return covariance / variance
-}
-
-private fun correlation(left: List<Double>, right: List<Double>): Double {
-    val size = min(left.size, right.size)
-    if (size < 4) return 0.0
-    val leftWindow = left.takeLast(size)
-    val rightWindow = right.takeLast(size)
-    val leftMean = leftWindow.average()
-    val rightMean = rightWindow.average()
-    var covariance = 0.0
-    var leftVariance = 0.0
-    var rightVariance = 0.0
-    leftWindow.indices.forEach { offset ->
-        val leftCentered = leftWindow[offset] - leftMean
-        val rightCentered = rightWindow[offset] - rightMean
-        covariance += leftCentered * rightCentered
-        leftVariance += leftCentered * leftCentered
-        rightVariance += rightCentered * rightCentered
-    }
-    val denominator = sqrt(leftVariance * rightVariance).coerceAtLeast(1e-10)
-    return (covariance / denominator).coerceIn(-1.0, 1.0)
 }
 
 private fun deriveTrendSignal(
@@ -2487,51 +2183,6 @@ private fun factorTrendScore(
             squash(derived.slope, 3.0) * slopeWeight +
             adxSupport * 0.15
         ).coerceIn(-1.0, 1.0)
-}
-
-private fun hierarchicalScore(
-    marketComponent: Double,
-    cohortComponent: Double,
-    residualComponent: Double,
-    marketWeight: Double,
-    cohortWeight: Double,
-    residualWeight: Double
-): InterdaySearchEngine.HierarchicalScore {
-    val totalScore = if (marketWeight <= 1e-9 && cohortWeight <= 1e-9) {
-        residualComponent
-    } else {
-        marketWeight * marketComponent +
-            cohortWeight * cohortComponent +
-            residualWeight * residualComponent
-    }
-    return InterdaySearchEngine.HierarchicalScore(
-        marketComponent = marketComponent,
-        cohortComponent = cohortComponent,
-        residualComponent = residualComponent,
-        totalScore = totalScore
-    )
-}
-
-private fun normalizeHierarchyWeights(
-    marketWeight: Double,
-    cohortWeight: Double,
-    residualWeight: Double,
-    observations: Int = 0
-): InterdaySearchEngine.HierarchyWeights {
-    val positiveMarket = marketWeight.coerceAtLeast(0.0)
-    val positiveCohort = cohortWeight.coerceAtLeast(0.0)
-    val positiveResidual = residualWeight.coerceAtLeast(0.0)
-    val total = positiveMarket + positiveCohort + positiveResidual
-    return if (total <= 1e-9) {
-        InterdaySearchEngine.HierarchyWeights(0.0, 0.0, 1.0, observations)
-    } else {
-        InterdaySearchEngine.HierarchyWeights(
-            marketWeight = positiveMarket / total,
-            cohortWeight = positiveCohort / total,
-            residualWeight = positiveResidual / total,
-            observations = observations
-        )
-    }
 }
 
 private fun barsForDays(days: Int, signalBarMinutes: Int): Int =

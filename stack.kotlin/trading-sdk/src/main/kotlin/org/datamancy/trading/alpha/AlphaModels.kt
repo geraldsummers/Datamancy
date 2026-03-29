@@ -27,6 +27,11 @@ enum class InterdayAdjustmentMode {
     CONTINUOUS_RAMP
 }
 
+enum class InterdayResidualizationMode {
+    NONE,
+    MARKET
+}
+
 data class UniverseBoundsSpec(
     val timeSeriesNormalization: String = "rolling_median_mad",
     val crossSectionalNormalization: String = "rank_gaussian",

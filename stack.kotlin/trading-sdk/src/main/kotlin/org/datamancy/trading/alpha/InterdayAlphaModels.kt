@@ -6,10 +6,12 @@ data class InterdayAlphaConfig(
     val strategyFamily: String = "interday_relative_strength_trend_v2",
     val exchange: String = "hyperliquid_mainnet",
     val adjustmentMode: InterdayAdjustmentMode = InterdayAdjustmentMode.REBALANCE_STEP,
+    val residualizationMode: InterdayResidualizationMode = InterdayResidualizationMode.MARKET,
     val signalBarMinutes: Int = 240,
     val lookbackHours: Int = 1_080,
     val forwardHours: Int = 72,
     val rebalanceCadenceHours: Int = 24,
+    val factorLookbackDays: Int = 30,
     val selectionQuantile: Double = 0.10,
     val fastTrendDays: Int = 3,
     val mediumTrendDays: Int = 7,
@@ -47,18 +49,17 @@ data class InterdayAlphaConfig(
     val holdEdgeFloorBps: Double = 0.25,
     val regimeStrengthThreshold: Double = 0.18,
     val regimeDirectionalSuppressionThreshold: Double = 0.55,
-    val regimeNetBiasScale: Double = 0.75,
-    val hierarchyMarketWeight: Double = 0.0,
-    val hierarchyCohortWeight: Double = 0.0,
-    val hierarchyResidualWeight: Double = 1.0
+    val regimeNetBiasScale: Double = 0.75
 )
 
 data class InterdaySearchSpace(
     val adjustmentModes: List<InterdayAdjustmentMode> = emptyList(),
+    val residualizationModes: List<InterdayResidualizationMode> = emptyList(),
     val signalBarMinutes: List<Int> = emptyList(),
     val lookbackHours: List<Int> = emptyList(),
     val forwardHours: List<Int> = emptyList(),
     val rebalanceCadenceHours: List<Int> = emptyList(),
+    val factorLookbackDays: List<Int> = emptyList(),
     val selectionQuantiles: List<Double> = emptyList(),
     val fastTrendDays: List<Int> = emptyList(),
     val mediumTrendDays: List<Int> = emptyList(),
@@ -84,10 +85,7 @@ data class InterdaySearchSpace(
     val entryEdgeFloorBps: List<Double> = emptyList(),
     val holdEdgeFloorBps: List<Double> = emptyList(),
     val regimeDirectionalSuppressionThreshold: List<Double> = emptyList(),
-    val regimeNetBiasScale: List<Double> = emptyList(),
-    val hierarchyMarketWeight: List<Double> = emptyList(),
-    val hierarchyCohortWeight: List<Double> = emptyList(),
-    val hierarchyResidualWeight: List<Double> = emptyList()
+    val regimeNetBiasScale: List<Double> = emptyList()
 )
 
 data class InterdayAlphaSearchRequest(
@@ -146,6 +144,7 @@ data class InterdaySignalSnapshot(
     val direction: AlphaDirection,
     val score: Double,
     val empiricalScore: Double,
+    val residualRank: Double,
     val confidence: Double,
     val liquidityScore: Double,
     val trendScore: Double,
@@ -155,10 +154,7 @@ data class InterdaySignalSnapshot(
     val openInterestScore: Double,
     val expansionScore: Double,
     val reversalRiskScore: Double,
-    val cohortId: String,
-    val marketComponentBps: Double,
-    val cohortComponentBps: Double,
-    val residualComponentBps: Double,
+    val marketBeta: Double,
     val upperBound: Double,
     val lowerBound: Double,
     val expectedResidualReturnBps: Double,

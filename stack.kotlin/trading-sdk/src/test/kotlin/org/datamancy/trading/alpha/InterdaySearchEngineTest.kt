@@ -43,10 +43,8 @@ class InterdaySearchEngineTest {
         assertTrue(point.expectedResidualReturnBps.isFinite())
         assertTrue(point.expectedEntryCostBps.isFinite())
         assertTrue(point.entryEligible || response.targets.isEmpty())
-        assertTrue(response.selectedSignals.all { it.cohortId.isNotBlank() })
-        assertTrue(response.selectedSignals.all { it.marketComponentBps.isFinite() })
-        assertTrue(response.selectedSignals.all { it.cohortComponentBps.isFinite() })
-        assertTrue(response.selectedSignals.all { it.residualComponentBps.isFinite() })
+        assertTrue(response.selectedSignals.all { it.marketBeta.isFinite() })
+        assertTrue(response.selectedSignals.all { it.residualRank.isFinite() })
     }
 
     @Test
@@ -164,29 +162,7 @@ class InterdaySearchEngineTest {
     }
 
     @Test
-    fun `hierarchical score falls back to residual component when market and cohort weights are zero`() {
-        val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
-            .getDeclaredMethod(
-                "hierarchicalScore",
-                Double::class.javaPrimitiveType,
-                Double::class.javaPrimitiveType,
-                Double::class.javaPrimitiveType,
-                Double::class.javaPrimitiveType,
-                Double::class.javaPrimitiveType,
-                Double::class.javaPrimitiveType
-            )
-        method.isAccessible = true
-
-        val result = method.invoke(null, 0.005, -0.002, 0.012, 0.0, 0.0, 1.0)
-        val totalScore = result!!::class.java.getDeclaredField("totalScore").apply { isAccessible = true }.getDouble(result)
-        val residualComponent = result::class.java.getDeclaredField("residualComponent").apply { isAccessible = true }.getDouble(result)
-
-        assertEquals(0.012, totalScore, 1e-9)
-        assertEquals(0.012, residualComponent, 1e-9)
-    }
-
-    @Test
-    fun `hierarchy-enabled run activates learned cohorts rather than baseline labels`() = kotlinx.coroutines.runBlocking {
+    fun `market residualization exposes market beta on signal snapshots`() = kotlinx.coroutines.runBlocking {
         val response = engine.run(
             InterdayAlphaRunRequest(
                 config = InterdayAlphaConfig(
@@ -197,16 +173,36 @@ class InterdaySearchEngineTest {
                     rebalanceCadenceHours = 24,
                     selectionQuantile = 0.34,
                     minConfidence = 0.15,
-                    hierarchyMarketWeight = 0.15,
-                    hierarchyCohortWeight = 0.15,
-                    hierarchyResidualWeight = 0.70
+                    residualizationMode = InterdayResidualizationMode.MARKET,
+                    factorLookbackDays = 21
                 )
             )
         )
 
         assertTrue(response.selectedSignals.isNotEmpty())
-        assertTrue(response.selectedSignals.all { it.cohortId.startsWith("cluster:") })
-        assertTrue(response.selectedSignals.any { kotlin.math.abs(it.marketComponentBps) > 1e-9 || kotlin.math.abs(it.cohortComponentBps) > 1e-9 })
+        assertTrue(response.selectedSignals.any { kotlin.math.abs(it.marketBeta) > 1e-9 })
+        assertTrue(response.selectedSignals.all { it.residualRank in -1.0..1.0 })
+    }
+
+    @Test
+    fun `none residualization mode still runs without market adjustment`() = kotlinx.coroutines.runBlocking {
+        val response = engine.run(
+            InterdayAlphaRunRequest(
+                config = InterdayAlphaConfig(
+                    exchange = "hyperliquid_mainnet",
+                    signalBarMinutes = 240,
+                    lookbackHours = 480,
+                    forwardHours = 72,
+                    rebalanceCadenceHours = 24,
+                    selectionQuantile = 0.34,
+                    minConfidence = 0.15,
+                    residualizationMode = InterdayResidualizationMode.NONE
+                )
+            )
+        )
+
+        assertTrue(response.selectedSignals.isNotEmpty())
+        assertTrue(response.selectedSignals.all { it.marketBeta == 0.0 })
     }
 }
 
