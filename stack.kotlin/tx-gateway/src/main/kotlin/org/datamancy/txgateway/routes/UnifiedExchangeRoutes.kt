@@ -2394,8 +2394,16 @@ private fun shouldRebaseBootstrapHighWater(
     accountEquity: BigDecimal
 ): Boolean {
     if (accountEquity <= BigDecimal.ZERO) return false
-    val highWater = existingState?.highWaterMarkUsd ?: return true
-    return highWater.compareTo(bootstrapRiskHighWaterUsd) == 0
+    val state = existingState ?: return true
+    val highWater = state.highWaterMarkUsd
+    if (highWater <= BigDecimal.ZERO) return true
+    if (highWater.compareTo(bootstrapRiskHighWaterUsd) == 0) return true
+
+    // Recover small funded accounts that were previously reconciled as empty and left
+    // carrying a stale bootstrap-era high-water mark with no live exposure.
+    return state.accountEquityUsd <= BigDecimal.ZERO &&
+        state.openExposureUsd <= BigDecimal.ZERO &&
+        highWater > accountEquity
 }
 
 private fun PaperOrderResponse.estimatedExecutedNotionalUsd(): BigDecimal? {

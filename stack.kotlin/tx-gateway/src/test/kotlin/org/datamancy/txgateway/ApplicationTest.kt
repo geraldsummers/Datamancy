@@ -1261,6 +1261,74 @@ class ApplicationTest {
     }
 
     @Test
+    fun testLiveHyperliquidRiskReconciliationRebasesStaleHighWaterAfterZeroEquityRecovery() = testApplication {
+        lateinit var workerClient: WorkerClient
+        lateinit var dbService: DatabaseService
+        application {
+            val authService = mockk<AuthService>(relaxed = true)
+            val ldapService = mockk<LdapService>(relaxed = true)
+            workerClient = mockk(relaxed = true)
+            dbService = quoteAwareDbService()
+            val jwt = mockk<DecodedJWT>(relaxed = true)
+
+            every { authService.validateToken("token") } returns jwt
+            every { authService.extractUsername(jwt) } returns "trader1"
+            every { ldapService.getUserInfo("trader1") } returns tradingUserInfo(
+                allowedExchanges = listOf("hyperliquid"),
+                allowedTradingModes = listOf("forward_paper", "testnet_live")
+            )
+            every { dbService.checkRateLimit("trader1", 100) } returns true
+            every { dbService.fetchLatestQuote("hyperliquid", "BTC") } returns LatestQuote(
+                exchange = "hyperliquid",
+                symbol = "BTC",
+                bid = 73000.0,
+                ask = 73010.0,
+                last = 73005.0,
+                timestamp = freshQuoteTimestamp(),
+                source = "orderbook_data:canonical"
+            )
+            every { dbService.getActiveRiskPolicyForUser("trader1") } returns null
+            val staleState = baselineRiskAccountState(username = "trader1", accountEquityUsd = "0").copy(
+                accountEquityUsd = BigDecimal.ZERO,
+                highWaterMarkUsd = BigDecimal("10000"),
+                openExposureUsd = BigDecimal.ZERO
+            )
+            val rebasedState = baselineRiskAccountState(username = "trader1", accountEquityUsd = "25.00")
+            every { dbService.getRiskAccountState("trader1") } returnsMany listOf(staleState, rebasedState)
+            every {
+                dbService.getOrCreateRiskAccountState("trader1")
+            } returns rebasedState
+            every { dbService.getRiskKillSwitchState("trader1") } returns null
+            every { dbService.fetchLatestSentiment(any(), any()) } returns null
+            every { workerClient.submitHyperliquidOrder(any()) } returns mapOf(
+                "orderId" to "live-rebase",
+                "status" to "FILLED",
+                "executedNotionalUsd" to "7.30"
+            )
+            every { workerClient.getHyperliquidBalance("trader1", "test-key") } returns mapOf(
+                "accountValue" to "25.00"
+            )
+            every { workerClient.getHyperliquidPositions("trader1", "test-key") } returns emptyList()
+
+            configureApp(authService, ldapService, workerClient, dbService)
+        }
+
+        val response = client.post("/api/v1/exchanges/hyperliquid/order") {
+            header(HttpHeaders.Authorization, "Bearer token")
+            header("X-Credential-hyperliquid", "test-key")
+            contentType(ContentType.Application.Json)
+            setBody("""{"symbol":"BTC","side":"BUY","type":"MARKET","size":"0.0001","executionMode":"testnet_live"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+
+        val patches = mutableListOf<RiskAccountStatePatch>()
+        verify(exactly = 2) { dbService.upsertRiskAccountState("trader1", capture(patches)) }
+        assertTrue(patches.first().highWaterMarkUsd?.compareTo(BigDecimal("25.00")) == 0)
+        assertTrue(patches.last().accountEquityUsd?.compareTo(BigDecimal("25.00")) == 0)
+    }
+
+    @Test
     fun testLiveHyperliquidOrderFallsBackToFilledSizeTimesPriceForNotional() = testApplication {
         lateinit var workerClient: WorkerClient
         lateinit var dbService: DatabaseService
