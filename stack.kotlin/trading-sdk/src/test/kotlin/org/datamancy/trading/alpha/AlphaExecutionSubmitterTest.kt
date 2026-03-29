@@ -133,4 +133,66 @@ class AlphaExecutionSubmitterTest {
 
         assertTrue(error.message!!.contains("rounds to zero"), error.message)
     }
+
+    @Test
+    fun `submit rejects wide spread targets before sending orders`() = runBlocking {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """
+                    {
+                      "exchange": "hyperliquid",
+                      "count": 1,
+                      "markets": [
+                        {
+                          "symbol": "TAO",
+                          "attributes": {
+                            "szDecimals": "3"
+                          }
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+        )
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """
+                    {
+                      "exchange": "hyperliquid",
+                      "symbol": "TAO",
+                      "bid": "317.77",
+                      "ask": "319.88",
+                      "last": "318.82"
+                    }
+                    """.trimIndent()
+                )
+        )
+
+        val result = submitter.submit(
+            request = AlphaExecutionSubmitRequest(
+                exchange = "hyperliquid",
+                symbol = "TAO",
+                direction = AlphaDirection.LONG,
+                size = 0.357,
+                mode = AlphaRunMode.TESTNET_LIVE,
+                maxSlippageBps = 35.0
+            ),
+            bearerToken = "test-token",
+            credentials = mapOf("hyperliquid" to "test-key")
+        )
+
+        assertTrue(!result.accepted)
+        assertTrue(result.error!!.contains("spread"), result.error)
+        assertTrue(result.notes.any { it.contains("Pre-submit quote gate blocked") }, result.notes.joinToString(" | "))
+
+        val marketRequest = mockServer.takeRequest()
+        assertEquals("/api/v1/exchanges/hyperliquid/markets", marketRequest.path)
+        val quoteRequest = mockServer.takeRequest()
+        assertEquals("/api/v1/exchanges/hyperliquid/quote?symbol=TAO&executionMode=testnet_live", quoteRequest.path)
+        assertEquals(0, mockServer.requestCount - 2)
+    }
 }

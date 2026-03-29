@@ -8,6 +8,7 @@ import org.datamancy.trading.models.Side
 import org.datamancy.trading.models.TradingMode
 import org.datamancy.trading.models.UnifiedOrderRequest
 import java.math.BigDecimal
+import java.math.RoundingMode
 
 class AlphaExecutionSubmitter(
     private val txGatewayUrlProvider: () -> String
@@ -52,6 +53,26 @@ class AlphaExecutionSubmitter(
             requestedSize = requestedSize,
             market = market
         )
+        val quoteGateFailure = evaluateQuoteGate(
+            gateway = gateway,
+            exchange = exchange,
+            symbol = request.symbol.trim(),
+            side = side,
+            executionMode = executionMode,
+            maxSlippageBps = request.maxSlippageBps
+        )
+        if (quoteGateFailure != null) {
+            return AlphaExecutionSubmission(
+                accepted = false,
+                exchange = exchange.apiName,
+                symbol = request.symbol,
+                mode = request.mode,
+                error = quoteGateFailure,
+                notes = sizingDecision.notes + listOf(
+                    "Pre-submit quote gate blocked this target before any live order was sent."
+                )
+            )
+        }
 
         val gatewayRequest = UnifiedOrderRequest(
             exchange = exchange,
@@ -96,5 +117,35 @@ class AlphaExecutionSubmitter(
                 )
             )
         }
+    }
+
+    private suspend fun evaluateQuoteGate(
+        gateway: TxGateway,
+        exchange: ExchangeId,
+        symbol: String,
+        side: Side,
+        executionMode: TradingMode,
+        maxSlippageBps: Double?
+    ): String? {
+        val slippageBudgetBps = maxSlippageBps?.takeIf { it.isFinite() && it > 0.0 } ?: return null
+        val quote = when (val result = gateway.exchanges.quote(exchange, symbol, executionMode)) {
+            is ApiResult.Success -> result.data
+            is ApiResult.Error -> {
+                return "Pre-submit quote gate failed for $symbol on ${exchange.apiName}: ${result.message}"
+            }
+        }
+        val bid = quote.bid.toDouble()
+        val ask = quote.ask.toDouble()
+        val mid = (bid + ask) / 2.0
+        if (!mid.isFinite() || mid <= 0.0 || ask < bid) {
+            return "Pre-submit quote gate failed for $symbol on ${exchange.apiName}: invalid bid/ask snapshot"
+        }
+        val spreadBps = ((ask - bid) / mid) * 10_000.0
+        if (spreadBps > slippageBudgetBps) {
+            val roundedSpread = BigDecimal.valueOf(spreadBps).setScale(2, RoundingMode.HALF_UP).toPlainString()
+            val roundedBudget = BigDecimal.valueOf(slippageBudgetBps).setScale(2, RoundingMode.HALF_UP).toPlainString()
+            return "Pre-submit quote gate rejected $symbol on ${exchange.apiName}: spread ${roundedSpread}bps exceeds slippage budget ${roundedBudget}bps for ${side.name.lowercase()} execution"
+        }
+        return null
     }
 }
