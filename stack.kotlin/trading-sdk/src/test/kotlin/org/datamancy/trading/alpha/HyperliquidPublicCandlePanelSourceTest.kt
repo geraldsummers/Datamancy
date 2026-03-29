@@ -83,6 +83,42 @@ class HyperliquidPublicCandlePanelSourceTest {
             assertEquals(1, panel.timeline.size)
         }
     }
+
+    @Test
+    fun `reuses cached universe and candle snapshots across repeated loads`() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {"universe":[{"name":"ALPHA","isDelisted":false},{"name":"BRAVO","isDelisted":false}]}
+                """.trimIndent()
+            )
+        )
+        server.enqueue(MockResponse().setBody(candleArray("ALPHA", listOf("2026-03-01T00:00:00Z" to 100.0))))
+        server.enqueue(MockResponse().setBody(candleArray("BRAVO", listOf("2026-03-01T00:00:00Z" to 200.0))))
+
+        server.use {
+            val source = HyperliquidPublicCandlePanelSource(
+                dataSource = null,
+                infoUrl = server.url("/info").toString(),
+                concurrency = 1,
+                requestSpacingMs = 0
+            )
+            val request = InterdayPanelRequest(
+                exchange = "hyperliquid_mainnet",
+                signalBarMinutes = 240,
+                startTime = Instant.parse("2026-03-01T00:00:00Z"),
+                endTime = Instant.parse("2026-03-02T00:00:00Z")
+            )
+
+            val first = source.load(request)
+            val second = source.load(request)
+
+            assertEquals(2, first.series.size)
+            assertEquals(first.timeline, second.timeline)
+            assertEquals(3, server.requestCount, "second load should reuse cached public history")
+        }
+    }
 }
 
 private fun candleArray(symbol: String, points: List<Pair<String, Double>>): String {

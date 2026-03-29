@@ -17,14 +17,18 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.sql.Timestamp
+import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import java.util.LinkedHashMap
 import java.util.concurrent.TimeUnit
 import javax.sql.DataSource
 import kotlin.math.pow
 
 private const val DEFAULT_HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info"
 private val JSON_MEDIA_TYPE = "application/json".toMediaType()
+private val DEFAULT_UNIVERSE_CACHE_TTL: Duration = Duration.ofMinutes(10)
+private const val DEFAULT_CANDLE_CACHE_MAX_ENTRIES = 512
 
 class HyperliquidPublicCandlePanelSource(
     private val dataSource: DataSource? = null,
@@ -37,10 +41,19 @@ class HyperliquidPublicCandlePanelSource(
     private val concurrency: Int = 3,
     private val requestSpacingMs: Long = 250,
     private val maxRetries: Int = 5,
-    private val baseRetryDelayMs: Long = 1_000
+    private val baseRetryDelayMs: Long = 1_000,
+    private val universeCacheTtl: Duration = DEFAULT_UNIVERSE_CACHE_TTL,
+    private val candleCacheMaxEntries: Int = DEFAULT_CANDLE_CACHE_MAX_ENTRIES
 ) : InterdayPanelSource {
     private val requestGate = Mutex()
+    private val cacheGate = Mutex()
     private var nextRequestEarliestMs: Long = 0
+    private var universeCache: UniverseCacheEntry? = null
+    private val candleCache = object : LinkedHashMap<CandleCacheKey, List<PublicCandle>>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<CandleCacheKey, List<PublicCandle>>?): Boolean {
+            return size > candleCacheMaxEntries.coerceAtLeast(1)
+        }
+    }
 
     override suspend fun load(request: InterdayPanelRequest): InterdayPanel = withContext(Dispatchers.IO) {
         require(request.signalBarMinutes in setOf(240, 1_440)) {
@@ -145,9 +158,15 @@ class HyperliquidPublicCandlePanelSource(
     }
 
     private suspend fun fetchUniverse(): List<String> {
+        val cachedUniverse = cacheGate.withLock {
+            universeCache?.takeIf { Duration.between(it.loadedAt, Instant.now()) <= universeCacheTtl }
+        }
+        if (cachedUniverse != null) {
+            return cachedUniverse.symbols
+        }
         val body = post("""{"type":"meta"}""")
         val root = JsonParser.parseString(body).asJsonObject
-        return root.getAsJsonArray("universe")
+        val symbols = root.getAsJsonArray("universe")
             ?.mapNotNull { element ->
                 val obj = element.asJsonObject
                 val symbol = obj["name"]?.asString?.trim().orEmpty()
@@ -157,6 +176,13 @@ class HyperliquidPublicCandlePanelSource(
             ?.distinct()
             ?.sorted()
             .orEmpty()
+        cacheGate.withLock {
+            universeCache = UniverseCacheEntry(
+                loadedAt = Instant.now(),
+                symbols = symbols
+            )
+        }
+        return symbols
     }
 
     private suspend fun fetchCandles(symbol: String, request: InterdayPanelRequest): List<PublicCandle> {
@@ -164,6 +190,16 @@ class HyperliquidPublicCandlePanelSource(
             240 -> "4h"
             1_440 -> "1d"
             else -> error("unsupported signalBarMinutes=${request.signalBarMinutes}")
+        }
+        val cacheKey = CandleCacheKey(
+            symbol = symbol,
+            interval = interval,
+            startTime = request.startTime,
+            endTime = request.endTime
+        )
+        val cached = cacheGate.withLock { candleCache[cacheKey] }
+        if (cached != null) {
+            return cached
         }
         val payload = """
             {
@@ -190,6 +226,11 @@ class HyperliquidPublicCandlePanelSource(
                 volume = obj["v"]?.asString?.toDoubleOrNull() ?: 0.0
             )
         }.sortedBy { it.time }
+            .also { candles ->
+                cacheGate.withLock {
+                    candleCache[cacheKey] = candles
+                }
+            }
     }
 
     private suspend fun post(jsonBody: String): String {
@@ -355,6 +396,18 @@ class HyperliquidPublicCandlePanelSource(
     private data class SymbolBars(
         val symbol: String,
         val bars: List<InterdayBar?>
+    )
+
+    private data class UniverseCacheEntry(
+        val loadedAt: Instant,
+        val symbols: List<String>
+    )
+
+    private data class CandleCacheKey(
+        val symbol: String,
+        val interval: String,
+        val startTime: Instant,
+        val endTime: Instant
     )
 }
 
