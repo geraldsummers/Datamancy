@@ -60,12 +60,88 @@ class AlphaPortfolioConstructorTest {
         assertEquals(6, response.targets.size)
     }
 
+    @Test
+    fun `portfolio construction filters weak net edge below entry floor`() {
+        val response = constructor.construct(
+            AlphaPortfolioRequest(
+                signals = listOf(
+                    AlphaSignalScore(
+                        symbol = "BTC",
+                        score = 0.4,
+                        confidence = 0.75,
+                        predictedVolatility = 0.4,
+                        liquidityScore = 1.0,
+                        expectedResidualReturnBps = 6.0,
+                        expectedEntryCostBps = 3.0,
+                        expectedNetEdgeBps = 0.5
+                    ),
+                    AlphaSignalScore(
+                        symbol = "ETH",
+                        score = 1.2,
+                        confidence = 0.75,
+                        predictedVolatility = 0.4,
+                        liquidityScore = 1.0,
+                        expectedResidualReturnBps = 8.0,
+                        expectedEntryCostBps = 2.0,
+                        expectedNetEdgeBps = 3.5
+                    )
+                ),
+                longShort = false,
+                respectProvidedSignalSet = true,
+                minExpectedNetEdgeBps = 1.0
+            )
+        )
+
+        assertEquals(listOf("ETH"), response.targets.map { it.symbol })
+    }
+
+    @Test
+    fun `portfolio construction gives incumbent retention credit when edge is still positive`() {
+        val response = constructor.construct(
+            AlphaPortfolioRequest(
+                signals = listOf(
+                    AlphaSignalScore(
+                        symbol = "INCUMBENT",
+                        score = 4.0,
+                        confidence = 0.80,
+                        predictedVolatility = 0.5,
+                        liquidityScore = 1.0,
+                        expectedResidualReturnBps = 8.0,
+                        expectedEntryCostBps = 2.0,
+                        expectedTurnoverPenaltyBps = 3.0,
+                        expectedNetEdgeBps = 4.0,
+                        currentWeightFraction = 0.08
+                    ),
+                    AlphaSignalScore(
+                        symbol = "CHALLENGER",
+                        score = 5.0,
+                        confidence = 0.80,
+                        predictedVolatility = 0.5,
+                        liquidityScore = 1.0,
+                        expectedResidualReturnBps = 8.0,
+                        expectedEntryCostBps = 2.0,
+                        expectedTurnoverPenaltyBps = 0.0,
+                        expectedNetEdgeBps = 5.0,
+                        currentWeightFraction = 0.0
+                    )
+                ),
+                longShort = false,
+                respectProvidedSignalSet = true,
+                currentWeightsBySymbol = mapOf("INCUMBENT" to 0.08),
+                targetGrossFraction = 0.08
+            )
+        )
+
+        val weightsBySymbol = response.targets.associateBy({ it.symbol }, { it.weightFraction })
+        assertTrue(weightsBySymbol.getValue("INCUMBENT") > weightsBySymbol.getValue("CHALLENGER"))
+    }
+
     private fun sampleSignals(confidence: Double): List<AlphaSignalScore> = listOf(
-        AlphaSignalScore(symbol = "BTC", score = 1.2, confidence = confidence, predictedVolatility = 0.4, liquidityScore = 1.0),
-        AlphaSignalScore(symbol = "ETH", score = 0.9, confidence = confidence, predictedVolatility = 0.5, liquidityScore = 1.0),
-        AlphaSignalScore(symbol = "SOL", score = 0.7, confidence = confidence, predictedVolatility = 0.6, liquidityScore = 0.9),
-        AlphaSignalScore(symbol = "DOGE", score = -0.6, confidence = confidence, predictedVolatility = 0.8, liquidityScore = 0.8),
-        AlphaSignalScore(symbol = "XRP", score = -0.9, confidence = confidence, predictedVolatility = 0.5, liquidityScore = 0.9),
-        AlphaSignalScore(symbol = "AVAX", score = -1.1, confidence = confidence, predictedVolatility = 0.7, liquidityScore = 0.8)
+        AlphaSignalScore(symbol = "BTC", score = 1.2, confidence = confidence, predictedVolatility = 0.4, liquidityScore = 1.0, expectedNetEdgeBps = 1.2),
+        AlphaSignalScore(symbol = "ETH", score = 0.9, confidence = confidence, predictedVolatility = 0.5, liquidityScore = 1.0, expectedNetEdgeBps = 0.9),
+        AlphaSignalScore(symbol = "SOL", score = 0.7, confidence = confidence, predictedVolatility = 0.6, liquidityScore = 0.9, expectedNetEdgeBps = 0.7),
+        AlphaSignalScore(symbol = "DOGE", score = -0.6, confidence = confidence, predictedVolatility = 0.8, liquidityScore = 0.8, expectedNetEdgeBps = -0.6),
+        AlphaSignalScore(symbol = "XRP", score = -0.9, confidence = confidence, predictedVolatility = 0.5, liquidityScore = 0.9, expectedNetEdgeBps = -0.9),
+        AlphaSignalScore(symbol = "AVAX", score = -1.1, confidence = confidence, predictedVolatility = 0.7, liquidityScore = 0.8, expectedNetEdgeBps = -1.1)
     )
 }

@@ -116,6 +116,7 @@ class ApplicationTest {
         val body = runResponse.bodyAsText()
         assertTrue(body.contains("\"targets\""))
         assertTrue(body.contains("\"inspection\""))
+        assertTrue(body.contains("\"expectedNetEdgeBps\""))
     }
 }
 

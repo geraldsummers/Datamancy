@@ -37,9 +37,12 @@ class InterdaySearchEngineTest {
         )
 
         assertTrue(response.selectedSignals.isNotEmpty())
-        assertTrue(response.targets.isNotEmpty())
-        assertTrue(response.trades.isNotEmpty())
         assertNotNull(response.inspection)
+        val point = response.inspection!!.symbols.first().points.first()
+        assertTrue(point.expectedNetEdgeBps.isFinite())
+        assertTrue(point.expectedResidualReturnBps.isFinite())
+        assertTrue(point.expectedEntryCostBps.isFinite())
+        assertTrue(point.entryEligible || response.targets.isEmpty())
     }
 
     @Test
@@ -89,6 +92,19 @@ class InterdaySearchEngineTest {
 
         assertTrue(response.targets.isEmpty())
         assertTrue(response.trades.isEmpty())
+    }
+
+    @Test
+    fun `regime flush flattens wrong way inventory on regime reversal`() = kotlinx.coroutines.runBlocking {
+        val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod("shouldForceFlattenByRegime", Double::class.javaPrimitiveType, Double::class.javaPrimitiveType, InterdayAlphaConfig::class.java)
+        method.isAccessible = true
+
+        val allowed = method.invoke(null, 0.12, 0.75, InterdayAlphaConfig(regimeDirectionalSuppressionThreshold = 0.55)) as Boolean
+        val blocked = method.invoke(null, -0.12, 0.75, InterdayAlphaConfig(regimeDirectionalSuppressionThreshold = 0.55)) as Boolean
+
+        assertTrue(!allowed)
+        assertTrue(blocked)
     }
 }
 

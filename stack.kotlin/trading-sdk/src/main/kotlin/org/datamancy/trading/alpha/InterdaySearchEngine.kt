@@ -170,6 +170,16 @@ class InterdaySearchEngine(
         val takeProfits = prioritizeDoubles(searchSpace.takeProfitVolMultiple.ifEmpty { listOf(base.takeProfitVolMultiple) }, base.takeProfitVolMultiple)
         val executionWindows = prioritizeValues(searchSpace.executionWindowMinutes.ifEmpty { listOf(base.executionWindowMinutes) }, base.executionWindowMinutes)
         val targetGrossFractionScales = prioritizeDoubles(searchSpace.targetGrossFractionScale.ifEmpty { listOf(base.targetGrossFractionScale) }, base.targetGrossFractionScale)
+        val expectedCostPenaltyWeights = prioritizeDoubles(
+            searchSpace.expectedCostPenaltyWeight.ifEmpty { listOf(base.expectedCostPenaltyWeight) },
+            base.expectedCostPenaltyWeight
+        )
+        val turnoverPenaltyWeights = prioritizeDoubles(
+            searchSpace.turnoverPenaltyWeight.ifEmpty { listOf(base.turnoverPenaltyWeight) },
+            base.turnoverPenaltyWeight
+        )
+        val entryEdgeFloorBps = prioritizeDoubles(searchSpace.entryEdgeFloorBps.ifEmpty { listOf(base.entryEdgeFloorBps) }, base.entryEdgeFloorBps)
+        val holdEdgeFloorBps = prioritizeDoubles(searchSpace.holdEdgeFloorBps.ifEmpty { listOf(base.holdEdgeFloorBps) }, base.holdEdgeFloorBps)
         val regimeDirectionalSuppressionThresholds = prioritizeDoubles(
             searchSpace.regimeDirectionalSuppressionThreshold.ifEmpty { listOf(base.regimeDirectionalSuppressionThreshold) },
             base.regimeDirectionalSuppressionThreshold
@@ -203,42 +213,52 @@ class InterdaySearchEngine(
                                                                                                 for (takeProfit in takeProfits) {
                                                                                                     for (executionWindow in executionWindows) {
                                                                                                         for (targetGrossFractionScale in targetGrossFractionScales) {
-                                                                                                            for (regimeDirectionalSuppressionThreshold in regimeDirectionalSuppressionThresholds) {
-                                                                                                                for (regimeNetBiasScale in regimeNetBiasScales) {
-                                                                                                                    generated += base.copy(
-                                                                                                                        adjustmentMode = adjustmentMode,
-                                                                                                                        signalBarMinutes = signalBar,
-                                                                                                                        lookbackHours = lookback,
-                                                                                                                        forwardHours = forward,
-                                                                                                                        rebalanceCadenceHours = cadence,
-                                                                                                                        selectionQuantile = quantile,
-                                                                                                                        fastTrendDays = fast,
-                                                                                                                        mediumTrendDays = medium,
-                                                                                                                        slowTrendDays = slow,
-                                                                                                                        regressionDays = regression,
-                                                                                                                        volatilityDays = volatility,
-                                                                                                                        adxDays = adx,
-                                                                                                                        perturbationLookbackBars = perturbBar,
-                                                                                                                        perturbationThresholdZ = perturbThreshold,
-                                                                                                                        slopeWeight = slopeWeight,
-                                                                                                                        fundingWeight = fundingWeight,
-                                                                                                                        openInterestWeight = openInterestWeight,
-                                                                                                                        pullbackWeight = pullbackWeight,
-                                                                                                                        minTrendAgreement = minTrendAgreement,
-                                                                                                                        adxThreshold = adxThreshold,
-                                                                                                                        minConfidence = minConfidence,
-                                                                                                                        trailingStopVolMultiple = trailing,
-                                                                                                                        takeProfitVolMultiple = takeProfit,
-                                                                                                                        executionWindowMinutes = executionWindow,
-                                                                                                                        targetGrossFractionScale = targetGrossFractionScale,
-                                                                                                                        regimeDirectionalSuppressionThreshold = regimeDirectionalSuppressionThreshold,
-                                                                                                                        regimeNetBiasScale = regimeNetBiasScale
-                                                                                                                    )
-                                                                                                                    if (generated.size >= maxEvaluations) break@outer
+                                                                                                            for (expectedCostPenaltyWeight in expectedCostPenaltyWeights) {
+                                                                                                                for (turnoverPenaltyWeight in turnoverPenaltyWeights) {
+                                                                                                                    for (entryEdgeFloor in entryEdgeFloorBps) {
+                                                                                                                        for (holdEdgeFloor in holdEdgeFloorBps) {
+                                                                                                                            for (regimeDirectionalSuppressionThreshold in regimeDirectionalSuppressionThresholds) {
+                                                                                                                                for (regimeNetBiasScale in regimeNetBiasScales) {
+                                                                                                                                    generated += base.copy(
+                                                                                                                                        adjustmentMode = adjustmentMode,
+                                                                                                                                        signalBarMinutes = signalBar,
+                                                                                                                                        lookbackHours = lookback,
+                                                                                                                                        forwardHours = forward,
+                                                                                                                                        rebalanceCadenceHours = cadence,
+                                                                                                                                        selectionQuantile = quantile,
+                                                                                                                                        fastTrendDays = fast,
+                                                                                                                                        mediumTrendDays = medium,
+                                                                                                                                        slowTrendDays = slow,
+                                                                                                                                        regressionDays = regression,
+                                                                                                                                        volatilityDays = volatility,
+                                                                                                                                        adxDays = adx,
+                                                                                                                                        perturbationLookbackBars = perturbBar,
+                                                                                                                                        perturbationThresholdZ = perturbThreshold,
+                                                                                                                                        slopeWeight = slopeWeight,
+                                                                                                                                        fundingWeight = fundingWeight,
+                                                                                                                                        openInterestWeight = openInterestWeight,
+                                                                                                                                        pullbackWeight = pullbackWeight,
+                                                                                                                                        minTrendAgreement = minTrendAgreement,
+                                                                                                                                        adxThreshold = adxThreshold,
+                                                                                                                                        minConfidence = minConfidence,
+                                                                                                                                        trailingStopVolMultiple = trailing,
+                                                                                                                                        takeProfitVolMultiple = takeProfit,
+                                                                                                                                        executionWindowMinutes = executionWindow,
+                                                                                                                                        targetGrossFractionScale = targetGrossFractionScale,
+                                                                                                                                        expectedCostPenaltyWeight = expectedCostPenaltyWeight,
+                                                                                                                                        turnoverPenaltyWeight = turnoverPenaltyWeight,
+                                                                                                                                        entryEdgeFloorBps = entryEdgeFloor,
+                                                                                                                                        holdEdgeFloorBps = holdEdgeFloor,
+                                                                                                                                        regimeDirectionalSuppressionThreshold = regimeDirectionalSuppressionThreshold,
+                                                                                                                                        regimeNetBiasScale = regimeNetBiasScale
+                                                                                                                                    )
+                                                                                                                                    if (generated.size >= maxEvaluations) break@outer
+                                                                                                                                }
+                                                                                                                            }
+                                                                                                                        }
+                                                                                                                    }
                                                                                                                 }
                                                                                                             }
-                                                                                                        }
-                                                                                                    }
                                                                                                 }
                                                                                             }
                                                                                         }
@@ -261,6 +281,8 @@ class InterdaySearchEngine(
                     }
                 }
             }
+        }
+        }
         }
         return generated.distinct()
     }
@@ -285,6 +307,7 @@ class InterdaySearchEngine(
 
         val policy = policyProvider()
         val searchPolicy = policy.research.discovery.search
+        val portfolioDefaults = portfolioConstructor.defaults()
         val liquidityRanks = precomputeLiquidityRanks(panel)
         val seriesBySymbol = panel.seriesBySymbol()
         val currentWeights = mutableMapOf<String, Double>()
@@ -294,6 +317,8 @@ class InterdaySearchEngine(
         val regimeSnapshots = mutableListOf<InterdayRegimeSnapshot>()
         val signalHistory = mutableMapOf<String, MutableList<InterdayInspectionPoint>>()
         val weightTimeline = mutableMapOf<Instant, Map<String, Double>>()
+        val desiredWeightTimeline = mutableMapOf<Instant, Map<String, Double>>()
+        val appliedDeltaTimeline = mutableMapOf<Instant, Map<String, Double>>()
         var equity = 1.0
         var peakEquity = 1.0
         var grossAccumulator = 0.0
@@ -375,6 +400,8 @@ class InterdaySearchEngine(
                     config = config,
                     indicators = indicators,
                     liquidityRanks = liquidityRanks,
+                    portfolioDefaults = portfolioDefaults,
+                    currentWeights = currentWeights,
                     evaluationStartIndex = evaluationStartIndex,
                     rebalanceBars = rebalanceBars
                 )
@@ -382,43 +409,42 @@ class InterdaySearchEngine(
                     .sortedByDescending { abs(it.score) }
                     .take(32)
                 latestSignalsBySymbol = signals.associateBy { it.symbol }
-                if (includeInspection) {
-                    signals.forEach { signal ->
-                        signalHistory.getOrPut(signal.symbol) { mutableListOf() } += InterdayInspectionPoint(
-                            time = time,
-                            close = signal.close,
-                            score = signal.score,
-                            empiricalScore = signal.empiricalScore,
-                            confidence = signal.confidence,
-                            regimeScore = latestRegime.score,
-                            expansionScore = signal.expansionScore,
-                            reversalRiskScore = signal.reversalRiskScore,
-                            upperBound = signal.upperBound,
-                            lowerBound = signal.lowerBound,
-                            positionWeight = 0.0
-                        )
-                    }
-                }
-                val eligible = signals.filter {
-                    val trendAgreementOk = it.trendAgreement >= config.minTrendAgreement
-                    val pullbackOk = it.pullbackScore >= config.perturbationThresholdZ
+                val eligibleBySymbol = signals.associate { signal ->
+                    val trendAgreementOk = signal.trendAgreement >= config.minTrendAgreement
+                    val pullbackOk = signal.pullbackScore >= config.perturbationThresholdZ
                     val regimeAllowed = isDirectionAllowedByRegime(
-                        direction = it.direction,
+                        direction = signal.direction,
                         regimeScore = latestRegime.score,
                         config = config
                     )
-                    when (it.direction) {
-                        AlphaDirection.LONG -> it.score >= it.upperBound && it.confidence >= config.minConfidence && trendAgreementOk && pullbackOk && regimeAllowed
-                        AlphaDirection.SHORT -> it.score <= it.lowerBound && it.confidence >= config.minConfidence && trendAgreementOk && pullbackOk && regimeAllowed
+                    val universeEdgeOk = when (signal.direction) {
+                        AlphaDirection.LONG -> signal.expectedNetEdgeBps >= signal.upperBound
+                        AlphaDirection.SHORT -> signal.expectedNetEdgeBps <= signal.lowerBound
                     }
+                    val incumbentSameSide = holdsSignalDirection(currentWeights[signal.symbol] ?: 0.0, signal.direction)
+                    val edgeFloorOk = directionalEdgeBps(signal) >= if (incumbentSameSide) config.holdEdgeFloorBps else config.entryEdgeFloorBps
+                    signal.symbol to (
+                        signal.confidence >= config.minConfidence &&
+                            trendAgreementOk &&
+                            pullbackOk &&
+                            regimeAllowed &&
+                            edgeFloorOk &&
+                            (universeEdgeOk || (incumbentSameSide && directionalEdgeBps(signal) >= config.holdEdgeFloorBps))
+                        )
                 }
+                val eligible = signals.filter { eligibleBySymbol[it.symbol] == true }
                 val portfolioSignals = eligible.map {
                     AlphaSignalScore(
                         symbol = it.symbol,
-                        score = if (it.direction == AlphaDirection.LONG) abs(it.score) else -abs(it.score),
+                        score = it.expectedNetEdgeBps,
                         confidence = it.confidence,
                         predictedVolatility = it.predictedVolatility.coerceAtLeast(0.0001),
-                        liquidityScore = it.liquidityScore
+                        liquidityScore = it.liquidityScore,
+                        expectedResidualReturnBps = it.expectedResidualReturnBps,
+                        expectedEntryCostBps = it.expectedEntryCostBps,
+                        expectedTurnoverPenaltyBps = it.expectedTurnoverPenaltyBps,
+                        expectedNetEdgeBps = it.expectedNetEdgeBps,
+                        currentWeightFraction = currentWeights[it.symbol] ?: 0.0
                     )
                 }.filter {
                     it.score.isFinite() &&
@@ -430,7 +456,6 @@ class InterdaySearchEngine(
                 latestTargets = if (portfolioSignals.isEmpty()) {
                     emptyList()
                 } else {
-                    val portfolioDefaults = portfolioConstructor.defaults()
                     val scaledGrossFraction = scaledTargetGrossFraction(portfolioDefaults, config)
                     val constructed = portfolioConstructor.construct(
                         AlphaPortfolioRequest(
@@ -438,6 +463,8 @@ class InterdaySearchEngine(
                             selectionQuantile = config.selectionQuantile,
                             respectProvidedSignalSet = true,
                             targetGrossFraction = scaledGrossFraction,
+                            currentWeightsBySymbol = currentWeights.toMap(),
+                            minExpectedNetEdgeBps = config.entryEdgeFloorBps,
                             targetNetFraction = regimeTargetNetFraction(
                                 regimeScore = latestRegime.score,
                                 config = config,
@@ -455,6 +482,34 @@ class InterdaySearchEngine(
                 latestDesiredWeights = latestTargets.associate { target ->
                     target.symbol to if (target.direction == AlphaDirection.LONG) target.weightFraction else -target.weightFraction
                 }
+                desiredWeightTimeline[time] = latestDesiredWeights
+                if (includeInspection) {
+                    signals.forEach { signal ->
+                        signalHistory.getOrPut(signal.symbol) { mutableListOf() } += InterdayInspectionPoint(
+                            time = time,
+                            close = signal.close,
+                            score = signal.score,
+                            empiricalScore = signal.empiricalScore,
+                            confidence = signal.confidence,
+                            regimeScore = latestRegime.score,
+                            expansionScore = signal.expansionScore,
+                            reversalRiskScore = signal.reversalRiskScore,
+                            upperBound = signal.upperBound,
+                            lowerBound = signal.lowerBound,
+                            expectedResidualReturnBps = signal.expectedResidualReturnBps,
+                            expectedEntryCostBps = signal.expectedEntryCostBps,
+                            expectedNetEdgeBps = signal.expectedNetEdgeBps,
+                            desiredWeight = latestDesiredWeights[signal.symbol] ?: 0.0,
+                            entryEligible = eligibleBySymbol[signal.symbol] == true,
+                            regimeBlocked = !isDirectionAllowedByRegime(
+                                direction = signal.direction,
+                                regimeScore = latestRegime.score,
+                                config = config
+                            ),
+                            positionWeight = 0.0
+                        )
+                    }
+                }
             }
 
             val shouldAdjustBetweenRebalances = when (config.adjustmentMode) {
@@ -462,6 +517,7 @@ class InterdaySearchEngine(
                 InterdayAdjustmentMode.CONTINUOUS_RAMP -> latestDesiredWeights.isNotEmpty() || currentWeights.isNotEmpty()
             }
             if (shouldAdjustBetweenRebalances) {
+                val appliedDeltas = mutableMapOf<String, Double>()
                 val symbols = (currentWeights.keys + latestDesiredWeights.keys).sorted()
                 symbols.forEach { symbol ->
                     val currentSigned = currentWeights[symbol] ?: 0.0
@@ -474,7 +530,16 @@ class InterdaySearchEngine(
                         confidence = confidence,
                         mode = config.adjustmentMode
                     )
-                    val plannedDelta = gradualDelta(currentSigned, targetSigned, step)
+                    val forcedFlatten = rebalanceNow && shouldForceFlattenByRegime(
+                        currentSigned = currentSigned,
+                        regimeScore = latestRegime.score,
+                        config = config
+                    )
+                    val plannedDelta = if (forcedFlatten) {
+                        -currentSigned
+                    } else {
+                        gradualDelta(currentSigned, targetSigned, step)
+                    }
                     if (abs(plannedDelta) <= 1e-9) return@forEach
                     val currentBar = seriesBySymbol[symbol]?.bars?.get(index) ?: return@forEach
                     equity *= 1.0 - estimateTransactionCostFraction(
@@ -493,13 +558,19 @@ class InterdaySearchEngine(
                         volatility = signal?.predictedVolatility ?: 0.01,
                         confidence = confidence,
                         time = time,
-                        reason = if (rebalanceNow) "rebalance" else "continuous-ramp",
+                        reason = when {
+                            forcedFlatten -> "regime-flush"
+                            rebalanceNow -> "rebalance"
+                            else -> "continuous-ramp"
+                        },
                         splitTime = splitTime
                     )
                     turnoverFraction += abs(plannedDelta)
+                    appliedDeltas[symbol] = (appliedDeltas[symbol] ?: 0.0) + plannedDelta
                 }
                 if (includeInspection) {
                     weightTimeline[time] = currentWeights.toMap()
+                    appliedDeltaTimeline[time] = appliedDeltas.toMap()
                 }
             }
             val snapshot = portfolioSnapshot(
@@ -543,6 +614,8 @@ class InterdaySearchEngine(
                 regimes = regimeSnapshots,
                 signalHistory = signalHistory,
                 weightTimeline = weightTimeline,
+                desiredWeightTimeline = desiredWeightTimeline,
+                appliedDeltaTimeline = appliedDeltaTimeline,
                 topSymbols = latestSignals.map { it.symbol }.take(4)
             )
         } else {
@@ -567,6 +640,8 @@ class InterdaySearchEngine(
         config: InterdayAlphaConfig,
         indicators: IndicatorWindows,
         liquidityRanks: Map<String, Double>,
+        portfolioDefaults: AlphaPortfolioDefaults,
+        currentWeights: Map<String, Double>,
         evaluationStartIndex: Int,
         rebalanceBars: Int
     ): List<InterdaySignalSnapshot> {
@@ -586,23 +661,19 @@ class InterdaySearchEngine(
             val features = featureVectors.getValue(candidate.symbol)
             candidate.symbol to empiricalWeights.score(features)
         }
-        val scoreRanks = centeredRanks(empiricalScores)
-        val sortedScores = scoreRanks.values.sorted()
-        val lowerBound = quantile(sortedScores, config.selectionQuantile)
-        val upperBound = quantile(sortedScores, 1.0 - config.selectionQuantile)
+        val empiricalRanks = centeredRanks(empiricalScores)
         val spreadRanks = centeredRanks(raw.associate { it.symbol to -(it.spreadBps) })
-
-        return raw.map { candidate ->
+        val edgeEstimates = raw.associate { candidate ->
             val features = featureVectors.getValue(candidate.symbol)
-            val totalScore = scoreRanks.getValue(candidate.symbol)
-            val direction = if (totalScore >= 0.0) AlphaDirection.LONG else AlphaDirection.SHORT
+            val empiricalScore = empiricalScores.getValue(candidate.symbol)
+            val direction = if (empiricalScore >= 0.0) AlphaDirection.LONG else AlphaDirection.SHORT
             val executionSupport = if (!config.useExecutionConditioning) {
                 1.0
             } else {
                 (candidate.orderbookObservedRatio * 0.6 + candidate.tradeObservedRatio * 0.4).coerceIn(0.0, 1.0)
             }
-            val confidence = listOf(
-                abs(totalScore).coerceIn(0.0, 1.0),
+            val provisionalConfidence = listOf(
+                abs(empiricalRanks.getValue(candidate.symbol)).coerceIn(0.0, 1.0),
                 features.trendAgreement.coerceAtLeast(0.0),
                 features.pullback.coerceIn(0.0, 1.0),
                 features.expansion.coerceIn(0.0, 1.0),
@@ -610,11 +681,62 @@ class InterdaySearchEngine(
                 executionSupport.coerceIn(0.0, 1.0),
                 ((spreadRanks.getValue(candidate.symbol) + 1.0) / 2.0).coerceIn(0.0, 1.0)
             ).average().coerceIn(0.0, 1.0)
+            val currentSigned = currentWeights[candidate.symbol] ?: 0.0
+            val assumedWeight = assumedTargetWeightFraction(
+                confidence = provisionalConfidence,
+                defaults = portfolioDefaults
+            )
+            val signedAssumedTarget = signedWeight(direction, assumedWeight)
+            val expectedResidualReturnBps = empiricalScore * 10_000.0
+            val expectedEntryCostBps = estimateTransactionCostBps(
+                weightDelta = assumedWeight,
+                bar = candidate,
+                confidence = provisionalConfidence,
+                config = config
+            )
+            val expectedTurnoverPenaltyBps = estimateTurnoverPenaltyBps(
+                currentSigned = currentSigned,
+                targetSigned = signedAssumedTarget,
+                defaults = portfolioDefaults
+            )
+            val expectedNetEdgeBps = expectedResidualReturnBps -
+                config.expectedCostPenaltyWeight * expectedEntryCostBps -
+                config.turnoverPenaltyWeight * expectedTurnoverPenaltyBps
+            candidate.symbol to SignalEdgeEstimate(
+                empiricalScore = empiricalScore,
+                expectedResidualReturnBps = expectedResidualReturnBps,
+                expectedEntryCostBps = expectedEntryCostBps,
+                expectedTurnoverPenaltyBps = expectedTurnoverPenaltyBps,
+                expectedNetEdgeBps = expectedNetEdgeBps,
+                executionSupport = executionSupport,
+                provisionalConfidence = provisionalConfidence
+            )
+        }
+        val expectedEdgeScores = edgeEstimates.mapValues { (_, estimate) -> estimate.expectedNetEdgeBps }
+        val edgeRanks = centeredRanks(expectedEdgeScores)
+        val sortedScores = expectedEdgeScores.values.sorted()
+        val lowerBound = quantile(sortedScores, config.selectionQuantile)
+        val upperBound = quantile(sortedScores, 1.0 - config.selectionQuantile)
+
+        return raw.map { candidate ->
+            val features = featureVectors.getValue(candidate.symbol)
+            val estimate = edgeEstimates.getValue(candidate.symbol)
+            val totalScore = estimate.expectedNetEdgeBps
+            val direction = if (totalScore >= 0.0) AlphaDirection.LONG else AlphaDirection.SHORT
+            val confidence = listOf(
+                abs(edgeRanks.getValue(candidate.symbol)).coerceIn(0.0, 1.0),
+                estimate.provisionalConfidence,
+                features.trendAgreement.coerceAtLeast(0.0),
+                features.pullback.coerceIn(0.0, 1.0),
+                features.expansion.coerceIn(0.0, 1.0),
+                features.liquidity.coerceIn(0.0, 1.0),
+                estimate.executionSupport.coerceIn(0.0, 1.0)
+            ).average().coerceIn(0.0, 1.0)
             InterdaySignalSnapshot(
                 symbol = candidate.symbol,
                 direction = direction,
                 score = totalScore,
-                empiricalScore = empiricalScores.getValue(candidate.symbol),
+                empiricalScore = estimate.empiricalScore,
                 confidence = confidence,
                 liquidityScore = candidate.liquidityRank.coerceIn(0.1, 1.0),
                 trendScore = features.trend,
@@ -626,6 +748,10 @@ class InterdaySearchEngine(
                 reversalRiskScore = features.reversalRisk,
                 upperBound = upperBound,
                 lowerBound = lowerBound,
+                expectedResidualReturnBps = estimate.expectedResidualReturnBps,
+                expectedEntryCostBps = estimate.expectedEntryCostBps,
+                expectedTurnoverPenaltyBps = estimate.expectedTurnoverPenaltyBps,
+                expectedNetEdgeBps = estimate.expectedNetEdgeBps,
                 close = candidate.close,
                 predictedVolatility = candidate.volatility
             )
@@ -967,13 +1093,19 @@ class InterdaySearchEngine(
         regimes: List<InterdayRegimeSnapshot>,
         signalHistory: Map<String, MutableList<InterdayInspectionPoint>>,
         weightTimeline: Map<Instant, Map<String, Double>>,
+        desiredWeightTimeline: Map<Instant, Map<String, Double>>,
+        appliedDeltaTimeline: Map<Instant, Map<String, Double>>,
         topSymbols: List<String>
     ): InterdayInspection {
         val symbolSeries = topSymbols.distinct().mapNotNull { symbol ->
             val points = signalHistory[symbol].orEmpty()
                 .takeLast(128)
                 .map { point ->
-                    point.copy(positionWeight = weightTimeline[point.time]?.get(symbol) ?: 0.0)
+                    point.copy(
+                        desiredWeight = desiredWeightTimeline[point.time]?.get(symbol) ?: point.desiredWeight,
+                        appliedDelta = appliedDeltaTimeline[point.time]?.get(symbol) ?: point.appliedDelta,
+                        positionWeight = weightTimeline[point.time]?.get(symbol) ?: 0.0
+                    )
                 }
             if (points.isEmpty()) null else InterdaySymbolInspection(symbol = symbol, points = points)
         }
@@ -1143,6 +1275,46 @@ class InterdaySearchEngine(
         bar: InterdayBar,
         confidence: Double,
         config: InterdayAlphaConfig
+    ): Double = (weightDelta * estimateTransactionCostBps(weightDelta, bar, confidence, config) / 10_000.0).coerceAtLeast(0.0)
+
+    private fun estimateTransactionCostBps(
+        weightDelta: Double,
+        bar: InterdayBar,
+        confidence: Double,
+        config: InterdayAlphaConfig
+    ): Double = estimateTransactionCostBps(
+        weightDelta = weightDelta,
+        spreadBps = bar.spreadBps ?: 8.0,
+        depthUsd = bar.depthUsd ?: 0.0,
+        orderbookObservedRatio = bar.orderbookObservedRatio,
+        fundingRate = bar.fundingRate ?: 0.0,
+        confidence = confidence,
+        config = config
+    )
+
+    private fun estimateTransactionCostBps(
+        weightDelta: Double,
+        bar: RawSignal,
+        confidence: Double,
+        config: InterdayAlphaConfig
+    ): Double = estimateTransactionCostBps(
+        weightDelta = weightDelta,
+        spreadBps = bar.spreadBps,
+        depthUsd = bar.depthUsd,
+        orderbookObservedRatio = bar.orderbookObservedRatio,
+        fundingRate = bar.fundingRate,
+        confidence = confidence,
+        config = config
+    )
+
+    private fun estimateTransactionCostBps(
+        weightDelta: Double,
+        spreadBps: Double,
+        depthUsd: Double,
+        orderbookObservedRatio: Double,
+        fundingRate: Double,
+        confidence: Double,
+        config: InterdayAlphaConfig
     ): Double {
         val defaults = executionPlanner.defaults()
         val makerShare = when {
@@ -1151,12 +1323,33 @@ class InterdaySearchEngine(
             else -> 0.35
         }
         val feeBps = defaults.makerFeeBps * makerShare + defaults.takerFeeBps * (1.0 - makerShare)
-        val spreadBps = (bar.spreadBps ?: 8.0) * if (confidence >= 0.75) 0.35 else 0.50
-        val impactBps = estimateImpactBps(weightDelta, config.capitalUsd, bar.depthUsd ?: 0.0)
-        val adverseSelectionBps = spreadBps * if (bar.orderbookObservedRatio >= 0.6) 0.08 else 0.16
-        val fundingDriftBps = abs(bar.fundingRate ?: 0.0) * 10_000.0 * (config.rebalanceCadenceHours / 8.0)
-        val totalBps = feeBps + spreadBps + impactBps + adverseSelectionBps + fundingDriftBps
-        return (weightDelta * totalBps / 10_000.0).coerceAtLeast(0.0)
+        val halfSpreadBps = spreadBps * if (confidence >= 0.75) 0.35 else 0.50
+        val impactBps = estimateImpactBps(weightDelta, config.capitalUsd, depthUsd)
+        val adverseSelectionBps = halfSpreadBps * if (orderbookObservedRatio >= 0.6) 0.08 else 0.16
+        val fundingDriftBps = abs(fundingRate) * 10_000.0 * (config.rebalanceCadenceHours / 8.0)
+        return feeBps + halfSpreadBps + impactBps + adverseSelectionBps + fundingDriftBps
+    }
+
+    private fun estimateTurnoverPenaltyBps(
+        currentSigned: Double,
+        targetSigned: Double,
+        defaults: AlphaPortfolioDefaults
+    ): Double {
+        val turnoverDelta = abs(targetSigned - currentSigned)
+        if (turnoverDelta <= 1e-9) return 0.0
+        val unit = defaults.maxWeightPerSymbol.coerceAtLeast(0.01)
+        return defaults.turnoverPenaltyBps * (turnoverDelta / unit)
+    }
+
+    private fun assumedTargetWeightFraction(
+        confidence: Double,
+        defaults: AlphaPortfolioDefaults
+    ): Double {
+        val exposureFraction = (
+            defaults.minTargetExposureFraction +
+                (defaults.maxTargetExposureFraction - defaults.minTargetExposureFraction) * confidence.coerceIn(0.0, 1.0)
+            ).coerceIn(defaults.minTargetExposureFraction, defaults.maxTargetExposureFraction)
+        return (defaults.maxWeightPerSymbol * (0.5 + 0.5 * exposureFraction)).coerceAtMost(defaults.maxWeightPerSymbol)
     }
 
     private fun applyDelta(
@@ -1507,6 +1700,16 @@ class InterdaySearchEngine(
         val targetResidualReturn: Double
     )
 
+    private data class SignalEdgeEstimate(
+        val empiricalScore: Double,
+        val expectedResidualReturnBps: Double,
+        val expectedEntryCostBps: Double,
+        val expectedTurnoverPenaltyBps: Double,
+        val expectedNetEdgeBps: Double,
+        val executionSupport: Double,
+        val provisionalConfidence: Double
+    )
+
     private data class RegimeState(
         val score: Double,
         val breadth: Double,
@@ -1613,6 +1816,32 @@ private fun isDirectionAllowedByRegime(
         regimeScore < 0.0 -> direction != AlphaDirection.LONG
         else -> true
     }
+}
+
+private fun signedWeight(direction: AlphaDirection, weightFraction: Double): Double =
+    if (direction == AlphaDirection.LONG) weightFraction else -weightFraction
+
+private fun holdsSignalDirection(currentSigned: Double, direction: AlphaDirection): Boolean =
+    when (direction) {
+        AlphaDirection.LONG -> currentSigned > 1e-9
+        AlphaDirection.SHORT -> currentSigned < -1e-9
+    }
+
+private fun directionalEdgeBps(signal: InterdaySignalSnapshot): Double =
+    when (signal.direction) {
+        AlphaDirection.LONG -> signal.expectedNetEdgeBps
+        AlphaDirection.SHORT -> -signal.expectedNetEdgeBps
+    }
+
+private fun shouldForceFlattenByRegime(
+    currentSigned: Double,
+    regimeScore: Double,
+    config: InterdayAlphaConfig
+): Boolean {
+    if (abs(currentSigned) <= 1e-9) return false
+    val threshold = config.regimeDirectionalSuppressionThreshold.coerceIn(0.0, 1.0)
+    if (abs(regimeScore) < threshold) return false
+    return (regimeScore > 0.0 && currentSigned < 0.0) || (regimeScore < 0.0 && currentSigned > 0.0)
 }
 
 private fun barsForDays(days: Int, signalBarMinutes: Int): Int =

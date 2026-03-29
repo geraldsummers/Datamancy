@@ -18,21 +18,30 @@ class AlphaPortfolioConstructor(
         val longShort = request.longShort ?: defaults.longShort
         val maxLongs = request.maxConcurrentLongs ?: defaults.maxConcurrentLongs
         val maxShorts = request.maxConcurrentShorts ?: defaults.maxConcurrentShorts
-        val positive = request.signals.filter { it.score > 0.0 }
-        val negative = request.signals.filter { it.score < 0.0 }
-        val selectedLongs = if (request.respectProvidedSignalSet) {
-            positive.sortedByDescending { it.score }.take(maxLongs)
-        } else {
-            val candidateCount = ceil(positive.size * quantile).toInt().coerceAtLeast(1)
-            positive.sortedByDescending { it.score }.take(minOf(candidateCount, maxLongs))
+        val minExpectedNetEdgeBps = request.minExpectedNetEdgeBps ?: Double.NEGATIVE_INFINITY
+        val signals = request.signals.map { signal ->
+            val currentWeight = request.currentWeightsBySymbol[signal.symbol] ?: signal.currentWeightFraction
+            signal.copy(currentWeightFraction = currentWeight)
         }
+        val positive = signals.filter { it.score > 0.0 && directionalEdgeBps(it) >= minExpectedNetEdgeBps }
+        val negative = signals.filter { it.score < 0.0 && directionalEdgeBps(it) >= minExpectedNetEdgeBps }
+        val selectedLongs = selectSide(
+            signals = positive,
+            direction = AlphaDirection.LONG,
+            respectProvidedSignalSet = request.respectProvidedSignalSet,
+            quantile = quantile,
+            maxCount = maxLongs,
+            defaults = defaults
+        )
         val selectedShorts = if (longShort) {
-            if (request.respectProvidedSignalSet) {
-                negative.sortedBy { it.score }.take(maxShorts)
-            } else {
-                val candidateCount = ceil(negative.size * quantile).toInt().coerceAtLeast(1)
-                negative.sortedBy { it.score }.take(minOf(candidateCount, maxShorts))
-            }
+            selectSide(
+                signals = negative,
+                direction = AlphaDirection.SHORT,
+                respectProvidedSignalSet = request.respectProvidedSignalSet,
+                quantile = quantile,
+                maxCount = maxShorts,
+                defaults = defaults
+            )
         } else {
             emptyList()
         }
@@ -81,12 +90,30 @@ class AlphaPortfolioConstructor(
             notes = listOf(
                 "Exposure ramps with average confirmation instead of jumping straight to max size.",
                 if (request.respectProvidedSignalSet) {
-                    "Provided signals were treated as the already-eligible basket, so sizing preserved cross-sectional diversification instead of re-quantiling."
+                    "Provided signals were treated as the already-eligible basket, so sizing preserved cross-sectional diversification while preferring incumbents that still retain net edge."
                 } else {
-                    "Weights are volatility-scaled and confidence-adjusted to diversify trend risk across the universe."
+                    "Weights are volatility-scaled, cost-aware, and retention-biased to diversify trend risk across the universe without unnecessary churn."
                 }
             )
         )
+    }
+
+    private fun selectSide(
+        signals: List<AlphaSignalScore>,
+        direction: AlphaDirection,
+        respectProvidedSignalSet: Boolean,
+        quantile: Double,
+        maxCount: Int,
+        defaults: AlphaPortfolioDefaults
+    ): List<AlphaSignalScore> {
+        if (signals.isEmpty() || maxCount <= 0) return emptyList()
+        val sorted = signals.sortedByDescending { selectionPriority(it, direction, defaults) }
+        return if (respectProvidedSignalSet) {
+            sorted.take(maxCount)
+        } else {
+            val candidateCount = ceil(sorted.size * quantile).toInt().coerceAtLeast(1)
+            sorted.take(minOf(candidateCount, maxCount))
+        }
     }
 
     private fun allocateSide(
@@ -100,12 +127,20 @@ class AlphaPortfolioConstructor(
         if (signals.isEmpty() || sideTarget <= 0.0) return emptyList()
         val rawWeights = signals.associateWith {
             val volatility = it.predictedVolatility.coerceAtLeast(0.0001)
-            abs(it.score) * it.confidence.coerceIn(0.0, 1.0) * it.liquidityScore.coerceIn(0.1, 1.0) / volatility
+            effectiveSizingEdgeBps(it, direction, defaults).coerceAtLeast(0.05) *
+                it.confidence.coerceIn(0.0, 1.0) *
+                it.liquidityScore.coerceIn(0.1, 1.0) / volatility
         }
         val totalRaw = rawWeights.values.sum().coerceAtLeast(0.0001)
         return signals.map { signal ->
             val normalized = rawWeights.getValue(signal) / totalRaw
             val weight = (sideTarget * normalized).coerceAtMost(maxWeightPerSymbol)
+            val currentSigned = signal.currentWeightFraction
+            val targetSigned = if (direction == AlphaDirection.LONG) weight else -weight
+            val turnoverDeltaFraction = abs(targetSigned - currentSigned)
+            val realizedTurnoverPenaltyBps = turnoverPenaltyBps(turnoverDeltaFraction, maxWeightPerSymbol, defaults)
+            val adjustedExpectedNetEdgeBps = signal.expectedNetEdgeBps -
+                (realizedTurnoverPenaltyBps - signal.expectedTurnoverPenaltyBps)
             AlphaPortfolioTarget(
                 symbol = signal.symbol,
                 direction = direction,
@@ -114,10 +149,62 @@ class AlphaPortfolioConstructor(
                 confidence = signal.confidence.coerceIn(0.0, 1.0),
                 score = signal.score,
                 normalizedScore = normalized,
+                expectedNetEdgeBps = adjustedExpectedNetEdgeBps,
+                expectedCostBps = signal.expectedEntryCostBps + realizedTurnoverPenaltyBps,
+                turnoverDeltaFraction = turnoverDeltaFraction,
                 trailingStopVolMultiple = defaults.trailingStopVolMultiple,
                 takeProfitVolMultiple = defaults.takeProfitVolMultiple,
-                rationale = "${direction.name.lowercase()} rank built from score=${signal.score} confidence=${signal.confidence} volatility=${signal.predictedVolatility}"
+                rationale = "${direction.name.lowercase()} edge=${signal.expectedNetEdgeBps}bps residual=${signal.expectedResidualReturnBps}bps current=${signal.currentWeightFraction} turnover=${turnoverDeltaFraction}"
             )
         }
     }
+
+    private fun selectionPriority(
+        signal: AlphaSignalScore,
+        direction: AlphaDirection,
+        defaults: AlphaPortfolioDefaults
+    ): Double {
+        val currentSigned = signal.currentWeightFraction
+        val alignedIncumbent = when (direction) {
+            AlphaDirection.LONG -> currentSigned > 1e-9
+            AlphaDirection.SHORT -> currentSigned < -1e-9
+        }
+        val oppositeIncumbent = when (direction) {
+            AlphaDirection.LONG -> currentSigned < -1e-9
+            AlphaDirection.SHORT -> currentSigned > 1e-9
+        }
+        val retentionBonus = if (alignedIncumbent) signal.expectedTurnoverPenaltyBps else 0.0
+        val flipPenalty = if (oppositeIncumbent) signal.expectedTurnoverPenaltyBps else 0.0
+        return directionalEdgeBps(signal) + retentionBonus - flipPenalty + defaults.turnoverPenaltyBps * abs(currentSigned)
+    }
+
+    private fun effectiveSizingEdgeBps(
+        signal: AlphaSignalScore,
+        direction: AlphaDirection,
+        defaults: AlphaPortfolioDefaults
+    ): Double {
+        val currentSigned = signal.currentWeightFraction
+        val alignedIncumbent = when (direction) {
+            AlphaDirection.LONG -> currentSigned > 1e-9
+            AlphaDirection.SHORT -> currentSigned < -1e-9
+        }
+        return directionalEdgeBps(signal) + if (alignedIncumbent) {
+            signal.expectedTurnoverPenaltyBps + defaults.turnoverPenaltyBps * abs(currentSigned)
+        } else {
+            0.0
+        }
+    }
+
+    private fun turnoverPenaltyBps(
+        turnoverDeltaFraction: Double,
+        maxWeightPerSymbol: Double,
+        defaults: AlphaPortfolioDefaults
+    ): Double {
+        if (turnoverDeltaFraction <= 1e-9) return 0.0
+        return defaults.turnoverPenaltyBps * (turnoverDeltaFraction / maxWeightPerSymbol.coerceAtLeast(0.01))
+    }
+
+    private fun directionalEdgeBps(signal: AlphaSignalScore): Double = abs(
+        signal.expectedNetEdgeBps.takeIf { it.isFinite() && abs(it) > 1e-9 } ?: signal.score
+    )
 }

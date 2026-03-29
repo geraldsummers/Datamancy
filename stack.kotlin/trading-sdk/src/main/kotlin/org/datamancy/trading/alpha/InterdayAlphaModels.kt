@@ -41,6 +41,10 @@ data class InterdayAlphaConfig(
     val useExecutionConditioning: Boolean = false,
     val empiricalFitRegularization: Double = 0.35,
     val empiricalMinTrainingObservations: Int = 96,
+    val expectedCostPenaltyWeight: Double = 1.0,
+    val turnoverPenaltyWeight: Double = 1.0,
+    val entryEdgeFloorBps: Double = 1.0,
+    val holdEdgeFloorBps: Double = 0.25,
     val regimeStrengthThreshold: Double = 0.18,
     val regimeDirectionalSuppressionThreshold: Double = 0.55,
     val regimeNetBiasScale: Double = 0.75
@@ -72,6 +76,10 @@ data class InterdaySearchSpace(
     val takeProfitVolMultiple: List<Double> = emptyList(),
     val executionWindowMinutes: List<Int> = emptyList(),
     val targetGrossFractionScale: List<Double> = emptyList(),
+    val expectedCostPenaltyWeight: List<Double> = emptyList(),
+    val turnoverPenaltyWeight: List<Double> = emptyList(),
+    val entryEdgeFloorBps: List<Double> = emptyList(),
+    val holdEdgeFloorBps: List<Double> = emptyList(),
     val regimeDirectionalSuppressionThreshold: List<Double> = emptyList(),
     val regimeNetBiasScale: List<Double> = emptyList()
 )
@@ -143,6 +151,10 @@ data class InterdaySignalSnapshot(
     val reversalRiskScore: Double,
     val upperBound: Double,
     val lowerBound: Double,
+    val expectedResidualReturnBps: Double,
+    val expectedEntryCostBps: Double,
+    val expectedTurnoverPenaltyBps: Double,
+    val expectedNetEdgeBps: Double,
     val close: Double,
     val predictedVolatility: Double
 )
@@ -189,6 +201,13 @@ data class InterdayInspectionPoint(
     val reversalRiskScore: Double,
     val upperBound: Double,
     val lowerBound: Double,
+    val expectedResidualReturnBps: Double = 0.0,
+    val expectedEntryCostBps: Double = 0.0,
+    val expectedNetEdgeBps: Double = 0.0,
+    val desiredWeight: Double = 0.0,
+    val appliedDelta: Double = 0.0,
+    val entryEligible: Boolean = false,
+    val regimeBlocked: Boolean = false,
     val positionWeight: Double
 )
 

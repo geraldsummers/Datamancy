@@ -145,7 +145,12 @@ data class AlphaSignalScore(
     val confidence: Double,
     val predictedVolatility: Double,
     val liquidityScore: Double = 1.0,
-    val sector: String? = null
+    val sector: String? = null,
+    val expectedResidualReturnBps: Double = 0.0,
+    val expectedEntryCostBps: Double = 0.0,
+    val expectedTurnoverPenaltyBps: Double = 0.0,
+    val expectedNetEdgeBps: Double = 0.0,
+    val currentWeightFraction: Double = 0.0
 )
 
 data class AlphaPortfolioDefaults(
@@ -176,7 +181,9 @@ data class AlphaPortfolioRequest(
     val targetNetFraction: Double? = null,
     val maxWeightPerSymbol: Double? = null,
     val maxConcurrentLongs: Int? = null,
-    val maxConcurrentShorts: Int? = null
+    val maxConcurrentShorts: Int? = null,
+    val currentWeightsBySymbol: Map<String, Double> = emptyMap(),
+    val minExpectedNetEdgeBps: Double? = null
 )
 
 data class AlphaPortfolioTarget(
@@ -187,6 +194,9 @@ data class AlphaPortfolioTarget(
     val confidence: Double,
     val score: Double,
     val normalizedScore: Double,
+    val expectedNetEdgeBps: Double = 0.0,
+    val expectedCostBps: Double = 0.0,
+    val turnoverDeltaFraction: Double = 0.0,
     val trailingStopVolMultiple: Double,
     val takeProfitVolMultiple: Double,
     val rationale: String
