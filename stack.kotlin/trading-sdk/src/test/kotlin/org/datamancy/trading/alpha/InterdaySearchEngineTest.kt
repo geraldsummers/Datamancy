@@ -164,13 +164,10 @@ class InterdaySearchEngineTest {
     }
 
     @Test
-    fun `hierarchical score falls back to empirical score when market and cohort weights are zero`() {
+    fun `hierarchical score falls back to residual component when market and cohort weights are zero`() {
         val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
             .getDeclaredMethod(
                 "hierarchicalScore",
-                Double::class.javaPrimitiveType,
-                Double::class.javaPrimitiveType,
-                Double::class.javaPrimitiveType,
                 Double::class.javaPrimitiveType,
                 Double::class.javaPrimitiveType,
                 Double::class.javaPrimitiveType,
@@ -180,12 +177,36 @@ class InterdaySearchEngineTest {
             )
         method.isAccessible = true
 
-        val result = method.invoke(null, 0.012, 0.004, 0.7, 0.6, 0.3, 0.01, 0.0, 0.0, 1.0)
+        val result = method.invoke(null, 0.005, -0.002, 0.012, 0.0, 0.0, 1.0)
         val totalScore = result!!::class.java.getDeclaredField("totalScore").apply { isAccessible = true }.getDouble(result)
         val residualComponent = result::class.java.getDeclaredField("residualComponent").apply { isAccessible = true }.getDouble(result)
 
         assertEquals(0.012, totalScore, 1e-9)
         assertEquals(0.012, residualComponent, 1e-9)
+    }
+
+    @Test
+    fun `hierarchy-enabled run activates learned cohorts rather than baseline labels`() = kotlinx.coroutines.runBlocking {
+        val response = engine.run(
+            InterdayAlphaRunRequest(
+                config = InterdayAlphaConfig(
+                    exchange = "hyperliquid_mainnet",
+                    signalBarMinutes = 240,
+                    lookbackHours = 480,
+                    forwardHours = 72,
+                    rebalanceCadenceHours = 24,
+                    selectionQuantile = 0.34,
+                    minConfidence = 0.15,
+                    hierarchyMarketWeight = 0.15,
+                    hierarchyCohortWeight = 0.15,
+                    hierarchyResidualWeight = 0.70
+                )
+            )
+        )
+
+        assertTrue(response.selectedSignals.isNotEmpty())
+        assertTrue(response.selectedSignals.all { it.cohortId.startsWith("cluster:") })
+        assertTrue(response.selectedSignals.any { kotlin.math.abs(it.marketComponentBps) > 1e-9 || kotlin.math.abs(it.cohortComponentBps) > 1e-9 })
     }
 }
 
@@ -193,7 +214,7 @@ private fun syntheticPanel(): InterdayPanel {
     val start = Instant.parse("2026-01-01T00:00:00Z")
     val points = 180
     val timeline = List(points) { index -> start.plusSeconds(index * 14_400L) }
-    val symbols = listOf("ALPHA", "BRAVO", "CHARLIE")
+    val symbols = listOf("ALPHA", "BRAVO", "CHARLIE", "DELTA")
     val series = symbols.map { symbol ->
         InterdaySymbolSeries(
             symbol = symbol,
@@ -201,6 +222,7 @@ private fun syntheticPanel(): InterdayPanel {
                 val close = when (symbol) {
                     "ALPHA" -> 100.0 * exp(0.009 * index) * (1.0 + 0.02 * sin(index / 3.5)) * alphaPullback(index)
                     "BRAVO" -> 180.0 * exp(-0.007 * index) * (1.0 + 0.02 * cos(index / 4.0)) * bravoBounce(index)
+                    "DELTA" -> 70.0 * exp(0.004 * index) * (1.0 + 0.015 * cos(index / 6.0))
                     else -> 90.0 * (1.0 + 0.002 * sin(index / 2.0))
                 }
                 val open = close * 0.997
@@ -209,16 +231,19 @@ private fun syntheticPanel(): InterdayPanel {
                 val volume = when (symbol) {
                     "ALPHA" -> 1_250.0 + index * 6.0
                     "BRAVO" -> 1_050.0 + index * 4.0
+                    "DELTA" -> 880.0 + index * 3.0
                     else -> 650.0 + index * 2.0
                 }
                 val funding = when (symbol) {
                     "ALPHA" -> -0.00008 + index * 0.0000001
                     "BRAVO" -> 0.00011 - index * 0.0000001
+                    "DELTA" -> -0.00002 + index * 0.00000005
                     else -> 0.00001
                 }
                 val openInterest = when (symbol) {
                     "ALPHA" -> 30_000.0 + index * 220.0
                     "BRAVO" -> 55_000.0 - index * 150.0
+                    "DELTA" -> 28_000.0 + index * 110.0
                     else -> 25_000.0 + 25.0 * sin(index / 5.0)
                 }
                 InterdayBar(
@@ -233,11 +258,13 @@ private fun syntheticPanel(): InterdayPanel {
                     sellVolume = volume * if (symbol == "BRAVO") 0.58 else 0.42,
                     spreadBps = when (symbol) {
                         "CHARLIE" -> 16.0
+                        "DELTA" -> 7.5
                         else -> 5.0
                     },
                     depthUsd = when (symbol) {
                         "ALPHA" -> 250_000.0 + index * 1_000.0
                         "BRAVO" -> 220_000.0 + index * 800.0
+                        "DELTA" -> 140_000.0 + index * 500.0
                         else -> 90_000.0
                     },
                     fundingRate = funding,
