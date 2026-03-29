@@ -1549,7 +1549,7 @@ class InterdaySearchEngine(
 
     private fun requiredHistoryHours(config: InterdayAlphaConfig): Int {
         val indicatorHours = max(
-            max(config.lookbackHours, config.forwardHours),
+            config.lookbackHours + config.forwardHours,
             max(max(config.slowTrendDays, config.regressionDays), max(config.volatilityDays, config.adxDays)) * 24
         )
         return indicatorHours + config.rebalanceCadenceHours * 3
