@@ -170,6 +170,7 @@ data class AlphaPortfolioDefaults(
 data class AlphaPortfolioRequest(
     val signals: List<AlphaSignalScore>,
     val selectionQuantile: Double? = null,
+    val respectProvidedSignalSet: Boolean = false,
     val longShort: Boolean? = null,
     val targetGrossFraction: Double? = null,
     val targetNetFraction: Double? = null,

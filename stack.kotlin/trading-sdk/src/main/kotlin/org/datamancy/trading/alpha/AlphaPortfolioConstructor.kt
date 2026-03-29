@@ -18,12 +18,21 @@ class AlphaPortfolioConstructor(
         val longShort = request.longShort ?: defaults.longShort
         val maxLongs = request.maxConcurrentLongs ?: defaults.maxConcurrentLongs
         val maxShorts = request.maxConcurrentShorts ?: defaults.maxConcurrentShorts
-        val candidateCount = ceil(request.signals.size * quantile).toInt().coerceAtLeast(1)
         val positive = request.signals.filter { it.score > 0.0 }
         val negative = request.signals.filter { it.score < 0.0 }
-        val selectedLongs = positive.sortedByDescending { it.score }.take(minOf(candidateCount, maxLongs))
+        val selectedLongs = if (request.respectProvidedSignalSet) {
+            positive.sortedByDescending { it.score }.take(maxLongs)
+        } else {
+            val candidateCount = ceil(positive.size * quantile).toInt().coerceAtLeast(1)
+            positive.sortedByDescending { it.score }.take(minOf(candidateCount, maxLongs))
+        }
         val selectedShorts = if (longShort) {
-            negative.sortedBy { it.score }.take(minOf(candidateCount, maxShorts))
+            if (request.respectProvidedSignalSet) {
+                negative.sortedBy { it.score }.take(maxShorts)
+            } else {
+                val candidateCount = ceil(negative.size * quantile).toInt().coerceAtLeast(1)
+                negative.sortedBy { it.score }.take(minOf(candidateCount, maxShorts))
+            }
         } else {
             emptyList()
         }
@@ -71,7 +80,11 @@ class AlphaPortfolioConstructor(
             turnoverPenaltyBps = defaults.turnoverPenaltyBps,
             notes = listOf(
                 "Exposure ramps with average confirmation instead of jumping straight to max size.",
-                "Weights are volatility-scaled and confidence-adjusted to diversify trend risk across the universe."
+                if (request.respectProvidedSignalSet) {
+                    "Provided signals were treated as the already-eligible basket, so sizing preserved cross-sectional diversification instead of re-quantiling."
+                } else {
+                    "Weights are volatility-scaled and confidence-adjusted to diversify trend risk across the universe."
+                }
             )
         )
     }

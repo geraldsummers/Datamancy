@@ -25,7 +25,7 @@ class AlphaPortfolioConstructorTest {
         )
 
         assertTrue(highConfidence.targetExposureFraction > lowConfidence.targetExposureFraction)
-        assertTrue(highConfidence.targetGrossFraction > lowConfidence.targetGrossFraction)
+        assertTrue(highConfidence.targets.map { it.leverageMultiplier }.average() > lowConfidence.targets.map { it.leverageMultiplier }.average())
     }
 
     @Test
@@ -43,6 +43,21 @@ class AlphaPortfolioConstructorTest {
         assertTrue(gross > 0.0)
         assertTrue(response.targets.all { it.weightFraction <= 0.08 + 1e-9 })
         assertEquals(response.targetGrossFraction, gross, 1e-9)
+    }
+
+    @Test
+    fun `portfolio construction preserves provided eligible basket when requested`() {
+        val response = constructor.construct(
+            AlphaPortfolioRequest(
+                signals = sampleSignals(confidence = 0.70),
+                selectionQuantile = 0.05,
+                respectProvidedSignalSet = true
+            )
+        )
+
+        assertEquals(3, response.selectedLongs)
+        assertEquals(3, response.selectedShorts)
+        assertEquals(6, response.targets.size)
     }
 
     private fun sampleSignals(confidence: Double): List<AlphaSignalScore> = listOf(

@@ -378,7 +378,8 @@ class InterdaySearchEngine(
                     val constructed = portfolioConstructor.construct(
                         AlphaPortfolioRequest(
                             signals = portfolioSignals,
-                            selectionQuantile = config.selectionQuantile
+                            selectionQuantile = config.selectionQuantile,
+                            respectProvidedSignalSet = true
                         )
                     )
                     constructed.targets.map {
