@@ -71,21 +71,21 @@ Validated current alpha-system reality:
 - trading policy is centralized and authoritative; notebooks and prompts are clients, not the source of truth
 
 Validated current live readiness sample:
-- timestamp: `2026-03-30T11:21:00.579898843Z`
+- timestamp: `2026-03-30T16:11:13.661702088Z`
 - exchange: `hyperliquid_mainnet`
-- `eligibleSymbols=147`
+- `eligibleSymbols=148`
 - `criticalSymbols=0`
 - `coverageFailSymbols=0`
 - `finalizedFailSymbols=0`
 - `executionFailSymbols=0`
-- `liveSparseSymbols=31`
+- `liveSparseSymbols=27`
 - verdict: `READY`
 - latest frontiers at that check:
-  - `market_data candle_1m = 2026-03-30 11:20:00+00`
-  - `market_data trade = 2026-03-30 11:20:58.291+00`
-  - `orderbook_data = 2026-03-30 11:20:50.423+00`
-  - `market_data funding = 2026-03-30 11:20:59+00`
-  - `research_features_1m = 2026-03-30 11:19:00+00`
+  - `market_data candle_1m = 2026-03-30 16:11:00+00`
+  - `market_data trade = 2026-03-30 16:11:12.209+00`
+  - `orderbook_data = 2026-03-30 16:11:10.057+00`
+  - `market_data funding = 2026-03-30 16:11:10+00`
+  - `research_features_1m = 2026-03-30 16:09:00+00`
 
 Important rule about status:
 - any hardcoded status in this prompt can be stale
@@ -116,7 +116,7 @@ Current empirically measured alpha findings to build on:
   - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
   - `tailWeightingMode=VOLATILITY_SCALED`
   - `fundingOverlayMode=LINEAR_FACTOR`
-  - `selectionQuantile=0.025` is currently leading
+  - the current live tail boundary is between `selectionQuantile=0.021` and `0.022`
   - `fundingWeight=0.15` is the current control
 - the current EMA trend-shape survivor pocket is:
   - control accepted point at `2026-03-30T11:23:32.045553789Z`:
@@ -144,6 +144,29 @@ Current empirically measured alpha findings to build on:
     - the live daily lead is now an EMA-distance stack with slower volatility normalization (`14d`)
     - the current best-balanced region is around `fast=2`, `medium=8`, `slow=16`, `vol=14`
     - there is initial neighborhood support, so this no longer looks like a one-point spike
+- promotion-readiness follow-up on `2026-03-30T16:14Z` to `2026-03-30T17:23Z` refined the EMA lead:
+  - on the `2/8/16`, `vol=14`, `factorLookbackDays=18` winner:
+    - `selectionQuantile=0.020`: backtest `2.9955`, forward `1.4067`, `flat=5.0705`, accepted
+    - `selectionQuantile in {0.0175,0.0180,0.0210}` produced the same stronger portfolio set and same metrics as `0.020`
+    - `selectionQuantile in {0.0220,0.0225,0.0240,0.0250}` snapped back to the weaker prior set:
+      - backtest `2.0662`, forward `1.4078`, `flat=3.1536`, accepted
+  - entry and hold floors were inert on this winner:
+    - `entryEdgeFloorBps in {0.75,1.00,1.25}` all identical
+    - `holdEdgeFloorBps in {0.15,0.25,0.35}` all identical
+  - factor-lookback battleground on the improved winner:
+    - `18d`: backtest `2.9955`, forward `1.4067`, `flat=5.0705`, accepted
+    - `19d`: backtest `2.3175`, forward `1.1382`, `flat=3.2486`, accepted
+    - `20d`: backtest `2.7923`, forward `1.1554`, `flat=5.9925`, accepted
+    - `21d`: backtest `2.6340`, forward `1.2777`, `flat=5.9907`, accepted
+    - interpretation: `18d` still leads on the upgraded EMA surface
+  - nearest geometry follow-up around the improved winner:
+    - `2/7/16`, `q=0.020`, `18d`: backtest `3.3354`, forward `0.5562`, `flat=10.0158`, accepted
+    - `2/9/16`, `q=0.020`, `18d`: backtest `3.2739`, forward `1.0907`, `flat=1.7158`, accepted
+    - `2/8/18`, `q=0.020`, `18d`: backtest `-1.1488`, forward `1.6547`, `flat=-8.4987`, rejected
+    - `1/8/16`, `q=0.020`, `18d`: zero trades, rejected
+    - interpretation:
+      - `2/8/16`, `vol=14`, `18d`, narrow-tail `q in [0.0175,0.021]` remains the best-balanced live point
+      - some neighbors beat it on backtest or flat slice, but none beat it on the combined after-cost, forward, and robustness profile
 - funding overlay retest on the current best EMA geometry (`2/8/16`, `vol=14`) at `2026-03-30T11:51Z` to `2026-03-30T12:00Z` found:
   - `LINEAR_FACTOR`, `fundingWeight=0.15`: backtest `2.0662`, forward `1.4078`, accepted
   - `NONE`, `fundingWeight=0.0`: backtest `1.2283`, forward `0.2105`, rejected
