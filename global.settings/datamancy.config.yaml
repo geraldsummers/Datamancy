@@ -1,5 +1,6 @@
 storage:
   vector_dbs: "/mnt/vectors/"
+  market_db_root: "/mnt/vectors/"
   nocow_db_dir: "/mnt/raid/docker/nocow"
 
   custom:

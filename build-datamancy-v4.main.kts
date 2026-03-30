@@ -65,6 +65,7 @@ data class CustomStorageConfig(
 
 data class StorageConfig(
     val vector_dbs: String,
+    val market_db_root: String? = null,
     val nocow_db_dir: String? = null,
     val custom: CustomStorageConfig? = null
 )
@@ -428,6 +429,7 @@ fun validateTemplateEnvVars(credentials: Map<String, String>, includeTests: Bool
     val allowlist = setOf(
         "HOME",
         "VECTOR_DB_ROOT",
+        "MARKET_DB_ROOT",
         "NOCOW_DB_DIR",
         "QBITTORRENT_DATA_ROOT",
         "SEAFILE_MEDIA_ROOT",
@@ -1599,6 +1601,7 @@ fun substituteConfigVariables(
     // Substitute config values
     result = result
         .replace("\${VECTOR_DB_ROOT}", config.storage.vector_dbs)
+        .replace("\${MARKET_DB_ROOT}", config.storage.market_db_root ?: config.storage.vector_dbs)
         .replace("\${NOCOW_DB_DIR}", config.storage.nocow_db_dir ?: "/mnt/raid/docker/nocow")
         .replace("\${QBITTORRENT_DATA_ROOT}", config.storage.custom?.qbittorrent_data ?: "/mnt/media/qbittorrent")
         .replace("\${SEAFILE_MEDIA_ROOT}", config.storage.custom?.seafile_media ?: "/mnt/media/seafile-media")

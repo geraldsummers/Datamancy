@@ -53,17 +53,28 @@ class PostgresComposeConfigTest {
     }
 
     @Test
-    fun `market postgres keeps market data on vector db root instead of nocow raid`() {
+    fun `market postgres and qdrant can target separate storage roots`() {
         val marketComposeText = repoFileText("stack.compose/market-postgres.yml")
+        val volumesText = repoFileText("global.settings/volumes.yml")
         val volumeInitText = repoFileText("global.settings/volume-init.yml")
 
         assertTrue(
-            marketComposeText.contains("\${VECTOR_DB_ROOT}/market-postgres:/var/lib/postgresql/data"),
-            "Dedicated market-postgres should place PGDATA on the vector SSD root"
+            marketComposeText.contains("\${MARKET_DB_ROOT}/market-postgres:/var/lib/postgresql/data"),
+            "Dedicated market-postgres should place PGDATA on the dedicated market storage root"
         )
         assertTrue(
-            volumeInitText.contains("mkdir -p \${VECTOR_DB_ROOT}/market-postgres"),
-            "Volume init should provision the market-postgres directory on the vector SSD root"
+            volumesText.contains("device: \${VECTOR_DB_ROOT}/qdrant"),
+            "Qdrant should remain on the vector storage root"
+        )
+        assertTrue(
+            volumeInitText.contains("mkdir -p /mnt/market_root/market-postgres") &&
+                volumeInitText.contains("- \${MARKET_DB_ROOT}:/mnt/market_root:rw"),
+            "Volume init should provision the market-postgres directory using the dedicated market storage root"
+        )
+        assertTrue(
+            volumeInitText.contains("mkdir -p /mnt/vector_root/qdrant") &&
+                volumeInitText.contains("- \${VECTOR_DB_ROOT}:/mnt/vector_root:rw"),
+            "Volume init should provision the qdrant directory using the vector storage root"
         )
     }
 
