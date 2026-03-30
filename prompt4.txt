@@ -116,6 +116,14 @@ Current empirically measured alpha findings to build on:
   - `regressionDays=14`
   - `volatilityDays=10`
   - `slopeWeight=0.25`
+- simple flat-regime control tuning around the current winner did not repair `market_trend=flat`:
+  - best control micro-pass timestamp: `2026-03-30T03:29:29.212161370Z`
+  - best control variant: `regimeNetBiasScale=0.5`
+  - result: backtest `1.5771 edge bps`, forward `1.2975 edge bps`, `market_trend=flat = -0.7139 edge bps`
+  - interpretation: tiny flat-slice improvement versus baseline, but still negative and not worth the lost overall edge
+- immediate alpha-shape neighbor probing after that control pass also failed to improve the winner:
+  - probe timestamp: `2026-03-30T03:30:51.570587874Z`
+  - no neighbor beat the baseline on both overall edge and flat-slice behavior
 - `BOUNDED_REINFORCEMENT` and `EQUAL_WEIGHT` survived earlier exploratory passes but did not survive the latest after-cost daily search leaderboard
 - same-window threshold calibration on the latest daily structural search only found feasible acceptance at `0.0` bps; treat that as evidence that the current `1.5` bps search gate may be above this pocket, not as permission to lower policy without prior-window calibration
 - a frozen prior-window threshold audit using the `2026-03-30T02:57:30.895207989Z` search result implies `0.0` bps would have accepted `3` candidates on the next `03:19:31Z` trend-shape probe, but this no longer drives the decision because the top two live candidates already clear the `1.5` bps search gate
@@ -169,7 +177,7 @@ Current empirically measured alpha findings to build on:
   - the best verified backtest edge `1.5940` bps clears search but still misses the stricter `2.0` bps promotion gate
   - forward sample is still only `7` trades
   - the best survivor remains negative in the `market_trend=flat` slice at `-0.7201` edge bps
-- treat this as a strategy-optimization and threshold-calibration problem, not an infra-readiness problem
+- treat this as a deeper flat-regime model-improvement problem, not an infra-readiness problem and not a simple local-threshold-tuning problem
 
 Core mission:
 1. Prove or kill alpha.

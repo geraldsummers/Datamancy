@@ -1,0 +1,85 @@
+# 2026-03-30 Flat-Regime Control Cycle
+
+- readiness
+  - `2026-03-30T03:24:38.445902453Z`
+  - `READY`
+  - `eligible=148`
+  - `critical=0`
+  - `coverage_fail=0`
+  - `execution_fail=0`
+  - `live_sparse=27`
+
+- research basis
+  - `deep-research-report.md`
+  - `deep-research-report2.md`
+  - current accepted daily survivor from `2026-03-30T03:19:31.067204755Z`
+  - explicit next-cycle objective:
+    - improve `market_trend=flat`
+    - keep the accepted daily winner above the `1.5` bps search gate
+
+- hypothesis
+  - simple confidence, edge-floor, and regime-bias controls might suppress the flat-market leak without degrading the accepted daily winner too much
+  - if that failed, immediate local alpha-shape neighbors might improve flat behavior without leaving the accepted daily pocket
+
+- experiment
+  - control micro-pass published at `2026-03-30T03:29:29.212161370Z`
+  - fixed winner:
+    - `signalBarMinutes=1440`
+    - `forwardHours=72`
+    - `factorLookbackDays=18`
+    - `selectionQuantile=0.025`
+    - `residualizationBetaMode=EWMA`
+    - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
+    - `tailWeightingMode=VOLATILITY_SCALED`
+    - `fast/medium/slow=3/7/14`
+    - `regressionDays=14`
+    - `volatilityDays=10`
+    - `slopeWeight=0.25`
+    - `fundingOverlayMode=LINEAR_FACTOR`
+    - `fundingWeight=0.15`
+  - control levers tested:
+    - `minTrendAgreement`
+    - `minConfidence`
+    - `adxThreshold`
+    - `entryEdgeFloorBps`
+    - `holdEdgeFloorBps`
+    - `regimeDirectionalSuppressionThreshold`
+    - `regimeNetBiasScale`
+  - alpha-shape micro-pass published at `2026-03-30T03:30:51.570587874Z`
+  - shape levers tested after the control pass:
+    - `mediumTrendDays`
+    - `slowTrendDays`
+    - `regressionDays`
+    - `volatilityDays`
+    - `slopeWeight`
+    - `fundingWeight`
+
+- result
+  - best control micro-pass variant:
+    - `regimeNetBiasScale=0.5`
+    - backtest: `1.5771 edge bps`
+    - forward: `1.2975 edge bps`
+    - `market_trend=flat`: `-0.7139 edge bps` over `3` trades
+  - baseline accepted winner remained better overall:
+    - backtest: `1.5940 edge bps`
+    - forward: `1.4869 edge bps`
+    - `market_trend=flat`: `-0.7201 edge bps`
+  - interpretation:
+    - control tuning slightly reduced the flat-market loss
+    - the improvement was too small to matter and came with lower overall edge
+  - shape micro-pass did not beat the accepted winner:
+    - no tested neighbor improved both overall edge and flat-slice behavior
+    - the current `3/7/14`, `regressionDays=14`, `volatilityDays=10`, `slopeWeight=0.25` shape remains the live leader
+
+- remaining risk
+  - still not promotable:
+    - best backtest edge stays below the `2.0` bps promotion gate
+    - forward sample is still `7` trades
+    - `market_trend=flat` remains negative
+  - simple parameter tuning is now showing diminishing returns inside this pocket
+
+- next step
+  - stop spending cycles on local flat-control knob turning
+  - next change should be a deeper regime/flat-market model adjustment grounded in research, not another small threshold sweep
+  - likely research ask if the current brief is insufficient:
+    - regime gating for momentum crash control in daily cross-sectional crypto trend
