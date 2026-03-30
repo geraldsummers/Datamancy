@@ -112,12 +112,19 @@ Current empirically measured alpha findings to build on:
     - pure return-stack and pure t-stat simplifications hurt forward transport
     - the current live lead is an EMA-distance trend stack, not the old legacy blend
 - the current structural survivor cluster is:
-  - `residualizationBetaMode=EWMA`
-  - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
-  - `tailWeightingMode=VOLATILITY_SCALED`
-  - `fundingOverlayMode=LINEAR_FACTOR`
+  - prior structural control on the upgraded EMA winner was:
+    - `residualizationBetaMode=EWMA`
+    - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
+    - `tailWeightingMode=VOLATILITY_SCALED`
+    - `fundingOverlayMode=LINEAR_FACTOR`
+    - `fundingWeight=0.15`
+  - current best-balanced structural lead after recheck is:
+    - `residualizationBetaMode=EWMA`
+    - `residualizationMarketProxyMode=EQUAL_WEIGHT`
+    - `tailWeightingMode=EQUAL_WEIGHT`
+    - `fundingOverlayMode=LINEAR_FACTOR`
+    - `fundingWeight=0.15`
   - the current live tail boundary is between `selectionQuantile=0.021` and `0.022`
-  - `fundingWeight=0.15` is the current control
 - the current EMA trend-shape survivor pocket is:
   - control accepted point at `2026-03-30T11:23:32.045553789Z`:
     - `trendScoreMode=EMA_RETURN_STACK`
@@ -167,6 +174,24 @@ Current empirically measured alpha findings to build on:
     - interpretation:
       - `2/8/16`, `vol=14`, `18d`, narrow-tail `q in [0.0175,0.021]` remains the best-balanced live point
       - some neighbors beat it on backtest or flat slice, but none beat it on the combined after-cost, forward, and robustness profile
+- structural recheck on `2026-03-30T17:27Z` to `2026-03-30T18:07Z` changed the preferred control cluster on the improved winner:
+  - anchor control `EWMA / LIQUIDITY_WEIGHTED / VOLATILITY_SCALED / LINEAR_FACTOR 0.15`:
+    - backtest `2.9955`, forward `1.4067`, `flat=5.0705`, accepted
+  - strongest in-sample / flat challenger:
+    - `SIMPLE / LIQUIDITY_WEIGHTED / VOLATILITY_SCALED / LINEAR_FACTOR 0.15`
+    - backtest `3.4514`, forward `1.4014`, `flat=12.3508`, accepted
+  - strongest current best-balanced lead:
+    - `EWMA / EQUAL_WEIGHT / EQUAL_WEIGHT / LINEAR_FACTOR 0.15`
+    - backtest `2.8125`, forward `3.8842`, `flat=10.6741`, accepted
+  - supporting funding retests:
+    - `EWMA / EQUAL_WEIGHT / EQUAL_WEIGHT / NONE`: backtest `2.1693`, forward `2.9190`, accepted
+    - `EWMA / EQUAL_WEIGHT / EQUAL_WEIGHT / LINEAR_FACTOR 0.30`: backtest `2.6361`, forward `3.8828`, accepted
+    - `EWMA / EQUAL_WEIGHT / EQUAL_WEIGHT / BOUNDED_REINFORCEMENT 0.15`: backtest `1.9699`, forward `4.0024`, accepted
+    - `SIMPLE / LIQUIDITY_WEIGHTED / VOLATILITY_SCALED / LINEAR_FACTOR 0.30`: backtest `3.3829`, forward `1.4792`, accepted
+  - interpretation:
+    - the upgraded EMA surface no longer prefers the old structural control unambiguously
+    - equal-weight proxy plus equal-weight tails materially improved forward on this window while keeping backtest and flat behavior acceptable
+    - the `SIMPLE / LIQUIDITY_WEIGHTED / VOLATILITY_SCALED` branch remains the strongest backtest-first alternative and should not be discarded
 - funding overlay retest on the current best EMA geometry (`2/8/16`, `vol=14`) at `2026-03-30T11:51Z` to `2026-03-30T12:00Z` found:
   - `LINEAR_FACTOR`, `fundingWeight=0.15`: backtest `2.0662`, forward `1.4078`, accepted
   - `NONE`, `fundingWeight=0.0`: backtest `1.2283`, forward `0.2105`, rejected
