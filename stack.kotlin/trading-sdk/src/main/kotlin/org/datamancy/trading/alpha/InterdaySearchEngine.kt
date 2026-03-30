@@ -476,6 +476,8 @@ class InterdaySearchEngine(
         val snapshots = mutableListOf<InterdayPortfolioSnapshot>()
         val regimeSnapshots = mutableListOf<InterdayRegimeSnapshot>()
         val signalHistory = mutableMapOf<String, MutableList<InterdayInspectionPoint>>()
+        val compressionDiagnostics = mutableListOf<InterdayCompressionDiagnosticPoint>()
+        val compressionHistoryByKey = mutableMapOf<Pair<Int, Int>, MutableList<CompressionDiagnosticRawPoint>>()
         val weightTimeline = mutableMapOf<Instant, Map<String, Double>>()
         val desiredWeightTimeline = mutableMapOf<Instant, Map<String, Double>>()
         val appliedDeltaTimeline = mutableMapOf<Instant, Map<String, Double>>()
@@ -564,7 +566,7 @@ class InterdaySearchEngine(
             var turnoverFraction = 0.0
             if (rebalanceNow) {
                 latestRegime = computeRegime(panel, index, config, indicators, liquidityRanks)
-                val signals = computeSignals(
+                val signalResult = computeSignals(
                     panel = panel,
                     index = index,
                     config = config,
@@ -577,10 +579,25 @@ class InterdaySearchEngine(
                     rebalanceBars = rebalanceBars,
                     targetHorizonBars = targetHorizonBars
                 )
+                val signals = signalResult.signals
                 latestSignals = signals
                     .sortedByDescending { abs(it.score) }
                     .take(32)
                 latestSignalsBySymbol = signals.associateBy { it.symbol }
+                if (includeInspection) {
+                    compressionDiagnostics += buildCompressionDiagnostics(
+                        time = time,
+                        signals = signals,
+                        structuralState = signalResult.structuralState,
+                        regime = latestRegime,
+                        panel = panel,
+                        index = index,
+                        targetHorizonBars = targetHorizonBars,
+                        signalBarMinutes = config.signalBarMinutes,
+                        rebalanceHours = config.rebalanceCadenceHours,
+                        historyByKey = compressionHistoryByKey
+                    )
+                }
                 val flatRegimeEntryEdgeBoostBps = flatRegimeEntryEdgeBoostBps(
                     marketTrendScore = latestRegime.marketTrendScore,
                     breadth = latestRegime.breadth,
@@ -829,6 +846,7 @@ class InterdaySearchEngine(
                 snapshots = snapshots,
                 regimes = regimeSnapshots,
                 signalHistory = signalHistory,
+                compressionDiagnostics = compressionDiagnostics,
                 weightTimeline = weightTimeline,
                 desiredWeightTimeline = desiredWeightTimeline,
                 appliedDeltaTimeline = appliedDeltaTimeline,
@@ -862,9 +880,14 @@ class InterdaySearchEngine(
         evaluationStartIndex: Int,
         rebalanceBars: Int,
         targetHorizonBars: Int
-    ): List<InterdaySignalSnapshot> {
+    ): SignalComputationResult {
         val raw = collectRawSignals(panel, index, config, indicators, liquidityRanks)
-        if (raw.isEmpty()) return emptyList()
+        if (raw.isEmpty()) {
+            return SignalComputationResult(
+                signals = emptyList(),
+                structuralState = StructuralState.disabled(raw)
+            )
+        }
         val structuralState = buildStructuralState(
             panel = panel,
             index = index,
@@ -950,7 +973,7 @@ class InterdaySearchEngine(
         val lowerBound = quantile(sortedScores, config.selectionQuantile)
         val upperBound = quantile(sortedScores, 1.0 - config.selectionQuantile)
 
-        return raw.map { candidate ->
+        val signals = raw.map { candidate ->
             val features = featureVectors.getValue(candidate.symbol)
             val estimate = edgeEstimates.getValue(candidate.symbol)
             val totalScore = estimate.expectedNetEdgeBps
@@ -995,6 +1018,10 @@ class InterdaySearchEngine(
                 predictedVolatility = candidate.volatility
             )
         }
+        return SignalComputationResult(
+            signals = signals,
+            structuralState = structuralState
+        )
     }
 
     private fun collectRawSignals(
@@ -1259,6 +1286,84 @@ class InterdaySearchEngine(
         return totals.mapValues { (_, value) -> value - baseline }
     }
 
+    private fun buildCompressionDiagnostics(
+        time: Instant,
+        signals: List<InterdaySignalSnapshot>,
+        structuralState: StructuralState,
+        regime: RegimeState,
+        panel: InterdayPanel,
+        index: Int,
+        targetHorizonBars: Int,
+        signalBarMinutes: Int,
+        rebalanceHours: Int,
+        historyByKey: MutableMap<Pair<Int, Int>, MutableList<CompressionDiagnosticRawPoint>>
+    ): List<InterdayCompressionDiagnosticPoint> {
+        if (!structuralState.enabled || signals.size < 4) return emptyList()
+        val futureReturns = futureStructuralResidualReturns(panel, index, targetHorizonBars, structuralState)
+        if (futureReturns.isEmpty()) return emptyList()
+        val longCandidates = signals.filter { it.direction == AlphaDirection.LONG }.sortedByDescending { it.empiricalScore }
+        val shortCandidates = signals.filter { it.direction == AlphaDirection.SHORT }.sortedBy { it.empiricalScore }
+        if (longCandidates.size < 2 || shortCandidates.size < 2) return emptyList()
+        val historyObservations = max(20, (COMPRESSION_DIAGNOSTIC_HISTORY_DAYS * 24) / rebalanceHours.coerceAtLeast(1))
+
+        return COMPRESSION_DIAGNOSTIC_WINDOWS_DAYS.flatMap { windowDays ->
+            val windowBars = barsForDays(windowDays, signalBarMinutes).coerceAtLeast(4)
+            COMPRESSION_DIAGNOSTIC_SLEEVE_SIZES.mapNotNull { sleeveSize ->
+                val longSymbols = longCandidates.map { it.symbol }
+                    .filter { symbol ->
+                        val window = structuralState.residualReturnWindowBySymbol[symbol]
+                        window != null && window.size >= windowBars && futureReturns.containsKey(symbol)
+                    }
+                    .take(sleeveSize)
+                val shortSymbols = shortCandidates.map { it.symbol }
+                    .filter { symbol ->
+                        val window = structuralState.residualReturnWindowBySymbol[symbol]
+                        window != null && window.size >= windowBars && futureReturns.containsKey(symbol)
+                    }
+                    .take(sleeveSize)
+                if (longSymbols.size < 2 || shortSymbols.size < 2) return@mapNotNull null
+
+                val longSeries = longSymbols.mapNotNull { symbol ->
+                    structuralState.residualReturnWindowBySymbol[symbol]?.takeLast(windowBars)?.takeIf { it.size == windowBars }
+                }
+                val shortSeries = shortSymbols.mapNotNull { symbol ->
+                    structuralState.residualReturnWindowBySymbol[symbol]?.takeLast(windowBars)?.takeIf { it.size == windowBars }
+                }
+                if (longSeries.size < 2 || shortSeries.size < 2) return@mapNotNull null
+
+                val pc1Share = pc1Share(longSeries + shortSeries)
+                val coMomentum = 0.5 * (
+                    averagePairwiseCorrelation(longSeries) +
+                        averagePairwiseCorrelation(shortSeries)
+                    )
+                val factorReturn = longSymbols.mapNotNull { futureReturns[it] }.averageOrZero() -
+                    shortSymbols.mapNotNull { futureReturns[it] }.averageOrZero()
+                val key = windowBars to sleeveSize
+                val history = historyByKey.getOrPut(key) { mutableListOf() }
+                val recentHistory = history.takeLast(historyObservations)
+                val pc1ShareZ = robustZScore(recentHistory.map { it.pc1Share }, pc1Share)
+                val coMomentumZ = robustZScore(recentHistory.map { it.coMomentum }, coMomentum)
+                history += CompressionDiagnosticRawPoint(pc1Share = pc1Share, coMomentum = coMomentum)
+
+                InterdayCompressionDiagnosticPoint(
+                    time = time,
+                    windowBars = windowBars,
+                    sleeveSizePerSide = sleeveSize,
+                    pc1Share = pc1Share,
+                    coMomentum = coMomentum,
+                    pc1ShareZ = pc1ShareZ,
+                    coMomentumZ = coMomentumZ,
+                    futureFactorReturnBps = factorReturn * 10_000.0,
+                    longSleeveSize = longSymbols.size,
+                    shortSleeveSize = shortSymbols.size,
+                    marketTrendScore = regime.marketTrendScore,
+                    breadth = regime.breadth,
+                    dispersion = regime.dispersion
+                )
+            }
+        }
+    }
+
     private fun bootstrapWeights(config: InterdayAlphaConfig): EmpiricalWeights = EmpiricalWeights(
         intercept = 0.0,
         coefficients = doubleArrayOf(
@@ -1411,6 +1516,7 @@ class InterdaySearchEngine(
         snapshots: List<InterdayPortfolioSnapshot>,
         regimes: List<InterdayRegimeSnapshot>,
         signalHistory: Map<String, MutableList<InterdayInspectionPoint>>,
+        compressionDiagnostics: List<InterdayCompressionDiagnosticPoint>,
         weightTimeline: Map<Instant, Map<String, Double>>,
         desiredWeightTimeline: Map<Instant, Map<String, Double>>,
         appliedDeltaTimeline: Map<Instant, Map<String, Double>>,
@@ -1431,7 +1537,8 @@ class InterdaySearchEngine(
         return InterdayInspection(
             portfolio = snapshots.takeLast(256),
             symbols = symbolSeries,
-            regimes = regimes.takeLast(256)
+            regimes = regimes.takeLast(256),
+            compressionDiagnostics = compressionDiagnostics.takeLast(4096)
         )
     }
 
@@ -2182,7 +2289,24 @@ class InterdaySearchEngine(
         val residualizedRaw: List<RawSignal>,
         val marketBetaBySymbol: Map<String, Double>,
         val factorLookbackBars: Int,
-        val marketProxyWeightsBySymbol: Map<String, Double>
+        val marketProxyWeightsBySymbol: Map<String, Double>,
+        val residualReturnWindowBySymbol: Map<String, List<Double>>
+    ) {
+        companion object {
+            fun disabled(raw: List<RawSignal>): StructuralState = StructuralState(
+                enabled = false,
+                residualizedRaw = raw,
+                marketBetaBySymbol = raw.associate { it.symbol to 0.0 },
+                factorLookbackBars = 0,
+                marketProxyWeightsBySymbol = raw.associate { it.symbol to 1.0 },
+                residualReturnWindowBySymbol = raw.associate { it.symbol to emptyList<Double>() }
+            )
+        }
+    }
+
+    private data class SignalComputationResult(
+        val signals: List<InterdaySignalSnapshot>,
+        val structuralState: StructuralState
     )
 
     data class DerivedTrendSignal(
@@ -2206,6 +2330,11 @@ class InterdaySearchEngine(
         val fundingPressure: Double,
         val openInterestPressure: Double,
         val marketTrendScore: Double
+    )
+
+    private data class CompressionDiagnosticRawPoint(
+        val pc1Share: Double,
+        val coMomentum: Double
     )
 
     private data class PositionAdjustment(
@@ -2312,6 +2441,84 @@ private fun scaledTargetGrossFraction(
     defaults: AlphaPortfolioDefaults,
     config: InterdayAlphaConfig
 ): Double = defaults.targetGrossFraction * config.targetGrossFractionScale.coerceIn(0.05, 1.0)
+
+private val COMPRESSION_DIAGNOSTIC_WINDOWS_DAYS = listOf(7, 10, 14)
+private val COMPRESSION_DIAGNOSTIC_SLEEVE_SIZES = listOf(10, 12, 16)
+private const val COMPRESSION_DIAGNOSTIC_HISTORY_DAYS = 180
+
+private fun averagePairwiseCorrelation(series: List<List<Double>>): Double {
+    if (series.size < 2) return 0.0
+    val correlations = mutableListOf<Double>()
+    for (leftIndex in 0 until series.lastIndex) {
+        for (rightIndex in (leftIndex + 1) until series.size) {
+            correlations += correlation(series[leftIndex], series[rightIndex])
+        }
+    }
+    return correlations.averageOrZero()
+}
+
+private fun correlation(left: List<Double>, right: List<Double>): Double {
+    val size = min(left.size, right.size)
+    if (size < 4) return 0.0
+    val leftWindow = left.takeLast(size)
+    val rightWindow = right.takeLast(size)
+    val leftMean = leftWindow.averageOrZero()
+    val rightMean = rightWindow.averageOrZero()
+    var covariance = 0.0
+    var leftVariance = 0.0
+    var rightVariance = 0.0
+    for (offset in 0 until size) {
+        val leftCentered = leftWindow[offset] - leftMean
+        val rightCentered = rightWindow[offset] - rightMean
+        covariance += leftCentered * rightCentered
+        leftVariance += leftCentered * leftCentered
+        rightVariance += rightCentered * rightCentered
+    }
+    val denominator = sqrt(leftVariance * rightVariance)
+    if (denominator <= 1e-12) return 0.0
+    return (covariance / denominator).coerceIn(-1.0, 1.0)
+}
+
+private fun pc1Share(series: List<List<Double>>): Double {
+    if (series.size < 2) return 0.0
+    val size = series.minOfOrNull { it.size } ?: return 0.0
+    if (size < 4) return 0.0
+    val centered = series.map { values ->
+        val window = values.takeLast(size)
+        val mean = window.averageOrZero()
+        DoubleArray(size) { offset -> window[offset] - mean }
+    }
+    val covariance = Array(centered.size) { row ->
+        DoubleArray(centered.size) { column ->
+            centered[row].indices.sumOf { offset -> centered[row][offset] * centered[column][offset] } / size.toDouble()
+        }
+    }
+    val trace = covariance.indices.sumOf { covariance[it][it] }.coerceAtLeast(1e-12)
+    val largestEigenvalue = largestEigenvalue(covariance)
+    return (largestEigenvalue / trace).coerceIn(0.0, 1.0)
+}
+
+private fun largestEigenvalue(matrix: Array<DoubleArray>): Double {
+    if (matrix.isEmpty()) return 0.0
+    var vector = DoubleArray(matrix.size) { 1.0 / matrix.size.toDouble().coerceAtLeast(1.0) }
+    repeat(32) {
+        val next = DoubleArray(matrix.size) { row ->
+            matrix[row].indices.sumOf { column -> matrix[row][column] * vector[column] }
+        }
+        val norm = sqrt(next.sumOf { it * it }).coerceAtLeast(1e-12)
+        vector = DoubleArray(matrix.size) { index -> next[index] / norm }
+    }
+    return vector.indices.sumOf { row ->
+        vector[row] * matrix[row].indices.sumOf { column -> matrix[row][column] * vector[column] }
+    }.coerceAtLeast(0.0)
+}
+
+private fun robustZScore(history: List<Double>, value: Double): Double {
+    if (history.size < 8) return 0.0
+    val center = median(history)
+    val scale = medianAbsoluteDeviation(history, center).coerceAtLeast(1e-6)
+    return ((value - center) / scale).coerceIn(-10.0, 10.0)
+}
 
 private fun flatRegimeGateActive(
     marketTrendScore: Double,
@@ -2505,13 +2712,7 @@ private fun buildStructuralState(
     enabled: Boolean
 ): InterdaySearchEngine.StructuralState {
     fun disabledState(): InterdaySearchEngine.StructuralState =
-        InterdaySearchEngine.StructuralState(
-            enabled = false,
-            residualizedRaw = raw,
-            marketBetaBySymbol = raw.associate { it.symbol to 0.0 },
-            factorLookbackBars = 0,
-            marketProxyWeightsBySymbol = raw.associate { it.symbol to 1.0 }
-        )
+        InterdaySearchEngine.StructuralState.disabled(raw)
 
     if (!enabled || raw.size < 4) return disabledState()
 
@@ -2579,7 +2780,18 @@ private fun buildStructuralState(
         residualizedRaw = residualizedRaw,
         marketBetaBySymbol = raw.associate { candidate -> candidate.symbol to (marketBetaBySymbol[candidate.symbol] ?: 0.0) },
         factorLookbackBars = lookbackReturns,
-        marketProxyWeightsBySymbol = marketProxyWeightsBySymbol
+        marketProxyWeightsBySymbol = marketProxyWeightsBySymbol,
+        residualReturnWindowBySymbol = raw.associate { candidate ->
+            candidate.symbol to when (config.residualizationMode) {
+                InterdayResidualizationMode.NONE ->
+                    returnsBySymbol[candidate.symbol].orEmpty()
+                InterdayResidualizationMode.MARKET -> {
+                    val symbolReturns = returnsBySymbol[candidate.symbol].orEmpty()
+                    val marketBeta = marketBetaBySymbol[candidate.symbol] ?: 0.0
+                    subtractSeries(symbolReturns, marketSeries, marketBeta)
+                }
+            }
+        }
     )
 }
 
@@ -3157,6 +3369,13 @@ private fun median(values: List<Double>): Double {
         sorted[middle]
     }
 }
+
+private fun medianAbsoluteDeviation(values: List<Double>, center: Double = median(values)): Double =
+    if (values.isEmpty()) {
+        0.0
+    } else {
+        median(values.map { abs(it - center) })
+    }
 
 private fun standardDeviation(values: List<Double>): Double {
     if (values.size < 2) return 0.0

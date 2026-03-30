@@ -274,7 +274,8 @@ data class InterdaySymbolInspection(
 data class InterdayInspection(
     val portfolio: List<InterdayPortfolioSnapshot>,
     val symbols: List<InterdaySymbolInspection>,
-    val regimes: List<InterdayRegimeSnapshot>
+    val regimes: List<InterdayRegimeSnapshot>,
+    val compressionDiagnostics: List<InterdayCompressionDiagnosticPoint> = emptyList()
 )
 
 data class InterdayRegimeSnapshot(
@@ -295,6 +296,22 @@ data class InterdayRegimeSnapshot(
     val alignedExposureFraction: Double,
     val wrongWayExposureFraction: Double,
     val killSwitchUtilization: Double
+)
+
+data class InterdayCompressionDiagnosticPoint(
+    val time: Instant,
+    val windowBars: Int,
+    val sleeveSizePerSide: Int,
+    val pc1Share: Double,
+    val coMomentum: Double,
+    val pc1ShareZ: Double,
+    val coMomentumZ: Double,
+    val futureFactorReturnBps: Double,
+    val longSleeveSize: Int,
+    val shortSleeveSize: Int,
+    val marketTrendScore: Double,
+    val breadth: Double,
+    val dispersion: Double
 )
 
 data class InterdayCandidateEvaluation(

@@ -46,6 +46,7 @@ class InterdaySearchEngineTest {
         assertTrue(point.entryEligible || response.targets.isEmpty())
         assertTrue(response.selectedSignals.all { it.marketBeta.isFinite() })
         assertTrue(response.selectedSignals.all { it.residualRank.isFinite() })
+        assertTrue(response.inspection!!.compressionDiagnostics.isNotEmpty())
     }
 
     @Test
@@ -258,6 +259,34 @@ class InterdaySearchEngineTest {
         assertEquals(0.22, method.invoke(null, 0.05, 0.03, false, config) as Double)
         assertEquals(0.10, method.invoke(null, 0.25, 0.03, false, config) as Double)
         assertEquals(0.10, method.invoke(null, 0.05, 0.03, true, config) as Double)
+    }
+
+    @Test
+    fun `compression diagnostics detect high shared variation and finite z scores`() {
+        val pc1Method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod("pc1Share", List::class.java)
+        pc1Method.isAccessible = true
+        val zMethod = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod("robustZScore", List::class.java, Double::class.javaPrimitiveType)
+        zMethod.isAccessible = true
+
+        val shared = listOf(
+            listOf(0.01, 0.02, 0.015, 0.018, 0.016, 0.019),
+            listOf(0.011, 0.021, 0.014, 0.019, 0.017, 0.020),
+            listOf(0.009, 0.019, 0.016, 0.017, 0.015, 0.018)
+        )
+        val dispersed = listOf(
+            listOf(0.01, -0.02, 0.015, -0.018, 0.016, -0.019),
+            listOf(-0.011, 0.021, -0.014, 0.019, -0.017, 0.020),
+            listOf(0.009, 0.004, -0.016, -0.007, 0.015, 0.002)
+        )
+        val sharedPc1 = pc1Method.invoke(null, shared) as Double
+        val dispersedPc1 = pc1Method.invoke(null, dispersed) as Double
+        val zScore = zMethod.invoke(null, listOf(0.10, 0.11, 0.12, 0.13, 0.11, 0.10, 0.09, 0.12), 0.20) as Double
+
+        assertTrue(sharedPc1 > dispersedPc1)
+        assertTrue(zScore.isFinite())
+        assertTrue(zScore > 0.0)
     }
 
     @Test
