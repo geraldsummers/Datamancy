@@ -31,6 +31,7 @@ import org.datamancy.trading.storage.MarketDataDataSourceFactory
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicReference
+import javax.sql.DataSource
 
 private val logger = LoggerFactory.getLogger("AlphaDiscoveryApplication")
 private val gson = AlphaServiceJson.gson
@@ -44,17 +45,27 @@ fun main() {
 
 fun Application.configureAlphaDiscoveryApp(
     planner: AlphaDiscoveryPlanner = AlphaDiscoveryPlanner(ActiveTradingPolicy::current),
-    engine: InterdaySearchEngine = InterdaySearchEngine(
-        panelSource = MarketDataInterdayPanelSource(
-            dataSource = MarketDataDataSourceFactory.fromEnvironment("alpha-discovery-service")
-        ),
-        policyProvider = ActiveTradingPolicy::current
-    ),
+    dataSource: DataSource? = null,
+    engine: InterdaySearchEngine? = null,
     submitter: AlphaExecutionSubmitter = AlphaExecutionSubmitter {
         System.getenv("TX_GATEWAY_URL")?.trim()?.ifEmpty { null } ?: "http://tx-gateway:8080"
     },
-    latestSearch: AtomicReference<InterdayAlphaSearchResponse?> = AtomicReference(null)
+    latestSearch: AtomicReference<InterdayAlphaSearchResponse?> = AtomicReference(null),
+    runRecorder: AlphaResearchRunRecorder? = null
 ) {
+    val resolvedDataSource by lazy { dataSource ?: MarketDataDataSourceFactory.fromEnvironment("alpha-discovery-service") }
+    val resolvedEngine = engine ?: InterdaySearchEngine(
+        panelSource = MarketDataInterdayPanelSource(
+            dataSource = resolvedDataSource
+        ),
+        policyProvider = ActiveTradingPolicy::current
+    )
+    val resolvedRunRecorder = runRecorder ?: if (engine == null || dataSource != null) {
+        JdbcAlphaResearchRunRecorder(resolvedDataSource)
+    } else {
+        null
+    }
+
     routing {
         get("/health") {
             call.respondText(gson.toJson(mapOf("status" to "healthy", "service" to "alpha-discovery-service")), ContentType.Application.Json, HttpStatusCode.OK)
@@ -99,7 +110,7 @@ fun Application.configureAlphaDiscoveryApp(
                     call.respondText(gson.toJson(AlphaServiceError("invalid discovery search request")), ContentType.Application.Json, HttpStatusCode.BadRequest)
                     return@post
                 }
-            val response = runCatching { engine.search(request) }
+            val response = runCatching { resolvedEngine.search(request) }
                 .onFailure { logger.warn("Discovery search failed", it) }
                 .getOrElse {
                     call.respondText(gson.toJson(AlphaServiceError("discovery search failed: ${it.message}")), ContentType.Application.Json, HttpStatusCode.BadRequest)
@@ -116,7 +127,7 @@ fun Application.configureAlphaDiscoveryApp(
                     return@post
                 }
             val calibrationRequest = request.thresholdCalibration ?: org.datamancy.trading.alpha.InterdayThresholdCalibrationRequest()
-            val response = runCatching { engine.search(request.copy(thresholdCalibration = calibrationRequest)) }
+            val response = runCatching { resolvedEngine.search(request.copy(thresholdCalibration = calibrationRequest)) }
                 .onFailure { logger.warn("Discovery threshold calibration failed", it) }
                 .getOrElse {
                     call.respondText(gson.toJson(AlphaServiceError("discovery threshold calibration failed: ${it.message}")), ContentType.Application.Json, HttpStatusCode.BadRequest)
@@ -132,7 +143,7 @@ fun Application.configureAlphaDiscoveryApp(
                     call.respondText(gson.toJson(AlphaServiceError("invalid discovery run request")), ContentType.Application.Json, HttpStatusCode.BadRequest)
                     return@post
                 }
-            val baseResponse = runCatching { engine.run(request) }
+            val baseResponse = runCatching { resolvedEngine.run(request) }
                 .onFailure { logger.warn("Discovery run failed", it) }
                 .getOrElse {
                     call.respondText(gson.toJson(AlphaServiceError("discovery run failed: ${it.message}")), ContentType.Application.Json, HttpStatusCode.BadRequest)
@@ -173,7 +184,22 @@ fun Application.configureAlphaDiscoveryApp(
             } else {
                 baseResponse
             }
-            call.respondText(gson.toJson(response), ContentType.Application.Json, HttpStatusCode.OK)
+            val persistedRun = resolvedRunRecorder?.let { recorder ->
+                runCatching { recorder.record(request, response) }
+                    .onFailure { logger.warn("Discovery run persistence failed", it) }
+                    .getOrNull()
+            }
+            val persistenceFailed = resolvedRunRecorder != null && persistedRun == null
+            val responseWithMetadata = response.copy(
+                runId = persistedRun?.runId,
+                grafanaPath = persistedRun?.grafanaPath,
+                notes = if (persistenceFailed) {
+                    response.notes + "Alpha research run persistence failed; Grafana link unavailable for this response."
+                } else {
+                    response.notes
+                }
+            )
+            call.respondText(gson.toJson(responseWithMetadata), ContentType.Application.Json, HttpStatusCode.OK)
         }
         get("/api/v1/discovery/leaderboard") {
             val cached = latestSearch.get()

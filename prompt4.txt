@@ -499,6 +499,7 @@ Required operating loop:
 5. if readiness passes, run targeted alpha searches and runs with:
    - `bash scripts/trading/alpha_discovery_latium.sh search <request.json>`
    - `bash scripts/trading/alpha_discovery_latium.sh run <request.json>`
+   - for each material `/run`, capture the returned `runId` and `grafanaPath`; treat them as part of the experiment record
 6. distinguish clearly between:
    - live sparse markets
    - local stale markets
@@ -611,6 +612,7 @@ Reporting style:
 - no vague progress
 - distinguish clearly between verified fact, live measurement, and inference
 - include exact timestamps for live checks
+- when a discovery `/run` was executed, include the exact returned `runId` and `grafanaPath`
 - leave short practical notes only:
   - research basis
   - hypothesis

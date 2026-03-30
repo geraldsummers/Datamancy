@@ -79,6 +79,7 @@ class ApplicationTest {
     @Test
     fun `run endpoint returns targets and inspection`() = testApplication {
         val panel = syntheticPanelForServiceTest()
+        var recorded = false
         application {
             configureAlphaDiscoveryApp(
                 planner = AlphaDiscoveryPlanner { DatamancyTradingPolicy.default() },
@@ -88,7 +89,14 @@ class ApplicationTest {
                     },
                     policyProvider = { DatamancyTradingPolicy.default() }
                 ),
-                latestSearch = AtomicReference(null)
+                latestSearch = AtomicReference(null),
+                runRecorder = AlphaResearchRunRecorder { _, _ ->
+                    recorded = true
+                    AlphaResearchRunRecord(
+                        runId = "run-123",
+                        grafanaPath = "/d/alpha-run-explorer/alpha-run-explorer?var-alpha_run_id=run-123"
+                    )
+                }
             )
         }
 
@@ -113,10 +121,16 @@ class ApplicationTest {
             )
         }
         assertEquals(HttpStatusCode.OK, runResponse.status)
+        assertTrue(recorded)
         val body = runResponse.bodyAsText()
         assertTrue(body.contains("\"targets\""))
         assertTrue(body.contains("\"inspection\""))
         assertTrue(body.contains("\"expectedNetEdgeBps\""))
+        assertTrue(body.contains("\"runId\""))
+        assertTrue(body.contains("run-123"))
+        assertTrue(body.contains("\"grafanaPath\""))
+        assertTrue(body.contains("alpha-run-explorer"))
+        assertTrue(body.contains("var-alpha_run_id"))
     }
 
     @Test

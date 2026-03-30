@@ -1,0 +1,522 @@
+{
+  "uid": "alpha-run-explorer",
+  "title": "Alpha Run Explorer",
+  "tags": ["trading", "alpha", "research", "runs"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "alpha_run_id",
+        "type": "query",
+        "label": "Run",
+        "datasource": {
+          "type": "postgres",
+          "uid": "timescaledb"
+        },
+        "query": "SELECT run_id AS __text, run_id AS __value FROM alpha_research_runs ORDER BY generated_at DESC LIMIT 200",
+        "definition": "SELECT run_id AS __text, run_id AS __value FROM alpha_research_runs ORDER BY generated_at DESC LIMIT 200",
+        "includeAll": false,
+        "multi": false,
+        "refresh": 2,
+        "sort": 0,
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "alpha_symbol",
+        "type": "query",
+        "label": "Symbol",
+        "datasource": {
+          "type": "postgres",
+          "uid": "timescaledb"
+        },
+        "query": "SELECT symbol AS __text, symbol AS __value FROM (SELECT symbol FROM alpha_research_run_signals WHERE run_id = '${alpha_run_id}' UNION SELECT symbol FROM alpha_research_run_targets WHERE run_id = '${alpha_run_id}' UNION SELECT symbol FROM alpha_research_run_symbol_points WHERE run_id = '${alpha_run_id}' UNION SELECT symbol FROM alpha_research_run_trades WHERE run_id = '${alpha_run_id}') symbols ORDER BY 1",
+        "definition": "SELECT symbol AS __text, symbol AS __value FROM (SELECT symbol FROM alpha_research_run_signals WHERE run_id = '${alpha_run_id}' UNION SELECT symbol FROM alpha_research_run_targets WHERE run_id = '${alpha_run_id}' UNION SELECT symbol FROM alpha_research_run_symbol_points WHERE run_id = '${alpha_run_id}' UNION SELECT symbol FROM alpha_research_run_trades WHERE run_id = '${alpha_run_id}') symbols ORDER BY 1",
+        "includeAll": false,
+        "multi": false,
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Backtest Edge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT backtest_edge_after_cost_bps AS value FROM alpha_research_runs WHERE run_id = '${alpha_run_id}'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0 },
+              { "color": "green", "value": 1.5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 }
+    },
+    {
+      "type": "stat",
+      "title": "Forward Edge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT forward_edge_after_cost_bps AS value FROM alpha_research_runs WHERE run_id = '${alpha_run_id}'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0 },
+              { "color": "green", "value": 0.5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 }
+    },
+    {
+      "type": "stat",
+      "title": "Backtest Trades",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT backtest_trade_count AS value FROM alpha_research_runs WHERE run_id = '${alpha_run_id}'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 }
+    },
+    {
+      "type": "stat",
+      "title": "Forward Trades",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT forward_trade_count AS value FROM alpha_research_runs WHERE run_id = '${alpha_run_id}'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 }
+    },
+    {
+      "type": "table",
+      "title": "Run Summary",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT generated_at, strategy_family, mode, exchange, signal_bar_minutes, forward_hours, rebalance_cadence_hours, factor_lookback_days, selection_quantile, trend_score_mode, residualization_mode, residualization_beta_mode, residualization_market_proxy_mode, tail_weighting_mode, funding_overlay_mode, exit_overlay_mode, validation_accepted, backtest_accepted, forward_accepted, backtest_net_return_pct, forward_net_return_pct, backtest_calmar, forward_calmar, grafana_path FROM alpha_research_runs WHERE run_id = '${alpha_run_id}'"
+        }
+      ],
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 4 },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Selected Signals",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT signal_rank, symbol, direction, expected_net_edge_bps, confidence, score, empirical_score, residual_rank, trend_score, trend_agreement, funding_score, open_interest_score, market_beta, close, predicted_volatility FROM alpha_research_run_signals WHERE run_id = '${alpha_run_id}' ORDER BY signal_rank"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Portfolio Targets",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT target_rank, symbol, direction, weight_fraction, leverage_multiplier, expected_net_edge_bps, expected_cost_bps, turnover_delta_fraction, confidence, rationale FROM alpha_research_run_targets WHERE run_id = '${alpha_run_id}' ORDER BY target_rank"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Trades",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT trade_index, symbol, direction, entry_time, exit_time, entry_price, exit_price, pnl_pct, max_favorable_pnl_pct, profit_giveback_pct, reason, segment FROM alpha_research_run_trades WHERE run_id = '${alpha_run_id}' ORDER BY trade_index"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 18 },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Symbol Price And Trade Marks",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", close AS \"Close\" FROM alpha_research_run_symbol_points WHERE run_id = '${alpha_run_id}' AND symbol = '${alpha_symbol}' ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT entry_time AS \"time\", entry_price AS \"Entry\" FROM alpha_research_run_trades WHERE run_id = '${alpha_run_id}' AND symbol = '${alpha_symbol}' ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT exit_time AS \"time\", exit_price AS \"Exit\" FROM alpha_research_run_trades WHERE run_id = '${alpha_run_id}' AND symbol = '${alpha_symbol}' ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 4
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Close" },
+            "properties": [
+              { "id": "unit", "value": "currencyUSD" },
+              { "id": "decimals", "value": 4 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Entry" },
+            "properties": [
+              { "id": "custom.drawStyle", "value": "points" },
+              { "id": "custom.pointSize", "value": 8 },
+              { "id": "custom.lineWidth", "value": 0 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Exit" },
+            "properties": [
+              { "id": "custom.drawStyle", "value": "points" },
+              { "id": "custom.pointSize", "value": 8 },
+              { "id": "custom.lineWidth", "value": 0 }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Signal State",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", score AS \"Score\" FROM alpha_research_run_symbol_points WHERE run_id = '${alpha_run_id}' AND symbol = '${alpha_symbol}' ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", expected_net_edge_bps AS \"Expected Edge\" FROM alpha_research_run_symbol_points WHERE run_id = '${alpha_run_id}' AND symbol = '${alpha_symbol}' ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", confidence AS \"Confidence\" FROM alpha_research_run_symbol_points WHERE run_id = '${alpha_run_id}' AND symbol = '${alpha_symbol}' ORDER BY 1"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Position State",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", desired_weight AS \"Desired Weight\" FROM alpha_research_run_symbol_points WHERE run_id = '${alpha_run_id}' AND symbol = '${alpha_symbol}' ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", applied_delta AS \"Applied Delta\" FROM alpha_research_run_symbol_points WHERE run_id = '${alpha_run_id}' AND symbol = '${alpha_symbol}' ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", position_weight AS \"Position Weight\" FROM alpha_research_run_symbol_points WHERE run_id = '${alpha_run_id}' AND symbol = '${alpha_symbol}' ORDER BY 1"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Portfolio Exposure",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", gross_exposure_fraction AS \"Gross\" FROM alpha_research_run_portfolio_snapshots WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", long_exposure_fraction AS \"Long\" FROM alpha_research_run_portfolio_snapshots WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", short_exposure_fraction AS \"Short\" FROM alpha_research_run_portfolio_snapshots WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", net_exposure_fraction AS \"Net\" FROM alpha_research_run_portfolio_snapshots WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 42 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Portfolio Risk State",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", equity AS \"Equity\" FROM alpha_research_run_portfolio_snapshots WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", turnover_fraction AS \"Turnover\" FROM alpha_research_run_portfolio_snapshots WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", kill_switch_utilization AS \"Kill Switch\" FROM alpha_research_run_portfolio_snapshots WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", open_positions AS \"Open Positions\" FROM alpha_research_run_portfolio_snapshots WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 42 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Regime State",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", regime_score AS \"Regime Score\" FROM alpha_research_run_regimes WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", market_trend_score AS \"Market Trend\" FROM alpha_research_run_regimes WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", breadth AS \"Breadth\" FROM alpha_research_run_regimes WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        },
+        {
+          "refId": "D",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", dispersion AS \"Dispersion\" FROM alpha_research_run_regimes WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 50 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Compression Diagnostics",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", pc1_share_z AS \"PC1 Share Z\" FROM alpha_research_run_compression_diagnostics WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", future_factor_return_bps AS \"Next 72h Factor Return\" FROM alpha_research_run_compression_diagnostics WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT time AS \"time\", co_momentum_z AS \"Co-Momentum Z\" FROM alpha_research_run_compression_diagnostics WHERE run_id = '${alpha_run_id}' ORDER BY 1"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 50 }
+    }
+  ]
+}

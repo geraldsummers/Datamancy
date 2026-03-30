@@ -406,7 +406,9 @@ data class InterdayAlphaRunResponse(
     val executionPreview: InterdayExecutionPreview,
     val trades: List<InterdayTradeRecord>,
     val inspection: InterdayInspection?,
-    val notes: List<String>
+    val notes: List<String>,
+    val runId: String? = null,
+    val grafanaPath: String? = null
 )
 
 data class InterdayAlphaLeaderboardResponse(
