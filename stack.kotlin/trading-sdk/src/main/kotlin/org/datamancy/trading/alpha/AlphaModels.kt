@@ -62,6 +62,13 @@ enum class InterdayExitOverlayMode {
     TREND_BREAK
 }
 
+enum class InterdayFlatRegimeGateMode {
+    NONE,
+    GROSS_THROTTLE,
+    ENTRY_EDGE_BOOST,
+    COMBINED
+}
+
 data class UniverseBoundsSpec(
     val timeSeriesNormalization: String = "rolling_median_mad",
     val crossSectionalNormalization: String = "rank_gaussian",

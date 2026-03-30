@@ -71,21 +71,21 @@ Validated current alpha-system reality:
 - trading policy is centralized and authoritative; notebooks and prompts are clients, not the source of truth
 
 Validated current live readiness sample:
-- timestamp: `2026-03-30T03:13:56.845442050Z`
+- timestamp: `2026-03-30T04:08:23.977694635Z`
 - exchange: `hyperliquid_mainnet`
 - `eligibleSymbols=148`
 - `criticalSymbols=0`
 - `coverageFailSymbols=0`
 - `finalizedFailSymbols=0`
 - `executionFailSymbols=0`
-- `liveSparseSymbols=37`
+- `liveSparseSymbols=25`
 - verdict: `READY`
 - latest frontiers at that check:
-  - `market_data candle_1m = 2026-03-30 03:13:00+00`
-  - `market_data trade = 2026-03-30 03:13:52.649+00`
-  - `orderbook_data = 2026-03-30 03:13:40.417+00`
-  - `market_data funding = 2026-03-30 03:13:52+00`
-  - `research_features_1m = 2026-03-30 03:12:00+00`
+  - `market_data candle_1m = 2026-03-30 04:08:00+00`
+  - `market_data trade = 2026-03-30 04:08:21.709+00`
+  - `orderbook_data = 2026-03-30 04:08:10.25+00`
+  - `market_data funding = 2026-03-30 04:08:22+00`
+  - `research_features_1m = 2026-03-30 04:06:00+00`
 
 Important rule about status:
 - any hardcoded status in this prompt can be stale
@@ -121,6 +121,13 @@ Current empirically measured alpha findings to build on:
   - best control variant: `regimeNetBiasScale=0.5`
   - result: backtest `1.5771 edge bps`, forward `1.2975 edge bps`, `market_trend=flat = -0.7139 edge bps`
   - interpretation: tiny flat-slice improvement versus baseline, but still negative and not worth the lost overall edge
+- explicit flat-regime gate test on the accepted daily survivor also failed:
+  - `NONE` at `2026-03-30T04:11:32.690147518Z`: backtest `1.5940 edge bps`, forward `1.4867 edge bps`, `market_trend=flat = -5.5040 edge bps`, search accepted
+  - `ENTRY_EDGE_BOOST` at `2026-03-30T04:15:57.381102237Z`: identical to `NONE`; the tested `0.50` bps boost did not bind
+  - `GROSS_THROTTLE` at `2026-03-30T04:13:58.883653504Z`: backtest `1.2489 edge bps`, forward `1.0907 edge bps`, `market_trend=flat = -5.7830 edge bps`, search rejected
+  - `COMBINED` at `2026-03-30T04:17:55.102501786Z`: identical to `GROSS_THROTTLE`
+  - interpretation: do not spend more cycles on this tested flat-regime gate threshold set; the throttle hurts and the edge-floor boost is inert
+  - earlier `-0.7201` / `-0.7139` flat-slice notes from the control micro-pass are stale rolling-window measurements and should not be treated as the current state
 - immediate alpha-shape neighbor probing after that control pass also failed to improve the winner:
   - probe timestamp: `2026-03-30T03:30:51.570587874Z`
   - no neighbor beat the baseline on both overall edge and flat-slice behavior
@@ -176,7 +183,7 @@ Current empirically measured alpha findings to build on:
 - none of the currently measured daily variants are promotable yet because:
   - the best verified backtest edge `1.5940` bps clears search but still misses the stricter `2.0` bps promotion gate
   - forward sample is still only `7` trades
-  - the best survivor remains negative in the `market_trend=flat` slice at `-0.7201` edge bps
+  - the best survivor remains negative in the `market_trend=flat` slice at `-5.5040` edge bps on the current accepted daily winner
 - treat this as a deeper flat-regime model-improvement problem, not an infra-readiness problem and not a simple local-threshold-tuning problem
 
 Core mission:

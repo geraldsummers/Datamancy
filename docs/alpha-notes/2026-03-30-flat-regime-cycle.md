@@ -70,6 +70,39 @@
   - shape micro-pass did not beat the accepted winner:
     - no tested neighbor improved both overall edge and flat-slice behavior
     - the current `3/7/14`, `regressionDays=14`, `volatilityDays=10`, `slopeWeight=0.25` shape remains the live leader
+  - explicit flat-regime gate effect test on latium:
+    - readiness recheck: `2026-03-30T04:08:23.977694635Z`
+    - verdict: `READY`
+    - fixed gate thresholds:
+      - `flatRegimeMarketTrendThreshold=0.15`
+      - `flatRegimeBreadthThreshold=0.10`
+      - `flatRegimeGrossScale=0.65`
+      - `flatRegimeEntryEdgeFloorBoostBps=0.50`
+    - `NONE` at `2026-03-30T04:11:32.690147518Z`
+      - backtest: `1.5940 edge bps`, `222` trades
+      - forward: `1.4867 edge bps`, `7` trades
+      - `market_trend=flat`: `-5.5040 edge bps`
+      - search acceptance: `true`
+    - `GROSS_THROTTLE` at `2026-03-30T04:13:58.883653504Z`
+      - backtest: `1.2489 edge bps`, `222` trades
+      - forward: `1.0907 edge bps`, `9` trades
+      - `market_trend=flat`: `-5.7830 edge bps`
+      - search acceptance: `false`
+    - `ENTRY_EDGE_BOOST` at `2026-03-30T04:15:57.381102237Z`
+      - backtest: `1.5940 edge bps`, `222` trades
+      - forward: `1.4867 edge bps`, `7` trades
+      - `market_trend=flat`: `-5.5040 edge bps`
+      - search acceptance: `true`
+    - `COMBINED` at `2026-03-30T04:17:55.102501786Z`
+      - backtest: `1.2489 edge bps`, `222` trades
+      - forward: `1.0907 edge bps`, `9` trades
+      - `market_trend=flat`: `-5.7830 edge bps`
+      - search acceptance: `false`
+    - interpretation:
+      - `ENTRY_EDGE_BOOST` is inert on the current survivor at these thresholds
+      - `GROSS_THROTTLE` is actively harmful
+      - `COMBINED` collapses to the throttle result because the edge-floor boost still does not bind
+      - the verified rerun baseline flat slice is materially worse than the earlier control-pass note; treat the earlier `-0.7201` / `-0.7139` flat figures as stale rolling-window measurements, not the current state
 
 - remaining risk
   - still not promotable:
@@ -80,6 +113,7 @@
 
 - next step
   - stop spending cycles on local flat-control knob turning
+  - do not widen the tested flat-regime gate thresholds; the tested throttle already damages the accepted survivor and the tested edge-floor boost does nothing
   - next change should be a deeper regime/flat-market model adjustment grounded in research, not another small threshold sweep
   - likely research ask if the current brief is insufficient:
     - regime gating for momentum crash control in daily cross-sectional crypto trend

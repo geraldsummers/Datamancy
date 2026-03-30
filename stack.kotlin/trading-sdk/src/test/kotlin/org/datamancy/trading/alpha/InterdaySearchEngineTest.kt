@@ -9,6 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.test.assertFalse
 
 class InterdaySearchEngineTest {
     private val panel = syntheticPanel()
@@ -146,6 +147,67 @@ class InterdaySearchEngineTest {
 
         assertTrue(!allowed)
         assertTrue(blocked)
+    }
+
+    @Test
+    fun `flat regime gross throttle only activates in flat low breadth states`() {
+        val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod("flatRegimeGrossScale", Double::class.javaPrimitiveType, Double::class.javaPrimitiveType, InterdayAlphaConfig::class.java)
+        method.isAccessible = true
+
+        val config = InterdayAlphaConfig(
+            flatRegimeGateMode = InterdayFlatRegimeGateMode.GROSS_THROTTLE,
+            flatRegimeMarketTrendThreshold = 0.15,
+            flatRegimeBreadthThreshold = 0.10,
+            flatRegimeGrossScale = 0.65
+        )
+
+        val active = method.invoke(null, 0.08, 0.04, config) as Double
+        val inactive = method.invoke(null, 0.22, 0.04, config) as Double
+
+        assertEquals(0.65, active)
+        assertEquals(1.0, inactive)
+    }
+
+    @Test
+    fun `flat regime edge boost only activates for configured gate modes`() {
+        val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod("flatRegimeEntryEdgeBoostBps", Double::class.javaPrimitiveType, Double::class.javaPrimitiveType, InterdayAlphaConfig::class.java)
+        method.isAccessible = true
+
+        val entryOnly = InterdayAlphaConfig(
+            flatRegimeGateMode = InterdayFlatRegimeGateMode.ENTRY_EDGE_BOOST,
+            flatRegimeMarketTrendThreshold = 0.15,
+            flatRegimeBreadthThreshold = 0.10,
+            flatRegimeEntryEdgeFloorBoostBps = 0.5
+        )
+        val combined = entryOnly.copy(flatRegimeGateMode = InterdayFlatRegimeGateMode.COMBINED)
+        val throttleOnly = entryOnly.copy(flatRegimeGateMode = InterdayFlatRegimeGateMode.GROSS_THROTTLE)
+
+        val entryBoost = method.invoke(null, 0.05, 0.03, entryOnly) as Double
+        val combinedBoost = method.invoke(null, 0.05, 0.03, combined) as Double
+        val throttleBoost = method.invoke(null, 0.05, 0.03, throttleOnly) as Double
+
+        assertEquals(0.5, entryBoost)
+        assertEquals(0.5, combinedBoost)
+        assertEquals(0.0, throttleBoost)
+    }
+
+    @Test
+    fun `flat regime gate requires both low market trend and low breadth`() {
+        val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod("flatRegimeGateActive", Double::class.javaPrimitiveType, Double::class.javaPrimitiveType, InterdayAlphaConfig::class.java)
+        method.isAccessible = true
+
+        val config = InterdayAlphaConfig(
+            flatRegimeGateMode = InterdayFlatRegimeGateMode.COMBINED,
+            flatRegimeMarketTrendThreshold = 0.15,
+            flatRegimeBreadthThreshold = 0.10
+        )
+
+        assertTrue(method.invoke(null, 0.05, 0.04, config) as Boolean)
+        assertFalse(method.invoke(null, 0.20, 0.04, config) as Boolean)
+        assertFalse(method.invoke(null, 0.05, 0.18, config) as Boolean)
     }
 
     @Test

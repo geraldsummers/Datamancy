@@ -258,6 +258,26 @@ class InterdaySearchEngine(
             base.regimeDirectionalSuppressionThreshold
         )
         val regimeNetBiasScales = prioritizeDoubles(searchSpace.regimeNetBiasScale.ifEmpty { listOf(base.regimeNetBiasScale) }, base.regimeNetBiasScale)
+        val flatRegimeGateModes = prioritizeAnchored(
+            searchSpace.flatRegimeGateModes.ifEmpty { listOf(base.flatRegimeGateMode) },
+            base.flatRegimeGateMode
+        )
+        val flatRegimeMarketTrendThresholds = prioritizeDoubles(
+            searchSpace.flatRegimeMarketTrendThreshold.ifEmpty { listOf(base.flatRegimeMarketTrendThreshold) },
+            base.flatRegimeMarketTrendThreshold
+        )
+        val flatRegimeBreadthThresholds = prioritizeDoubles(
+            searchSpace.flatRegimeBreadthThreshold.ifEmpty { listOf(base.flatRegimeBreadthThreshold) },
+            base.flatRegimeBreadthThreshold
+        )
+        val flatRegimeGrossScales = prioritizeDoubles(
+            searchSpace.flatRegimeGrossScale.ifEmpty { listOf(base.flatRegimeGrossScale) },
+            base.flatRegimeGrossScale
+        )
+        val flatRegimeEntryEdgeFloorBoostBps = prioritizeDoubles(
+            searchSpace.flatRegimeEntryEdgeFloorBoostBps.ifEmpty { listOf(base.flatRegimeEntryEdgeFloorBoostBps) },
+            base.flatRegimeEntryEdgeFloorBoostBps
+        )
 
         val generated = mutableListOf<InterdayAlphaConfig>()
         outer@ for (adjustmentMode in adjustmentModes) {
@@ -302,7 +322,12 @@ class InterdaySearchEngine(
                                                                                                                                         for (holdEdgeFloor in holdEdgeFloorBps) {
                                                                                                                                             for (regimeDirectionalSuppressionThreshold in regimeDirectionalSuppressionThresholds) {
                                                                                                                                                 for (regimeNetBiasScale in regimeNetBiasScales) {
-                                                                                                                                                    generated += base.copy(
+                                                                                                                                                    for (flatRegimeGateMode in flatRegimeGateModes) {
+                                                                                                                                                        for (flatRegimeMarketTrendThreshold in flatRegimeMarketTrendThresholds) {
+                                                                                                                                                            for (flatRegimeBreadthThreshold in flatRegimeBreadthThresholds) {
+                                                                                                                                                                for (flatRegimeGrossScale in flatRegimeGrossScales) {
+                                                                                                                                                                    for (flatRegimeEntryEdgeFloorBoost in flatRegimeEntryEdgeFloorBoostBps) {
+                                                                                                                                                                        generated += base.copy(
                                                                                                                                         adjustmentMode = adjustmentMode,
                                                                                                                                         residualizationMode = residualizationMode,
                                                                                                                                         residualizationBetaMode = residualizationBetaMode,
@@ -343,9 +368,19 @@ class InterdaySearchEngine(
                                                                                                                                         entryEdgeFloorBps = entryEdgeFloor,
                                                                                                                                         holdEdgeFloorBps = holdEdgeFloor,
                                                                                                                                         regimeDirectionalSuppressionThreshold = regimeDirectionalSuppressionThreshold,
-                                                                                                                                        regimeNetBiasScale = regimeNetBiasScale
+                                                                                                                                        regimeNetBiasScale = regimeNetBiasScale,
+                                                                                                                                        flatRegimeGateMode = flatRegimeGateMode,
+                                                                                                                                        flatRegimeMarketTrendThreshold = flatRegimeMarketTrendThreshold,
+                                                                                                                                        flatRegimeBreadthThreshold = flatRegimeBreadthThreshold,
+                                                                                                                                        flatRegimeGrossScale = flatRegimeGrossScale,
+                                                                                                                                        flatRegimeEntryEdgeFloorBoostBps = flatRegimeEntryEdgeFloorBoost
                                                                                                                                     )
                                                                                                                                     if (generated.size >= maxEvaluations) break@outer
+                                                                                                                                                                    }
+                                                                                                                                                                }
+                                                                                                                                                            }
+                                                                                                                                                        }
+                                                                                                                                                    }
                                                                                                                                                 }
                                                                                                                                             }
                                                                                                                                         }
@@ -525,6 +560,11 @@ class InterdaySearchEngine(
                     .sortedByDescending { abs(it.score) }
                     .take(32)
                 latestSignalsBySymbol = signals.associateBy { it.symbol }
+                val flatRegimeEntryEdgeBoostBps = flatRegimeEntryEdgeBoostBps(
+                    marketTrendScore = latestRegime.marketTrendScore,
+                    breadth = latestRegime.breadth,
+                    config = config
+                )
                 val eligibleBySymbol = signals.associate { signal ->
                     val trendAgreementOk = signal.trendAgreement >= config.minTrendAgreement
                     val incumbentSameSide = holdsSignalDirection(currentWeights[signal.symbol] ?: 0.0, signal.direction)
@@ -538,7 +578,12 @@ class InterdaySearchEngine(
                         signal = signal,
                         plateauToleranceBps = searchPolicy.scorePlateauToleranceBps
                     )
-                    val edgeFloorOk = directionalEdgeBps(signal) >= if (incumbentSameSide) config.holdEdgeFloorBps else config.entryEdgeFloorBps
+                    val requiredEdgeFloorBps = if (incumbentSameSide) {
+                        config.holdEdgeFloorBps
+                    } else {
+                        config.entryEdgeFloorBps + flatRegimeEntryEdgeBoostBps
+                    }
+                    val edgeFloorOk = directionalEdgeBps(signal) >= requiredEdgeFloorBps
                     signal.symbol to (
                         signal.confidence >= config.minConfidence &&
                             trendAgreementOk &&
@@ -573,7 +618,12 @@ class InterdaySearchEngine(
                 latestTargets = if (portfolioSignals.isEmpty()) {
                     emptyList()
                 } else {
-                    val scaledGrossFraction = scaledTargetGrossFraction(portfolioDefaults, config)
+                    val baseGrossFraction = scaledTargetGrossFraction(portfolioDefaults, config)
+                    val scaledGrossFraction = baseGrossFraction * flatRegimeGrossScale(
+                        marketTrendScore = latestRegime.marketTrendScore,
+                        breadth = latestRegime.breadth,
+                        config = config
+                    )
                     val constructed = portfolioConstructor.construct(
                         AlphaPortfolioRequest(
                             signals = portfolioSignals,
@@ -582,7 +632,7 @@ class InterdaySearchEngine(
                             weightingMode = config.tailWeightingMode,
                             targetGrossFraction = scaledGrossFraction,
                             currentWeightsBySymbol = currentWeights.toMap(),
-                            minExpectedNetEdgeBps = config.entryEdgeFloorBps,
+                            minExpectedNetEdgeBps = config.entryEdgeFloorBps + flatRegimeEntryEdgeBoostBps,
                             targetNetFraction = regimeTargetNetFraction(
                                 regimeScore = latestRegime.score,
                                 config = config,
@@ -1300,6 +1350,10 @@ class InterdaySearchEngine(
         if (config.residualizationBetaMode == InterdayResidualizationBetaMode.EWMA && config.residualizationHalfLifeDays < 1) {
             reasons += "ewma residualization half-life days must be >= 1"
         }
+        if (config.flatRegimeMarketTrendThreshold < 0.0) reasons += "flat regime market trend threshold must be >= 0"
+        if (config.flatRegimeBreadthThreshold < 0.0) reasons += "flat regime breadth threshold must be >= 0"
+        if (config.flatRegimeGrossScale <= 0.0) reasons += "flat regime gross scale must be > 0"
+        if (config.flatRegimeEntryEdgeFloorBoostBps < 0.0) reasons += "flat regime entry edge floor boost must be >= 0"
         return InterdayValidation(
             accepted = backtestAccepted && forwardAccepted && reasons.isEmpty(),
             backtestAccepted = backtestAccepted,
@@ -2217,6 +2271,43 @@ private fun scaledTargetGrossFraction(
     defaults: AlphaPortfolioDefaults,
     config: InterdayAlphaConfig
 ): Double = defaults.targetGrossFraction * config.targetGrossFractionScale.coerceIn(0.05, 1.0)
+
+private fun flatRegimeGateActive(
+    marketTrendScore: Double,
+    breadth: Double,
+    config: InterdayAlphaConfig
+): Boolean {
+    if (config.flatRegimeGateMode == InterdayFlatRegimeGateMode.NONE) return false
+    val trendThreshold = config.flatRegimeMarketTrendThreshold.coerceIn(0.0, 1.0)
+    val breadthThreshold = config.flatRegimeBreadthThreshold.coerceIn(0.0, 1.0)
+    return abs(marketTrendScore) <= trendThreshold && abs(breadth) <= breadthThreshold
+}
+
+private fun flatRegimeGrossScale(
+    marketTrendScore: Double,
+    breadth: Double,
+    config: InterdayAlphaConfig
+): Double {
+    if (!flatRegimeGateActive(marketTrendScore, breadth, config)) return 1.0
+    return when (config.flatRegimeGateMode) {
+        InterdayFlatRegimeGateMode.GROSS_THROTTLE,
+        InterdayFlatRegimeGateMode.COMBINED -> config.flatRegimeGrossScale.coerceIn(0.05, 1.0)
+        else -> 1.0
+    }
+}
+
+private fun flatRegimeEntryEdgeBoostBps(
+    marketTrendScore: Double,
+    breadth: Double,
+    config: InterdayAlphaConfig
+): Double {
+    if (!flatRegimeGateActive(marketTrendScore, breadth, config)) return 0.0
+    return when (config.flatRegimeGateMode) {
+        InterdayFlatRegimeGateMode.ENTRY_EDGE_BOOST,
+        InterdayFlatRegimeGateMode.COMBINED -> config.flatRegimeEntryEdgeFloorBoostBps.coerceAtLeast(0.0)
+        else -> 0.0
+    }
+}
 
 private fun isDirectionAllowedByRegime(
     direction: AlphaDirection,
