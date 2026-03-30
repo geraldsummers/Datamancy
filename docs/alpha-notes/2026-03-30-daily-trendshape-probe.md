@@ -1,0 +1,99 @@
+# 2026-03-30 Daily Trend-Shape Probe
+
+- readiness
+  - `2026-03-30T03:13:56.845442050Z`
+  - `READY`
+  - `eligible=148`
+  - `critical=0`
+  - `coverage_fail=0`
+  - `execution_fail=0`
+  - `live_sparse=37`
+
+- research basis
+  - `deep-research-report.md`
+  - `deep-research-report2.md`
+  - report-supported core trend stack:
+    - multi-horizon volatility-normalized returns
+    - regression slope / t-stat style strength
+    - moving-average filters as stabilizers
+  - prior live result:
+    - `2026-03-30T02:57:30.895207989Z`
+    - structural survivor was positive but still below the `1.5` bps search gate
+
+- hypothesis
+  - the current `18d / q=2.5% / EWMA / LIQUIDITY_WEIGHTED / VOLATILITY_SCALED / LINEAR_FACTOR` daily survivor could clear the `1.5` bps search gate through core trend-shape tuning without widening the structural family
+
+- experiment
+  - live trend-shape probe stored in leaderboard with `sourceSearchGeneratedAt=2026-03-30T03:19:31.067204755Z`
+  - constrained surface:
+    - `signalBarMinutes=1440`
+    - `forwardHours=72`
+    - `rebalanceCadenceHours=24`
+    - `factorLookbackDays=18`
+    - `selectionQuantile=0.025`
+    - `residualizationBetaMode=EWMA`
+    - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
+    - `tailWeightingMode=VOLATILITY_SCALED`
+    - `fundingOverlayMode=LINEAR_FACTOR`
+    - `openInterestWeight=0.00`
+    - `exitOverlayMode=TRAILING_AND_TAKE_PROFIT`
+  - probed:
+    - `fastTrendDays in {2,3,4}`
+    - `mediumTrendDays in {5,7,10}`
+    - `slowTrendDays in {14,21,30}`
+    - `regressionDays in {10,14,18}`
+    - `volatilityDays in {10,14}`
+    - `slopeWeight in {0.25,0.35}`
+    - `fundingWeight in {0.15,0.30}`
+
+- result
+  - the top two live configs both cleared the `1.5` bps search gate
+  - strongest candidate:
+    - `factorLookbackDays=18`
+    - `selectionQuantile=0.025`
+    - `fundingWeight=0.15`
+    - `fastTrendDays=3`
+    - `mediumTrendDays=7`
+    - `slowTrendDays=14`
+    - `regressionDays=14`
+    - `volatilityDays=10`
+    - `slopeWeight=0.25`
+    - backtest: `222 trades`, `1.5940 edge bps`, `5.7016 calmar`, `3.5387% net return`, `4.8489% max drawdown`, `12.5231% avg turnover`
+    - forward: `7 trades`, `1.4869 edge bps`, `967.7769 calmar`, `0.1041% net return`, `0.0216% max drawdown`, `12.8931% avg turnover`
+  - second candidate was effectively tied:
+    - same config except `fundingWeight=0.30`
+    - backtest: `1.5848 edge bps`
+    - forward: `1.4857 edge bps`
+  - the improvement versus the prior structural survivor came from `volatilityDays=10`; the older `volatilityDays=14` version remained on the board at only `0.5109` backtest edge bps
+  - a steeper `slopeWeight=0.35` did not help forward behavior in this probe
+  - forward flat-regime weakness remains:
+    - strongest candidate `market_trend=flat`: `3 trades`, `-0.7201 edge bps`
+    - strongest candidate `market_trend=up`: `2 trades`, `6.2855 edge bps`
+
+- prior-window threshold audit
+  - frozen prior threshold source:
+    - `generatedAt=2026-03-30T02:57:30.895207989Z`
+    - selected threshold `0.0` bps
+  - applied to the `03:19:31Z` probe leaderboard:
+    - `eligibleCurrentCandidates=4`
+    - `acceptedCurrentCandidates=3`
+    - `medianAcceptedBacktestEdgeBps=1.5848`
+    - `medianAcceptedForwardEdgeBps=1.4857`
+  - interpretation:
+    - the prior-window threshold audit is directionally supportive
+    - it is no longer decision-critical because the top two probe configs already clear the live `1.5` bps search gate without any threshold relaxation
+
+- remaining risk
+  - still not promotable:
+    - best backtest edge `1.5940` bps is below the `2.0` bps promotion gate
+    - forward sample is still `7` trades
+    - `market_trend=flat` is still negative
+  - the current tie between `fundingWeight=0.15` and `0.30` is good for robustness, but not yet enough evidence to claim a stable funding optimum
+
+- next step
+  - keep the new core trend shape fixed:
+    - `3 / 7 / 14`
+    - `regressionDays=14`
+    - `volatilityDays=10`
+    - `slopeWeight=0.25`
+  - next optimization target is flat-regime control inside this same daily pocket, not broader family search and not testnet

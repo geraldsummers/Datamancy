@@ -71,21 +71,21 @@ Validated current alpha-system reality:
 - trading policy is centralized and authoritative; notebooks and prompts are clients, not the source of truth
 
 Validated current live readiness sample:
-- timestamp: `2026-03-30T02:53:43.772416351Z`
+- timestamp: `2026-03-30T03:13:56.845442050Z`
 - exchange: `hyperliquid_mainnet`
 - `eligibleSymbols=148`
 - `criticalSymbols=0`
 - `coverageFailSymbols=0`
 - `finalizedFailSymbols=0`
 - `executionFailSymbols=0`
-- `liveSparseSymbols=27`
+- `liveSparseSymbols=37`
 - verdict: `READY`
 - latest frontiers at that check:
-  - `market_data candle_1m = 2026-03-30 02:53:00+00`
-  - `market_data trade = 2026-03-30 02:53:40.992+00`
-  - `orderbook_data = 2026-03-30 02:53:30.468+00`
-  - `market_data funding = 2026-03-30 02:53:38+00`
-  - `research_features_1m = 2026-03-30 02:52:00+00`
+  - `market_data candle_1m = 2026-03-30 03:13:00+00`
+  - `market_data trade = 2026-03-30 03:13:52.649+00`
+  - `orderbook_data = 2026-03-30 03:13:40.417+00`
+  - `market_data funding = 2026-03-30 03:13:52+00`
+  - `research_features_1m = 2026-03-30 03:12:00+00`
 
 Important rule about status:
 - any hardcoded status in this prompt can be stale
@@ -107,10 +107,18 @@ Current empirically measured alpha findings to build on:
   - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
   - `tailWeightingMode=VOLATILITY_SCALED`
   - `fundingOverlayMode=LINEAR_FACTOR`
-  - `selectionQuantile in [0.025,0.03]`
+  - `selectionQuantile=0.025` is currently leading
   - `fundingWeight in [0.15,0.30]`
+- the current core trend-shape survivor is:
+  - `fastTrendDays=3`
+  - `mediumTrendDays=7`
+  - `slowTrendDays=14`
+  - `regressionDays=14`
+  - `volatilityDays=10`
+  - `slopeWeight=0.25`
 - `BOUNDED_REINFORCEMENT` and `EQUAL_WEIGHT` survived earlier exploratory passes but did not survive the latest after-cost daily search leaderboard
 - same-window threshold calibration on the latest daily structural search only found feasible acceptance at `0.0` bps; treat that as evidence that the current `1.5` bps search gate may be above this pocket, not as permission to lower policy without prior-window calibration
+- a frozen prior-window threshold audit using the `2026-03-30T02:57:30.895207989Z` search result implies `0.0` bps would have accepted `3` candidates on the next `03:19:31Z` trend-shape probe, but this no longer drives the decision because the top two live candidates already clear the `1.5` bps search gate
 - currently implemented interday research controls now include:
   - residualization beta mode: `SIMPLE` / `EWMA`
   - residualization market proxy mode: `EQUAL_WEIGHT` / `LIQUIDITY_WEIGHTED`
@@ -133,7 +141,7 @@ Current empirically measured alpha findings to build on:
   - `exitOverlayMode=TRAILING_AND_TAKE_PROFIT`
   - backtest: `220 trades`, `-5.8107 edge bps`, `-3.1439 calmar`
   - forward: `11 trades`, `1.9818 edge bps`
-- strongest recent daily structural survivor measured on latium was:
+- strongest recent daily trend-shape survivor measured on latium was:
   - `signalBarMinutes=1440`
   - `forwardHours=72`
   - `residualizationMode=MARKET`
@@ -142,16 +150,25 @@ Current empirically measured alpha findings to build on:
   - `residualizationBetaMode=EWMA`
   - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
   - `tailWeightingMode=VOLATILITY_SCALED`
-  - `fundingWeight=0.30`
+  - `fundingWeight=0.15`
   - `fundingOverlayMode=LINEAR_FACTOR`
   - `openInterestWeight=0.00`
+  - `fastTrendDays=3`
+  - `mediumTrendDays=7`
+  - `slowTrendDays=14`
+  - `regressionDays=14`
+  - `volatilityDays=10`
+  - `slopeWeight=0.25`
   - `exitOverlayMode=TRAILING_AND_TAKE_PROFIT`
-  - backtest: `229 trades`, `0.5109 edge bps`, `1.7680 calmar`
-  - forward: `7 trades`, `0.8597 edge bps`
+  - backtest: `222 trades`, `1.5940 edge bps`, `5.7016 calmar`
+  - forward: `7 trades`, `1.4869 edge bps`
 - tested `TREND_BREAK` exit overlay did not help this surface:
   - backtest: `138 trades`, `-8.3229 edge bps`
   - forward: `12 trades`, `1.4117 edge bps`
-- none of the currently measured daily variants are promotable yet because the best verified backtest edge is still only `0.5109` bps after costs, below the `1.5` bps search gate and the stricter `2.0` bps promotion gate
+- none of the currently measured daily variants are promotable yet because:
+  - the best verified backtest edge `1.5940` bps clears search but still misses the stricter `2.0` bps promotion gate
+  - forward sample is still only `7` trades
+  - the best survivor remains negative in the `market_trend=flat` slice at `-0.7201` edge bps
 - treat this as a strategy-optimization and threshold-calibration problem, not an infra-readiness problem
 
 Core mission:
