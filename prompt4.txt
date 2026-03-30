@@ -186,6 +186,26 @@ Current empirically measured alpha findings to build on:
     - trend-only continual IO-out is harmful on the current survivor
     - `PC1Share`-confirmed continual IO-out is not harmful enough to matter, but still does not repair flat
     - do not spend more cycles on this tested flat-hazard gross-scaling surface without a new mechanism
+- empirical flat-subtype diagnostic shows the current flat slice is not a large operational regime on this window:
+  - readiness before the cycle: `2026-03-30T08:47:22.163060988Z`, `READY`
+  - unchanged control rerun at `2026-03-30T08:50:00.323026649Z` kept the same headline flat slice:
+    - backtest `market_trend=flat = -5.5040 edge bps`, `21 trades`
+  - but the underlying backtest flat observation set is:
+    - `19` total flat observations
+    - `17` zero-exposure / zero-turnover warmup observations (`89.5%`)
+    - `2` active flat observations (`2026-02-23`, `2026-02-24`)
+  - the active flat observations are threshold-edge transition states, not deep inner-flat chop:
+    - average `abs(marketTrendScore)=0.1197` with the current flat cutoff at `0.15`
+    - average `dispersion=0.4762`
+    - average gross exposure `0.3391`
+    - average turnover `19.9612%`
+  - compression cannot support a real subtype split on this sample:
+    - only those two active flat dates have aligned `10x12` / `14x12` compression diagnostics
+    - both still show `PC1ShareZ=0.0`
+    - future factor drift is mixed (`-201.35` vs `+375.84` bps)
+  - interpretation:
+    - do not treat the raw current flat slice as a broad homogeneous regime
+    - do not spend more cycles on flat subtype tuning or flat overlays on this window without redefining the research object to active-flat / post-warmup observations first
 - immediate alpha-shape neighbor probing after that control pass also failed to improve the winner:
   - probe timestamp: `2026-03-30T03:30:51.570587874Z`
   - no neighbor beat the baseline on both overall edge and flat-slice behavior
@@ -253,7 +273,7 @@ Current empirically measured alpha findings to build on:
   - the best verified backtest edge `1.5940` bps clears search but still misses the stricter `2.0` bps promotion gate
   - forward sample is still only `7` trades
   - the best survivor remains negative in the `market_trend=flat` slice at `-5.5040` edge bps on the current accepted daily winner
-- treat this as a deeper flat-regime model-improvement problem, not an infra-readiness problem, not a simple local-threshold-tuning problem, not a solved `PC1Share` entry-penalty problem, and not a solved continual-IO-out gross-scaling problem
+- treat this as a deeper flat-regime model-improvement problem, but note that the raw current flat slice is mostly warmup contamination on this window; it is not an infra-readiness problem, not a simple local-threshold-tuning problem, not a solved `PC1Share` entry-penalty problem, and not a solved continual-IO-out gross-scaling problem
 
 Core mission:
 1. Prove or kill alpha.
@@ -437,7 +457,8 @@ Immediate priorities:
 8. use testnet only when there is a clear question it can answer about fills, drift, or cost realism
 9. do not spend more cycles on the tested `PC1Share` new-entry penalty surface without a new mechanism or stronger external support
 10. do not spend more cycles on the tested flat-hazard gross-scaling surface without a new mechanism
-11. do not revive dead paths without new evidence: reversion, cohort alpha, hierarchy blending, triangular arb
+11. do not spend more cycles on raw flat-slice subtype tuning on this window until the research object is redefined to active-flat / post-warmup observations
+12. do not revive dead paths without new evidence: reversion, cohort alpha, hierarchy blending, triangular arb
 
 Operator deep-research escalation:
 - if the current research reports are insufficient to justify the next material adjustment, explicitly ask the operator for deeper research

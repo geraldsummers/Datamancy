@@ -1,0 +1,84 @@
+# 2026-03-30 Flat Subtype Diagnostic
+
+- readiness
+  - `2026-03-30T08:47:22.163060988Z`
+  - `READY`
+  - `eligible=146`
+  - `critical=0`
+  - `coverage_fail=0`
+  - `finalized_fail=0`
+  - `execution_fail=0`
+  - `live_sparse=26`
+
+- research basis
+  - current flat-remedy work kept failing with the implicit assumption that `market_trend=flat` is a real, sizable, homogeneous regime
+  - objective of this cycle:
+    - split the current flat bucket empirically before spending more flat-remedy cycles
+
+- experiment
+  - reran the unchanged daily survivor with inspection enabled on `latium`
+  - control run timestamp:
+    - `2026-03-30T08:50:00.323026649Z`
+  - control remained unchanged:
+    - backtest: `1.5940 edge bps`, `222 trades`
+    - forward: `1.4867 edge bps`, `7 trades`
+    - `market_trend=flat`: `-5.5040 edge bps`, `21 trades`
+  - inspection payload:
+    - `56` regime snapshots
+    - `315` compression observations
+  - subtype dataset was built from the same `market_trend=flat` observation logic the engine uses:
+    - observations are `zipWithNext` snapshot pairs keyed on `right.time`
+    - flat bucket = `-0.15 < marketTrendScore < 0.15`
+
+- result
+  - the current backtest flat bucket is mostly warmup contamination, not an operational regime:
+    - total flat observations: `19`
+    - zero-exposure / zero-turnover flat observations: `17` (`89.5%`)
+    - active flat observations: `2` (`10.5%`)
+  - zero-exposure flat subtype:
+    - dates: `2026-02-03` through `2026-02-19`
+    - average `abs(marketTrendScore)=0.0000`
+    - average `abs(breadth)=0.0000`
+    - average `dispersion=0.0000`
+    - average gross exposure `0.0000`
+    - average turnover `0.0000%`
+    - interpretation:
+      - this is warmup / pre-deployment state, not a tradable flat subtype
+  - active flat subtype:
+    - dates:
+      - `2026-02-23T00:00:00Z`
+      - `2026-02-24T00:00:00Z`
+    - average `abs(marketTrendScore)=0.1197`
+    - average `abs(breadth)=0.0000`
+    - average `dispersion=0.4762`
+    - average gross exposure `0.3391`
+    - average turnover `19.9612%`
+    - interpretation:
+      - the operational flat sample is not deep inner-flat chop
+      - it is a threshold-edge transition subtype sitting near the lower edge of the current flat band
+  - compression could not support a real subtype split on the current live control:
+    - only the two active flat dates had aligned `10x12` / `14x12` compression diagnostics
+    - both had `PC1ShareZ=0.0` because the early-history z-score was not yet informative
+    - future factor drift was mixed:
+      - `2026-02-23`: `-201.35 bps`
+      - `2026-02-24`: `+375.84 bps`
+    - interpretation:
+      - no stable compression-confirmed flat subtype can be identified from this window
+  - forward adds only one more active flat observation:
+    - `2026-03-29T00:00:00Z`
+    - gross exposure `0.3555`
+    - turnover `13.9936%`
+    - `dispersion=0.6154`
+
+- remaining risk
+  - the headline `market_trend=flat` backtest slice is currently too contaminated and too thin to support reliable subtype mining
+  - the operational flat sample is only `2` backtest observations plus `1` forward observation
+  - any further flat subtype threshold search on this window would be noise
+
+- next step
+  - stop treating the raw flat slice as a broad regime that deserves more overlay tuning
+  - if flat work is revisited, redefine the research object first:
+    - active-flat only
+    - post-warmup only
+    - likely threshold-edge transition vs true inner-flat chop
+  - until then, move effort back to core daily alpha-definition improvement
