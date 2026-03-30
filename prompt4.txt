@@ -169,6 +169,23 @@ Current empirically measured alpha findings to build on:
   - interpretation:
     - this penalty behaves like a crude participation suppressor, not a robust flat-regime repair
     - do not spend more cycles on this tested `PC1Share` entry-penalty surface without a new mechanism or stronger research support
+- continual flat-hazard gross scaling also failed to produce a usable flat remedy:
+  - readiness before the cycle: `2026-03-30T08:23:02.380942454Z`, `READY`
+  - baseline step control at `2026-03-30T08:25:44.421224339Z`:
+    - backtest: `1.5940 edge bps`, `222 trades`
+    - forward: `1.4867 edge bps`, `7 trades`
+    - `market_trend=flat`: `-5.5040 edge bps`, `21 trades`
+  - plain `CONTINUOUS_RAMP` at `2026-03-30T08:27:50.117697863Z` was identical to baseline
+  - `MARKET_TREND_ONLY` gross-scaling hazard regressed the survivor:
+    - floor `0.65` at `2026-03-30T08:29:55.586898723Z`: backtest `1.5800 edge bps`, forward `1.0907 edge bps`, `market_trend=flat = -5.9659 edge bps`
+    - floor `0.50` at `2026-03-30T08:32:03.563398426Z`: backtest `1.5688 edge bps`, forward `1.0561 edge bps`, `market_trend=flat = -6.0728 edge bps`
+  - `MARKET_TREND_AND_PC1_SHARE` confirmation avoided the clear regression but was inert to mildly worse:
+    - floor `0.65` at `2026-03-30T08:34:38.991218670Z`: backtest `1.5917 edge bps`, forward `1.4815 edge bps`, `market_trend=flat = -5.5204 edge bps`
+    - floor `0.50` at `2026-03-30T08:36:45.694060451Z`: backtest `1.5940 edge bps`, forward `1.2914 edge bps`, `market_trend=flat = -5.8298 edge bps`
+  - interpretation:
+    - trend-only continual IO-out is harmful on the current survivor
+    - `PC1Share`-confirmed continual IO-out is not harmful enough to matter, but still does not repair flat
+    - do not spend more cycles on this tested flat-hazard gross-scaling surface without a new mechanism
 - immediate alpha-shape neighbor probing after that control pass also failed to improve the winner:
   - probe timestamp: `2026-03-30T03:30:51.570587874Z`
   - no neighbor beat the baseline on both overall edge and flat-slice behavior
@@ -188,6 +205,10 @@ Current empirically measured alpha findings to build on:
   - compression penalty mode:
     - `NONE`
     - `PC1_SHARE`
+  - flat hazard mode:
+    - `NONE`
+    - `MARKET_TREND_ONLY`
+    - `MARKET_TREND_AND_PC1_SHARE`
   - regime-sliced performance output, including `market_trend`
 - prior best measured region on latium before the structural-upgrade pass was:
   - `signalBarMinutes=1440`
@@ -232,7 +253,7 @@ Current empirically measured alpha findings to build on:
   - the best verified backtest edge `1.5940` bps clears search but still misses the stricter `2.0` bps promotion gate
   - forward sample is still only `7` trades
   - the best survivor remains negative in the `market_trend=flat` slice at `-5.5040` edge bps on the current accepted daily winner
-- treat this as a deeper flat-regime model-improvement problem, not an infra-readiness problem, not a simple local-threshold-tuning problem, and not a solved `PC1Share` entry-penalty problem
+- treat this as a deeper flat-regime model-improvement problem, not an infra-readiness problem, not a simple local-threshold-tuning problem, not a solved `PC1Share` entry-penalty problem, and not a solved continual-IO-out gross-scaling problem
 
 Core mission:
 1. Prove or kill alpha.
@@ -415,7 +436,8 @@ Immediate priorities:
 7. hold exit-overlay expansion unless the core daily surface stops failing backtest edge or new evidence specifically justifies deeper exit research
 8. use testnet only when there is a clear question it can answer about fills, drift, or cost realism
 9. do not spend more cycles on the tested `PC1Share` new-entry penalty surface without a new mechanism or stronger external support
-10. do not revive dead paths without new evidence: reversion, cohort alpha, hierarchy blending, triangular arb
+10. do not spend more cycles on the tested flat-hazard gross-scaling surface without a new mechanism
+11. do not revive dead paths without new evidence: reversion, cohort alpha, hierarchy blending, triangular arb
 
 Operator deep-research escalation:
 - if the current research reports are insufficient to justify the next material adjustment, explicitly ask the operator for deeper research

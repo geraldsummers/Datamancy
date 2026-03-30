@@ -311,6 +311,51 @@ class InterdaySearchEngineTest {
     }
 
     @Test
+    fun `flat trend hazard component rises as market trend approaches zero`() {
+        val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod("flatTrendHazardComponent", Double::class.javaPrimitiveType, InterdayAlphaConfig::class.java)
+        method.isAccessible = true
+
+        val config = InterdayAlphaConfig(
+            flatHazardMode = InterdayFlatHazardMode.MARKET_TREND_ONLY,
+            flatRegimeMarketTrendThreshold = 0.15
+        )
+
+        val far = method.invoke(null, 0.30, config) as Double
+        val edge = method.invoke(null, 0.15, config) as Double
+        val center = method.invoke(null, 0.0, config) as Double
+
+        assertEquals(0.0, far, 1e-9)
+        assertEquals(0.0, edge, 1e-9)
+        assertEquals(1.0, center, 1e-9)
+    }
+
+    @Test
+    fun `flat hazard gross scale reaches floor only when compression confirm is elevated`() {
+        val confirmMethod = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod("flatHazardCompressionConfirm", Double::class.javaPrimitiveType, InterdayAlphaConfig::class.java)
+        confirmMethod.isAccessible = true
+        val scaleMethod = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod("flatHazardGrossScale", Double::class.javaPrimitiveType, InterdayAlphaConfig::class.java)
+        scaleMethod.isAccessible = true
+
+        val config = InterdayAlphaConfig(
+            flatHazardMode = InterdayFlatHazardMode.MARKET_TREND_AND_PC1_SHARE,
+            flatHazardGrossScaleFloor = 0.65,
+            flatHazardCompressionThresholdZ = 0.75
+        )
+
+        val lowConfirm = confirmMethod.invoke(null, 0.0, config) as Double
+        val highConfirm = confirmMethod.invoke(null, 2.0, config) as Double
+        val lowScale = scaleMethod.invoke(null, lowConfirm, config) as Double
+        val highScale = scaleMethod.invoke(null, highConfirm, config) as Double
+
+        assertTrue(lowConfirm < highConfirm)
+        assertTrue(lowScale > highScale)
+        assertTrue(highScale >= 0.65)
+    }
+
+    @Test
     fun `training target bars follow forward horizon rather than rebalance cadence`() {
         val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
             .getDeclaredMethod("trainingTargetBars", InterdayAlphaConfig::class.java)

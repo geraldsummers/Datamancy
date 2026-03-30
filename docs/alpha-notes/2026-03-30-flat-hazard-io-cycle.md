@@ -1,0 +1,88 @@
+# 2026-03-30 Flat-Hazard IO Cycle
+
+- readiness
+  - `2026-03-30T08:23:02.380942454Z`
+  - `READY`
+  - `eligible=146`
+  - `critical=0`
+  - `coverage_fail=0`
+  - `finalized_fail=0`
+  - `execution_fail=0`
+  - `live_sparse=27`
+
+- research basis
+  - `deep-research-report3.md`
+  - prior failed flat controls:
+    - binary flat gate
+    - flat entry control
+    - direct `PC1Share` new-entry penalty
+  - mechanism under test:
+    - treat flat as a continuous portfolio hazard
+    - shrink target gross gradually instead of blocking scores or deleting entries directly
+
+- hypothesis
+  - continual IO-out in low-trend daily states should reduce flat damage more honestly than the previously tested binary gate and direct new-entry penalty
+  - `PC1Share` should work, if at all, as a confirmer of flat hazard rather than a direct suppressor
+
+- experiment
+  - implemented continuous flat-hazard gross scaling in the portfolio-construction path only
+  - alpha scores were left unchanged
+  - modes implemented:
+    - `MARKET_TREND_ONLY`
+    - `MARKET_TREND_AND_PC1_SHARE`
+  - local verification:
+    - `:trading-sdk:test --tests org.datamancy.trading.alpha.InterdaySearchEngineTest`
+  - targeted deploy:
+    - rebuilt `trading-policy` and `alpha-discovery-service`
+    - restarted only `alpha-discovery-service` on `latium`
+  - fixed survivor and comparison matrix:
+    - baseline step control at `2026-03-30T08:25:44.421224339Z`
+    - `CONTINUOUS_RAMP` control at `2026-03-30T08:27:50.117697863Z`
+    - `MARKET_TREND_ONLY`, floor `0.65` at `2026-03-30T08:29:55.586898723Z`
+    - `MARKET_TREND_ONLY`, floor `0.50` at `2026-03-30T08:32:03.563398426Z`
+    - `MARKET_TREND_AND_PC1_SHARE`, floor `0.65` at `2026-03-30T08:34:38.991218670Z`
+    - `MARKET_TREND_AND_PC1_SHARE`, floor `0.50` at `2026-03-30T08:36:45.694060451Z`
+
+- result
+  - baseline remained unchanged:
+    - backtest: `1.5940 edge bps`, `222 trades`
+    - forward: `1.4867 edge bps`, `7 trades`
+    - `market_trend=flat`: `-5.5040 edge bps`, `21 trades`
+  - plain `CONTINUOUS_RAMP` was completely inert:
+    - identical to baseline on backtest, forward, and flat
+  - `MARKET_TREND_ONLY` continual gross scaling was a clean regression:
+    - floor `0.65`:
+      - backtest: `1.5800 edge bps`, `221 trades`
+      - forward: `1.0907 edge bps`, `9 trades`
+      - `market_trend=flat`: `-5.9659 edge bps`, `20 trades`
+    - floor `0.50`:
+      - backtest: `1.5688 edge bps`, `221 trades`
+      - forward: `1.0561 edge bps`, `9 trades`
+      - `market_trend=flat`: `-6.0728 edge bps`, `20 trades`
+    - average:
+      - backtest: `1.5744 edge bps`
+      - forward: `1.0734 edge bps`
+      - `market_trend=flat`: `-6.0193 edge bps`
+  - `MARKET_TREND_AND_PC1_SHARE` confirmation avoided the regression but stayed inert to mildly worse:
+    - floor `0.65`:
+      - backtest: `1.5917 edge bps`, `222 trades`
+      - forward: `1.4815 edge bps`, `7 trades`
+      - `market_trend=flat`: `-5.5204 edge bps`, `21 trades`
+    - floor `0.50`:
+      - backtest: `1.5940 edge bps`, `221 trades`
+      - forward: `1.2914 edge bps`, `8 trades`
+      - `market_trend=flat`: `-5.8298 edge bps`, `20 trades`
+    - average:
+      - backtest: `1.5929 edge bps`
+      - forward: `1.3864 edge bps`
+      - `market_trend=flat`: `-5.6751 edge bps`
+
+- remaining risk
+  - the confirmation branch may still be a useful state description, but this target-gross implementation did not create a real plateau
+  - none of the tested variants improved flat while also improving or preserving forward enough to matter
+  - the effect sizes are too small and too negative to justify expanding this branch
+
+- next step
+  - kill `MARKET_TREND_ONLY` continual gross scaling on this survivor
+  - treat `PC1Share`-confirmed continual gross scaling as implemented but not decision-useful
+  - return to deeper alpha-definition work rather than more flat-hazard gross-scale tuning

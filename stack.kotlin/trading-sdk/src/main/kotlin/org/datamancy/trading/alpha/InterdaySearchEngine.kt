@@ -479,6 +479,7 @@ class InterdaySearchEngine(
         val compressionDiagnostics = mutableListOf<InterdayCompressionDiagnosticPoint>()
         val compressionHistoryByKey = mutableMapOf<Pair<Int, Int>, MutableList<CompressionDiagnosticRawPoint>>()
         val compressionPenaltyHistoryByKey = mutableMapOf<Pair<Int, Int>, MutableList<CompressionDiagnosticRawPoint>>()
+        val flatHazardHistoryByKey = mutableMapOf<Pair<Int, Int>, MutableList<CompressionDiagnosticRawPoint>>()
         val weightTimeline = mutableMapOf<Instant, Map<String, Double>>()
         val desiredWeightTimeline = mutableMapOf<Instant, Map<String, Double>>()
         val appliedDeltaTimeline = mutableMapOf<Instant, Map<String, Double>>()
@@ -592,6 +593,14 @@ class InterdaySearchEngine(
                     val incumbentSameSide = holdsSignalDirection(currentWeights[signal.symbol] ?: 0.0, signal.direction)
                     applyCompressionPenalty(signal, incumbentSameSide, compressionPenaltyState)
                 }
+                val flatHazardState = currentFlatHazardState(
+                    regime = latestRegime,
+                    signals = rawSignals,
+                    structuralState = signalResult.structuralState,
+                    signalBarMinutes = config.signalBarMinutes,
+                    config = config,
+                    historyByKey = flatHazardHistoryByKey
+                )
                 latestSignals = signals
                     .sortedByDescending { abs(it.score) }
                     .take(32)
@@ -687,7 +696,7 @@ class InterdaySearchEngine(
                         marketTrendScore = latestRegime.marketTrendScore,
                         breadth = latestRegime.breadth,
                         config = config
-                    )
+                    ) * flatHazardGrossScale(flatHazardState.intensity, config)
                     val constructed = portfolioConstructor.construct(
                         AlphaPortfolioRequest(
                             signals = portfolioSignals,
@@ -1386,23 +1395,100 @@ class InterdaySearchEngine(
         if (config.compressionPenaltyMode == InterdayCompressionPenaltyMode.NONE || !structuralState.enabled) {
             return CompressionPenaltyState.disabled()
         }
-        val windowBars = barsForDays(config.compressionWindowDays, signalBarMinutes).coerceAtLeast(4)
-        val sleeveSize = config.compressionSleeveSizePerSide.coerceAtLeast(2)
+        val compressionState = currentCompressionMetricState(
+            signals = signals,
+            structuralState = structuralState,
+            signalBarMinutes = signalBarMinutes,
+            windowDays = config.compressionWindowDays,
+            sleeveSizePerSide = config.compressionSleeveSizePerSide,
+            historyByKey = historyByKey
+        )
+        if (!compressionState.available) return CompressionPenaltyState.disabled()
+        return CompressionPenaltyState(
+            mode = config.compressionPenaltyMode,
+            zScore = compressionState.zScore,
+            scale = compressionPenaltyScale(compressionState.zScore, config),
+            windowBars = compressionState.windowBars,
+            sleeveSizePerSide = compressionState.sleeveSizePerSide
+        )
+    }
+
+    private fun currentFlatHazardState(
+        regime: RegimeState,
+        signals: List<InterdaySignalSnapshot>,
+        structuralState: StructuralState,
+        signalBarMinutes: Int,
+        config: InterdayAlphaConfig,
+        historyByKey: MutableMap<Pair<Int, Int>, MutableList<CompressionDiagnosticRawPoint>>
+    ): FlatHazardState {
+        if (config.flatHazardMode == InterdayFlatHazardMode.NONE) return FlatHazardState.disabled()
+        val trendComponent = flatTrendHazardComponent(regime.marketTrendScore, config)
+        if (trendComponent <= 1e-9) {
+            return FlatHazardState(
+                mode = config.flatHazardMode,
+                intensity = 0.0,
+                grossScale = 1.0,
+                trendComponent = 0.0,
+                compressionConfirm = 1.0,
+                compressionZScore = 0.0,
+                windowBars = 0,
+                sleeveSizePerSide = 0
+            )
+        }
+        val compressionState = when (config.flatHazardMode) {
+            InterdayFlatHazardMode.NONE,
+            InterdayFlatHazardMode.MARKET_TREND_ONLY -> CompressionMetricState.disabled()
+            InterdayFlatHazardMode.MARKET_TREND_AND_PC1_SHARE -> currentCompressionMetricState(
+                signals = signals,
+                structuralState = structuralState,
+                signalBarMinutes = signalBarMinutes,
+                windowDays = config.flatHazardCompressionWindowDays,
+                sleeveSizePerSide = config.flatHazardCompressionSleeveSizePerSide,
+                historyByKey = historyByKey
+            )
+        }
+        val compressionConfirm = when (config.flatHazardMode) {
+            InterdayFlatHazardMode.NONE,
+            InterdayFlatHazardMode.MARKET_TREND_ONLY -> 1.0
+            InterdayFlatHazardMode.MARKET_TREND_AND_PC1_SHARE ->
+                if (!compressionState.available) 0.0 else flatHazardCompressionConfirm(compressionState.zScore, config)
+        }
+        val intensity = (trendComponent * compressionConfirm).coerceIn(0.0, 1.0)
+        return FlatHazardState(
+            mode = config.flatHazardMode,
+            intensity = intensity,
+            grossScale = flatHazardGrossScale(intensity, config),
+            trendComponent = trendComponent,
+            compressionConfirm = compressionConfirm,
+            compressionZScore = compressionState.zScore,
+            windowBars = compressionState.windowBars,
+            sleeveSizePerSide = compressionState.sleeveSizePerSide
+        )
+    }
+
+    private fun currentCompressionMetricState(
+        signals: List<InterdaySignalSnapshot>,
+        structuralState: StructuralState,
+        signalBarMinutes: Int,
+        windowDays: Int,
+        sleeveSizePerSide: Int,
+        historyByKey: MutableMap<Pair<Int, Int>, MutableList<CompressionDiagnosticRawPoint>>
+    ): CompressionMetricState {
+        if (!structuralState.enabled) return CompressionMetricState.disabled()
+        val windowBars = barsForDays(windowDays, signalBarMinutes).coerceAtLeast(4)
+        val sleeveSize = sleeveSizePerSide.coerceAtLeast(2)
         val rawPoint = compressionObservation(signals, structuralState, windowBars, sleeveSize)
-            ?: return CompressionPenaltyState.disabled()
+            ?: return CompressionMetricState.disabled()
         val key = windowBars to sleeveSize
         val history = historyByKey.getOrPut(key) { mutableListOf() }
         val historyObservations = max(20, COMPRESSION_DIAGNOSTIC_HISTORY_DAYS)
         val recentHistory = history.takeLast(historyObservations)
-        val zScore = when (config.compressionPenaltyMode) {
-            InterdayCompressionPenaltyMode.NONE -> 0.0
-            InterdayCompressionPenaltyMode.PC1_SHARE -> robustZScore(recentHistory.map { it.pc1Share }, rawPoint.pc1Share)
-        }
+        val zScore = robustZScore(recentHistory.map { it.pc1Share }, rawPoint.pc1Share)
         history += rawPoint
-        return CompressionPenaltyState(
-            mode = config.compressionPenaltyMode,
+        return CompressionMetricState(
+            available = true,
+            pc1Share = rawPoint.pc1Share,
             zScore = zScore,
-            scale = compressionPenaltyScale(zScore, config),
             windowBars = windowBars,
             sleeveSizePerSide = sleeveSize
         )
@@ -1586,6 +1672,9 @@ class InterdaySearchEngine(
         if (config.compressionPenaltyStrength < 0.0 || config.compressionPenaltyStrength > 1.0) {
             reasons += "compression penalty strength must be within [0,1]"
         }
+        if (config.flatHazardGrossScaleFloor <= 0.0) reasons += "flat hazard gross scale floor must be > 0"
+        if (config.flatHazardCompressionWindowDays < 4) reasons += "flat hazard compression window days must be >= 4"
+        if (config.flatHazardCompressionSleeveSizePerSide < 2) reasons += "flat hazard compression sleeve size per side must be >= 2"
         return InterdayValidation(
             accepted = backtestAccepted && forwardAccepted && reasons.isEmpty(),
             backtestAccepted = backtestAccepted,
@@ -2441,6 +2530,48 @@ class InterdaySearchEngine(
         }
     }
 
+    private data class CompressionMetricState(
+        val available: Boolean,
+        val pc1Share: Double,
+        val zScore: Double,
+        val windowBars: Int,
+        val sleeveSizePerSide: Int
+    ) {
+        companion object {
+            fun disabled(): CompressionMetricState = CompressionMetricState(
+                available = false,
+                pc1Share = 0.0,
+                zScore = 0.0,
+                windowBars = 0,
+                sleeveSizePerSide = 0
+            )
+        }
+    }
+
+    private data class FlatHazardState(
+        val mode: InterdayFlatHazardMode,
+        val intensity: Double,
+        val grossScale: Double,
+        val trendComponent: Double,
+        val compressionConfirm: Double,
+        val compressionZScore: Double,
+        val windowBars: Int,
+        val sleeveSizePerSide: Int
+    ) {
+        companion object {
+            fun disabled(): FlatHazardState = FlatHazardState(
+                mode = InterdayFlatHazardMode.NONE,
+                intensity = 0.0,
+                grossScale = 1.0,
+                trendComponent = 0.0,
+                compressionConfirm = 1.0,
+                compressionZScore = 0.0,
+                windowBars = 0,
+                sleeveSizePerSide = 0
+            )
+        }
+    }
+
     private data class PositionAdjustment(
         val symbol: String,
         val deltaWeight: Double,
@@ -2631,6 +2762,33 @@ private fun compressionPenaltyScale(zScore: Double, config: InterdayAlphaConfig)
     val threshold = config.compressionThresholdZ
     val logistic = 1.0 / (1.0 + exp(-(zScore - threshold)))
     return (1.0 - strength * logistic).coerceIn(0.05, 1.0)
+}
+
+private fun flatTrendHazardComponent(
+    marketTrendScore: Double,
+    config: InterdayAlphaConfig
+): Double {
+    if (config.flatHazardMode == InterdayFlatHazardMode.NONE) return 0.0
+    val threshold = config.flatRegimeMarketTrendThreshold.coerceIn(0.0, 1.0)
+    if (threshold <= 1e-9) return 0.0
+    return (1.0 - (abs(marketTrendScore) / threshold)).coerceIn(0.0, 1.0)
+}
+
+private fun flatHazardCompressionConfirm(
+    zScore: Double,
+    config: InterdayAlphaConfig
+): Double {
+    if (config.flatHazardMode != InterdayFlatHazardMode.MARKET_TREND_AND_PC1_SHARE) return 1.0
+    return 1.0 / (1.0 + exp(-(zScore - config.flatHazardCompressionThresholdZ)))
+}
+
+private fun flatHazardGrossScale(
+    intensity: Double,
+    config: InterdayAlphaConfig
+): Double {
+    if (config.flatHazardMode == InterdayFlatHazardMode.NONE) return 1.0
+    val floor = config.flatHazardGrossScaleFloor.coerceIn(0.05, 1.0)
+    return (1.0 - intensity.coerceIn(0.0, 1.0) * (1.0 - floor)).coerceIn(floor, 1.0)
 }
 
 private fun flatRegimeGateActive(

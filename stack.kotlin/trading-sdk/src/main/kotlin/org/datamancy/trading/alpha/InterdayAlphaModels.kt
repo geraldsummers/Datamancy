@@ -71,7 +71,12 @@ data class InterdayAlphaConfig(
     val compressionWindowDays: Int = 10,
     val compressionSleeveSizePerSide: Int = 12,
     val compressionThresholdZ: Double = 1.0,
-    val compressionPenaltyStrength: Double = 0.25
+    val compressionPenaltyStrength: Double = 0.25,
+    val flatHazardMode: InterdayFlatHazardMode = InterdayFlatHazardMode.NONE,
+    val flatHazardGrossScaleFloor: Double = 1.0,
+    val flatHazardCompressionWindowDays: Int = 10,
+    val flatHazardCompressionSleeveSizePerSide: Int = 12,
+    val flatHazardCompressionThresholdZ: Double = 0.75
 )
 
 data class InterdaySearchSpace(
@@ -128,7 +133,12 @@ data class InterdaySearchSpace(
     val compressionWindowDays: List<Int> = emptyList(),
     val compressionSleeveSizePerSide: List<Int> = emptyList(),
     val compressionThresholdZ: List<Double> = emptyList(),
-    val compressionPenaltyStrength: List<Double> = emptyList()
+    val compressionPenaltyStrength: List<Double> = emptyList(),
+    val flatHazardModes: List<InterdayFlatHazardMode> = emptyList(),
+    val flatHazardGrossScaleFloor: List<Double> = emptyList(),
+    val flatHazardCompressionWindowDays: List<Int> = emptyList(),
+    val flatHazardCompressionSleeveSizePerSide: List<Int> = emptyList(),
+    val flatHazardCompressionThresholdZ: List<Double> = emptyList()
 )
 
 data class InterdayAlphaSearchRequest(

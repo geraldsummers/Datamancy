@@ -81,6 +81,12 @@ enum class InterdayCompressionPenaltyMode {
     PC1_SHARE
 }
 
+enum class InterdayFlatHazardMode {
+    NONE,
+    MARKET_TREND_ONLY,
+    MARKET_TREND_AND_PC1_SHARE
+}
+
 data class UniverseBoundsSpec(
     val timeSeriesNormalization: String = "rolling_median_mad",
     val crossSectionalNormalization: String = "rank_gaussian",
