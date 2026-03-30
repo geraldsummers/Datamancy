@@ -69,6 +69,13 @@ enum class InterdayFlatRegimeGateMode {
     COMBINED
 }
 
+enum class InterdayFlatRegimeEntryControlMode {
+    NONE,
+    DISPERSION_GUARD,
+    CONFIRMATION_BOOST,
+    COMBINED
+}
+
 data class UniverseBoundsSpec(
     val timeSeriesNormalization: String = "rolling_median_mad",
     val crossSectionalNormalization: String = "rank_gaussian",

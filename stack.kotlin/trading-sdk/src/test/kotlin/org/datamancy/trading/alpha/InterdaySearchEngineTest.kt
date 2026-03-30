@@ -211,6 +211,56 @@ class InterdaySearchEngineTest {
     }
 
     @Test
+    fun `flat regime dispersion guard only blocks new entries below configured dispersion`() {
+        val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod(
+                "flatRegimeDispersionAllowed",
+                Double::class.javaPrimitiveType,
+                Double::class.javaPrimitiveType,
+                Double::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                InterdayAlphaConfig::class.java
+            )
+        method.isAccessible = true
+
+        val config = InterdayAlphaConfig(
+            flatRegimeEntryControlMode = InterdayFlatRegimeEntryControlMode.DISPERSION_GUARD,
+            flatRegimeMarketTrendThreshold = 0.15,
+            flatRegimeBreadthThreshold = 0.10,
+            flatRegimeMinDispersion = 0.20
+        )
+
+        assertFalse(method.invoke(null, 0.05, 0.03, 0.12, false, config) as Boolean)
+        assertTrue(method.invoke(null, 0.05, 0.03, 0.24, false, config) as Boolean)
+        assertTrue(method.invoke(null, 0.05, 0.03, 0.12, true, config) as Boolean)
+    }
+
+    @Test
+    fun `flat regime confirmation boost only raises trend agreement floor for new flat entries`() {
+        val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod(
+                "flatRegimeTrendAgreementFloor",
+                Double::class.javaPrimitiveType,
+                Double::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                InterdayAlphaConfig::class.java
+            )
+        method.isAccessible = true
+
+        val config = InterdayAlphaConfig(
+            minTrendAgreement = 0.10,
+            flatRegimeEntryControlMode = InterdayFlatRegimeEntryControlMode.CONFIRMATION_BOOST,
+            flatRegimeMarketTrendThreshold = 0.15,
+            flatRegimeBreadthThreshold = 0.10,
+            flatRegimeTrendAgreementBoost = 0.12
+        )
+
+        assertEquals(0.22, method.invoke(null, 0.05, 0.03, false, config) as Double)
+        assertEquals(0.10, method.invoke(null, 0.25, 0.03, false, config) as Double)
+        assertEquals(0.10, method.invoke(null, 0.05, 0.03, true, config) as Double)
+    }
+
+    @Test
     fun `training target bars follow forward horizon rather than rebalance cadence`() {
         val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
             .getDeclaredMethod("trainingTargetBars", InterdayAlphaConfig::class.java)

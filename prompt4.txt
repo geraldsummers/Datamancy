@@ -71,21 +71,21 @@ Validated current alpha-system reality:
 - trading policy is centralized and authoritative; notebooks and prompts are clients, not the source of truth
 
 Validated current live readiness sample:
-- timestamp: `2026-03-30T04:08:23.977694635Z`
+- timestamp: `2026-03-30T04:34:34.165940949Z`
 - exchange: `hyperliquid_mainnet`
 - `eligibleSymbols=148`
 - `criticalSymbols=0`
 - `coverageFailSymbols=0`
 - `finalizedFailSymbols=0`
 - `executionFailSymbols=0`
-- `liveSparseSymbols=25`
+- `liveSparseSymbols=38`
 - verdict: `READY`
 - latest frontiers at that check:
-  - `market_data candle_1m = 2026-03-30 04:08:00+00`
-  - `market_data trade = 2026-03-30 04:08:21.709+00`
-  - `orderbook_data = 2026-03-30 04:08:10.25+00`
-  - `market_data funding = 2026-03-30 04:08:22+00`
-  - `research_features_1m = 2026-03-30 04:06:00+00`
+  - `market_data candle_1m = 2026-03-30 04:34:00+00`
+  - `market_data trade = 2026-03-30 04:34:30.098+00`
+  - `orderbook_data = 2026-03-30 04:34:30.133+00`
+  - `market_data funding = 2026-03-30 04:34:31+00`
+  - `research_features_1m = 2026-03-30 04:33:00+00`
 
 Important rule about status:
 - any hardcoded status in this prompt can be stale
@@ -128,6 +128,12 @@ Current empirically measured alpha findings to build on:
   - `COMBINED` at `2026-03-30T04:17:55.102501786Z`: identical to `GROSS_THROTTLE`
   - interpretation: do not spend more cycles on this tested flat-regime gate threshold set; the throttle hurts and the edge-floor boost is inert
   - earlier `-0.7201` / `-0.7139` flat-slice notes from the control micro-pass are stale rolling-window measurements and should not be treated as the current state
+- explicit flat-regime entry-control test on the accepted daily survivor also failed:
+  - `NONE` at `2026-03-30T04:36:47.489783080Z`: backtest `1.5940 edge bps`, forward `1.4867 edge bps`, `market_trend=flat = -5.5040 edge bps`, search accepted
+  - `DISPERSION_GUARD` at `2026-03-30T04:38:46.221676711Z`: identical to `NONE`; the tested `0.20` dispersion floor did not bind
+  - `CONFIRMATION_BOOST` at `2026-03-30T04:40:45.052669320Z`: backtest `1.3447 edge bps`, forward `1.4867 edge bps`, `market_trend=flat = -6.0031 edge bps`, search rejected
+  - `COMBINED` at `2026-03-30T04:42:42.127532411Z`: identical to `CONFIRMATION_BOOST`
+  - interpretation: do not spend more cycles on this tested flat entry-control threshold set; the dispersion guard is inert and the confirmation boost is harmful
 - immediate alpha-shape neighbor probing after that control pass also failed to improve the winner:
   - probe timestamp: `2026-03-30T03:30:51.570587874Z`
   - no neighbor beat the baseline on both overall edge and flat-slice behavior
@@ -140,6 +146,7 @@ Current empirically measured alpha findings to build on:
   - tail weighting mode: `VOLATILITY_SCALED` / `EQUAL_WEIGHT`
   - funding overlay mode: `LINEAR_FACTOR` / `BOUNDED_REINFORCEMENT` / `CROWDING_GUARD` / `NONE`
   - exit overlay mode: `TRAILING_ONLY` / `TRAILING_AND_TAKE_PROFIT` / `TIME_STOP` / `TREND_BREAK` / `NONE`
+  - flat entry control mode: `NONE` / `DISPERSION_GUARD` / `CONFIRMATION_BOOST` / `COMBINED`
   - regime-sliced performance output, including `market_trend`
 - prior best measured region on latium before the structural-upgrade pass was:
   - `signalBarMinutes=1440`

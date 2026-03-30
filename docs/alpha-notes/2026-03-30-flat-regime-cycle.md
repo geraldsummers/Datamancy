@@ -103,6 +103,39 @@
       - `GROSS_THROTTLE` is actively harmful
       - `COMBINED` collapses to the throttle result because the edge-floor boost still does not bind
       - the verified rerun baseline flat slice is materially worse than the earlier control-pass note; treat the earlier `-0.7201` / `-0.7139` flat figures as stale rolling-window measurements, not the current state
+  - explicit flat-regime entry-control effect test on latium:
+    - readiness recheck: `2026-03-30T04:34:34.165940949Z`
+    - verdict: `READY`
+    - fixed flat-state thresholds:
+      - `flatRegimeMarketTrendThreshold=0.15`
+      - `flatRegimeBreadthThreshold=0.10`
+    - fixed entry-control thresholds:
+      - `flatRegimeMinDispersion=0.20`
+      - `flatRegimeTrendAgreementBoost=0.10`
+    - `NONE` at `2026-03-30T04:36:47.489783080Z`
+      - backtest: `1.5940 edge bps`, `222` trades
+      - forward: `1.4867 edge bps`, `7` trades
+      - `market_trend=flat`: `-5.5040 edge bps`
+      - search acceptance: `true`
+    - `DISPERSION_GUARD` at `2026-03-30T04:38:46.221676711Z`
+      - backtest: `1.5940 edge bps`, `222` trades
+      - forward: `1.4867 edge bps`, `7` trades
+      - `market_trend=flat`: `-5.5040 edge bps`
+      - search acceptance: `true`
+    - `CONFIRMATION_BOOST` at `2026-03-30T04:40:45.052669320Z`
+      - backtest: `1.3447 edge bps`, `219` trades
+      - forward: `1.4867 edge bps`, `7` trades
+      - `market_trend=flat`: `-6.0031 edge bps`
+      - search acceptance: `false`
+    - `COMBINED` at `2026-03-30T04:42:42.127532411Z`
+      - backtest: `1.3447 edge bps`, `219` trades
+      - forward: `1.4867 edge bps`, `7` trades
+      - `market_trend=flat`: `-6.0031 edge bps`
+      - search acceptance: `false`
+    - interpretation:
+      - `DISPERSION_GUARD` is inert at the tested `0.20` threshold on the current accepted survivor
+      - `CONFIRMATION_BOOST` is harmful at the tested `0.10` boost; it cuts backtest edge below the `1.5` bps search gate and worsens the flat slice
+      - `COMBINED` collapses to the confirmation result because the dispersion guard still does not bind
 
 - remaining risk
   - still not promotable:
@@ -114,6 +147,7 @@
 - next step
   - stop spending cycles on local flat-control knob turning
   - do not widen the tested flat-regime gate thresholds; the tested throttle already damages the accepted survivor and the tested edge-floor boost does nothing
+  - do not widen the tested flat entry-control thresholds; the dispersion guard is inert and the confirmation boost is harmful at the first research-supported setting
   - next change should be a deeper regime/flat-market model adjustment grounded in research, not another small threshold sweep
   - likely research ask if the current brief is insufficient:
     - regime gating for momentum crash control in daily cross-sectional crypto trend

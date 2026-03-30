@@ -278,6 +278,18 @@ class InterdaySearchEngine(
             searchSpace.flatRegimeEntryEdgeFloorBoostBps.ifEmpty { listOf(base.flatRegimeEntryEdgeFloorBoostBps) },
             base.flatRegimeEntryEdgeFloorBoostBps
         )
+        val flatRegimeEntryControlModes = prioritizeAnchored(
+            searchSpace.flatRegimeEntryControlModes.ifEmpty { listOf(base.flatRegimeEntryControlMode) },
+            base.flatRegimeEntryControlMode
+        )
+        val flatRegimeMinDispersions = prioritizeDoubles(
+            searchSpace.flatRegimeMinDispersion.ifEmpty { listOf(base.flatRegimeMinDispersion) },
+            base.flatRegimeMinDispersion
+        )
+        val flatRegimeTrendAgreementBoosts = prioritizeDoubles(
+            searchSpace.flatRegimeTrendAgreementBoost.ifEmpty { listOf(base.flatRegimeTrendAgreementBoost) },
+            base.flatRegimeTrendAgreementBoost
+        )
 
         val generated = mutableListOf<InterdayAlphaConfig>()
         outer@ for (adjustmentMode in adjustmentModes) {
@@ -327,7 +339,10 @@ class InterdaySearchEngine(
                                                                                                                                                             for (flatRegimeBreadthThreshold in flatRegimeBreadthThresholds) {
                                                                                                                                                                 for (flatRegimeGrossScale in flatRegimeGrossScales) {
                                                                                                                                                                     for (flatRegimeEntryEdgeFloorBoost in flatRegimeEntryEdgeFloorBoostBps) {
-                                                                                                                                                                        generated += base.copy(
+                                                                                                                                                                        for (flatRegimeEntryControlMode in flatRegimeEntryControlModes) {
+                                                                                                                                                                            for (flatRegimeMinDispersion in flatRegimeMinDispersions) {
+                                                                                                                                                                                for (flatRegimeTrendAgreementBoost in flatRegimeTrendAgreementBoosts) {
+                                                                                                                                                                                    generated += base.copy(
                                                                                                                                         adjustmentMode = adjustmentMode,
                                                                                                                                         residualizationMode = residualizationMode,
                                                                                                                                         residualizationBetaMode = residualizationBetaMode,
@@ -373,9 +388,15 @@ class InterdaySearchEngine(
                                                                                                                                         flatRegimeMarketTrendThreshold = flatRegimeMarketTrendThreshold,
                                                                                                                                         flatRegimeBreadthThreshold = flatRegimeBreadthThreshold,
                                                                                                                                         flatRegimeGrossScale = flatRegimeGrossScale,
-                                                                                                                                        flatRegimeEntryEdgeFloorBoostBps = flatRegimeEntryEdgeFloorBoost
+                                                                                                                                        flatRegimeEntryEdgeFloorBoostBps = flatRegimeEntryEdgeFloorBoost,
+                                                                                                                                        flatRegimeEntryControlMode = flatRegimeEntryControlMode,
+                                                                                                                                        flatRegimeMinDispersion = flatRegimeMinDispersion,
+                                                                                                                                        flatRegimeTrendAgreementBoost = flatRegimeTrendAgreementBoost
                                                                                                                                     )
                                                                                                                                     if (generated.size >= maxEvaluations) break@outer
+                                                                                                                                                                                }
+                                                                                                                                                                            }
+                                                                                                                                                                        }
                                                                                                                                                                     }
                                                                                                                                                                 }
                                                                                                                                                             }
@@ -566,8 +587,14 @@ class InterdaySearchEngine(
                     config = config
                 )
                 val eligibleBySymbol = signals.associate { signal ->
-                    val trendAgreementOk = signal.trendAgreement >= config.minTrendAgreement
                     val incumbentSameSide = holdsSignalDirection(currentWeights[signal.symbol] ?: 0.0, signal.direction)
+                    val requiredTrendAgreement = flatRegimeTrendAgreementFloor(
+                        marketTrendScore = latestRegime.marketTrendScore,
+                        breadth = latestRegime.breadth,
+                        incumbentSameSide = incumbentSameSide,
+                        config = config
+                    )
+                    val trendAgreementOk = signal.trendAgreement >= requiredTrendAgreement
                     val entryStyleOk = incumbentSameSide || satisfiesEntryStyle(signal, config)
                     val regimeAllowed = isDirectionAllowedByRegime(
                         direction = signal.direction,
@@ -584,11 +611,19 @@ class InterdaySearchEngine(
                         config.entryEdgeFloorBps + flatRegimeEntryEdgeBoostBps
                     }
                     val edgeFloorOk = directionalEdgeBps(signal) >= requiredEdgeFloorBps
+                    val dispersionOk = flatRegimeDispersionAllowed(
+                        marketTrendScore = latestRegime.marketTrendScore,
+                        breadth = latestRegime.breadth,
+                        dispersion = latestRegime.dispersion,
+                        incumbentSameSide = incumbentSameSide,
+                        config = config
+                    )
                     signal.symbol to (
                         signal.confidence >= config.minConfidence &&
                             trendAgreementOk &&
                             entryStyleOk &&
                             regimeAllowed &&
+                            dispersionOk &&
                             edgeFloorOk &&
                             (universeEdgeOk || (incumbentSameSide && directionalEdgeBps(signal) >= config.holdEdgeFloorBps))
                         )
@@ -1354,6 +1389,12 @@ class InterdaySearchEngine(
         if (config.flatRegimeBreadthThreshold < 0.0) reasons += "flat regime breadth threshold must be >= 0"
         if (config.flatRegimeGrossScale <= 0.0) reasons += "flat regime gross scale must be > 0"
         if (config.flatRegimeEntryEdgeFloorBoostBps < 0.0) reasons += "flat regime entry edge floor boost must be >= 0"
+        if (config.flatRegimeMinDispersion < 0.0 || config.flatRegimeMinDispersion > 1.0) {
+            reasons += "flat regime min dispersion must be within [0,1]"
+        }
+        if (config.flatRegimeTrendAgreementBoost < 0.0 || config.flatRegimeTrendAgreementBoost > 1.0) {
+            reasons += "flat regime trend agreement boost must be within [0,1]"
+        }
         return InterdayValidation(
             accepted = backtestAccepted && forwardAccepted && reasons.isEmpty(),
             backtestAccepted = backtestAccepted,
@@ -2278,9 +2319,7 @@ private fun flatRegimeGateActive(
     config: InterdayAlphaConfig
 ): Boolean {
     if (config.flatRegimeGateMode == InterdayFlatRegimeGateMode.NONE) return false
-    val trendThreshold = config.flatRegimeMarketTrendThreshold.coerceIn(0.0, 1.0)
-    val breadthThreshold = config.flatRegimeBreadthThreshold.coerceIn(0.0, 1.0)
-    return abs(marketTrendScore) <= trendThreshold && abs(breadth) <= breadthThreshold
+    return isFlatRegimeState(marketTrendScore, breadth, config)
 }
 
 private fun flatRegimeGrossScale(
@@ -2306,6 +2345,58 @@ private fun flatRegimeEntryEdgeBoostBps(
         InterdayFlatRegimeGateMode.ENTRY_EDGE_BOOST,
         InterdayFlatRegimeGateMode.COMBINED -> config.flatRegimeEntryEdgeFloorBoostBps.coerceAtLeast(0.0)
         else -> 0.0
+    }
+}
+
+private fun isFlatRegimeState(
+    marketTrendScore: Double,
+    breadth: Double,
+    config: InterdayAlphaConfig
+): Boolean {
+    val trendThreshold = config.flatRegimeMarketTrendThreshold.coerceIn(0.0, 1.0)
+    val breadthThreshold = config.flatRegimeBreadthThreshold.coerceIn(0.0, 1.0)
+    return abs(marketTrendScore) <= trendThreshold && abs(breadth) <= breadthThreshold
+}
+
+private fun flatRegimeEntryControlActive(
+    marketTrendScore: Double,
+    breadth: Double,
+    config: InterdayAlphaConfig
+): Boolean {
+    if (config.flatRegimeEntryControlMode == InterdayFlatRegimeEntryControlMode.NONE) return false
+    return isFlatRegimeState(marketTrendScore, breadth, config)
+}
+
+private fun flatRegimeDispersionAllowed(
+    marketTrendScore: Double,
+    breadth: Double,
+    dispersion: Double,
+    incumbentSameSide: Boolean,
+    config: InterdayAlphaConfig
+): Boolean {
+    if (incumbentSameSide || !flatRegimeEntryControlActive(marketTrendScore, breadth, config)) return true
+    return when (config.flatRegimeEntryControlMode) {
+        InterdayFlatRegimeEntryControlMode.DISPERSION_GUARD,
+        InterdayFlatRegimeEntryControlMode.COMBINED ->
+            dispersion >= config.flatRegimeMinDispersion.coerceIn(0.0, 1.0)
+        else -> true
+    }
+}
+
+private fun flatRegimeTrendAgreementFloor(
+    marketTrendScore: Double,
+    breadth: Double,
+    incumbentSameSide: Boolean,
+    config: InterdayAlphaConfig
+): Double {
+    if (incumbentSameSide || !flatRegimeEntryControlActive(marketTrendScore, breadth, config)) {
+        return config.minTrendAgreement
+    }
+    return when (config.flatRegimeEntryControlMode) {
+        InterdayFlatRegimeEntryControlMode.CONFIRMATION_BOOST,
+        InterdayFlatRegimeEntryControlMode.COMBINED ->
+            (config.minTrendAgreement + config.flatRegimeTrendAgreementBoost).coerceIn(0.0, 1.0)
+        else -> config.minTrendAgreement
     }
 }
 

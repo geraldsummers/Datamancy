@@ -63,7 +63,10 @@ data class InterdayAlphaConfig(
     val flatRegimeMarketTrendThreshold: Double = 0.15,
     val flatRegimeBreadthThreshold: Double = 0.10,
     val flatRegimeGrossScale: Double = 0.65,
-    val flatRegimeEntryEdgeFloorBoostBps: Double = 0.50
+    val flatRegimeEntryEdgeFloorBoostBps: Double = 0.50,
+    val flatRegimeEntryControlMode: InterdayFlatRegimeEntryControlMode = InterdayFlatRegimeEntryControlMode.NONE,
+    val flatRegimeMinDispersion: Double = 0.20,
+    val flatRegimeTrendAgreementBoost: Double = 0.10
 )
 
 data class InterdaySearchSpace(
@@ -112,7 +115,10 @@ data class InterdaySearchSpace(
     val flatRegimeMarketTrendThreshold: List<Double> = emptyList(),
     val flatRegimeBreadthThreshold: List<Double> = emptyList(),
     val flatRegimeGrossScale: List<Double> = emptyList(),
-    val flatRegimeEntryEdgeFloorBoostBps: List<Double> = emptyList()
+    val flatRegimeEntryEdgeFloorBoostBps: List<Double> = emptyList(),
+    val flatRegimeEntryControlModes: List<InterdayFlatRegimeEntryControlMode> = emptyList(),
+    val flatRegimeMinDispersion: List<Double> = emptyList(),
+    val flatRegimeTrendAgreementBoost: List<Double> = emptyList()
 )
 
 data class InterdayAlphaSearchRequest(
