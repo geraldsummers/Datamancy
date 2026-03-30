@@ -66,7 +66,12 @@ data class InterdayAlphaConfig(
     val flatRegimeEntryEdgeFloorBoostBps: Double = 0.50,
     val flatRegimeEntryControlMode: InterdayFlatRegimeEntryControlMode = InterdayFlatRegimeEntryControlMode.NONE,
     val flatRegimeMinDispersion: Double = 0.20,
-    val flatRegimeTrendAgreementBoost: Double = 0.10
+    val flatRegimeTrendAgreementBoost: Double = 0.10,
+    val compressionPenaltyMode: InterdayCompressionPenaltyMode = InterdayCompressionPenaltyMode.NONE,
+    val compressionWindowDays: Int = 10,
+    val compressionSleeveSizePerSide: Int = 12,
+    val compressionThresholdZ: Double = 1.0,
+    val compressionPenaltyStrength: Double = 0.25
 )
 
 data class InterdaySearchSpace(
@@ -118,7 +123,12 @@ data class InterdaySearchSpace(
     val flatRegimeEntryEdgeFloorBoostBps: List<Double> = emptyList(),
     val flatRegimeEntryControlModes: List<InterdayFlatRegimeEntryControlMode> = emptyList(),
     val flatRegimeMinDispersion: List<Double> = emptyList(),
-    val flatRegimeTrendAgreementBoost: List<Double> = emptyList()
+    val flatRegimeTrendAgreementBoost: List<Double> = emptyList(),
+    val compressionPenaltyModes: List<InterdayCompressionPenaltyMode> = emptyList(),
+    val compressionWindowDays: List<Int> = emptyList(),
+    val compressionSleeveSizePerSide: List<Int> = emptyList(),
+    val compressionThresholdZ: List<Double> = emptyList(),
+    val compressionPenaltyStrength: List<Double> = emptyList()
 )
 
 data class InterdayAlphaSearchRequest(

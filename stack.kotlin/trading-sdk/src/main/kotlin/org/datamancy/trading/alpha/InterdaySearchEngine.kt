@@ -478,6 +478,7 @@ class InterdaySearchEngine(
         val signalHistory = mutableMapOf<String, MutableList<InterdayInspectionPoint>>()
         val compressionDiagnostics = mutableListOf<InterdayCompressionDiagnosticPoint>()
         val compressionHistoryByKey = mutableMapOf<Pair<Int, Int>, MutableList<CompressionDiagnosticRawPoint>>()
+        val compressionPenaltyHistoryByKey = mutableMapOf<Pair<Int, Int>, MutableList<CompressionDiagnosticRawPoint>>()
         val weightTimeline = mutableMapOf<Instant, Map<String, Double>>()
         val desiredWeightTimeline = mutableMapOf<Instant, Map<String, Double>>()
         val appliedDeltaTimeline = mutableMapOf<Instant, Map<String, Double>>()
@@ -579,7 +580,18 @@ class InterdaySearchEngine(
                     rebalanceBars = rebalanceBars,
                     targetHorizonBars = targetHorizonBars
                 )
-                val signals = signalResult.signals
+                val rawSignals = signalResult.signals
+                val compressionPenaltyState = currentCompressionPenaltyState(
+                    signals = rawSignals,
+                    structuralState = signalResult.structuralState,
+                    signalBarMinutes = config.signalBarMinutes,
+                    config = config,
+                    historyByKey = compressionPenaltyHistoryByKey
+                )
+                val signals = rawSignals.map { signal ->
+                    val incumbentSameSide = holdsSignalDirection(currentWeights[signal.symbol] ?: 0.0, signal.direction)
+                    applyCompressionPenalty(signal, incumbentSameSide, compressionPenaltyState)
+                }
                 latestSignals = signals
                     .sortedByDescending { abs(it.score) }
                     .take(32)
@@ -587,7 +599,7 @@ class InterdaySearchEngine(
                 if (includeInspection) {
                     compressionDiagnostics += buildCompressionDiagnostics(
                         time = time,
-                        signals = signals,
+                        signals = rawSignals,
                         structuralState = signalResult.structuralState,
                         regime = latestRegime,
                         panel = panel,
@@ -1364,6 +1376,75 @@ class InterdaySearchEngine(
         }
     }
 
+    private fun currentCompressionPenaltyState(
+        signals: List<InterdaySignalSnapshot>,
+        structuralState: StructuralState,
+        signalBarMinutes: Int,
+        config: InterdayAlphaConfig,
+        historyByKey: MutableMap<Pair<Int, Int>, MutableList<CompressionDiagnosticRawPoint>>
+    ): CompressionPenaltyState {
+        if (config.compressionPenaltyMode == InterdayCompressionPenaltyMode.NONE || !structuralState.enabled) {
+            return CompressionPenaltyState.disabled()
+        }
+        val windowBars = barsForDays(config.compressionWindowDays, signalBarMinutes).coerceAtLeast(4)
+        val sleeveSize = config.compressionSleeveSizePerSide.coerceAtLeast(2)
+        val rawPoint = compressionObservation(signals, structuralState, windowBars, sleeveSize)
+            ?: return CompressionPenaltyState.disabled()
+        val key = windowBars to sleeveSize
+        val history = historyByKey.getOrPut(key) { mutableListOf() }
+        val historyObservations = max(20, COMPRESSION_DIAGNOSTIC_HISTORY_DAYS)
+        val recentHistory = history.takeLast(historyObservations)
+        val zScore = when (config.compressionPenaltyMode) {
+            InterdayCompressionPenaltyMode.NONE -> 0.0
+            InterdayCompressionPenaltyMode.PC1_SHARE -> robustZScore(recentHistory.map { it.pc1Share }, rawPoint.pc1Share)
+        }
+        history += rawPoint
+        return CompressionPenaltyState(
+            mode = config.compressionPenaltyMode,
+            zScore = zScore,
+            scale = compressionPenaltyScale(zScore, config),
+            windowBars = windowBars,
+            sleeveSizePerSide = sleeveSize
+        )
+    }
+
+    private fun compressionObservation(
+        signals: List<InterdaySignalSnapshot>,
+        structuralState: StructuralState,
+        windowBars: Int,
+        sleeveSizePerSide: Int
+    ): CompressionDiagnosticRawPoint? {
+        if (!structuralState.enabled || signals.size < 4) return null
+        val longCandidates = signals.filter { it.direction == AlphaDirection.LONG }.sortedByDescending { it.empiricalScore }
+        val shortCandidates = signals.filter { it.direction == AlphaDirection.SHORT }.sortedBy { it.empiricalScore }
+        if (longCandidates.size < 2 || shortCandidates.size < 2) return null
+        val longSeries = longCandidates.mapNotNull { signal ->
+            structuralState.residualReturnWindowBySymbol[signal.symbol]?.takeLast(windowBars)?.takeIf { it.size == windowBars }
+        }.take(sleeveSizePerSide)
+        val shortSeries = shortCandidates.mapNotNull { signal ->
+            structuralState.residualReturnWindowBySymbol[signal.symbol]?.takeLast(windowBars)?.takeIf { it.size == windowBars }
+        }.take(sleeveSizePerSide)
+        if (longSeries.size < 2 || shortSeries.size < 2) return null
+        return CompressionDiagnosticRawPoint(
+            pc1Share = pc1Share(longSeries + shortSeries),
+            coMomentum = 0.5 * (averagePairwiseCorrelation(longSeries) + averagePairwiseCorrelation(shortSeries))
+        )
+    }
+
+    private fun applyCompressionPenalty(
+        signal: InterdaySignalSnapshot,
+        incumbentSameSide: Boolean,
+        state: CompressionPenaltyState
+    ): InterdaySignalSnapshot {
+        if (incumbentSameSide || state.mode == InterdayCompressionPenaltyMode.NONE || state.scale >= 0.999999) {
+            return signal
+        }
+        return signal.copy(
+            score = signal.score * state.scale,
+            expectedNetEdgeBps = signal.expectedNetEdgeBps * state.scale
+        )
+    }
+
     private fun bootstrapWeights(config: InterdayAlphaConfig): EmpiricalWeights = EmpiricalWeights(
         intercept = 0.0,
         coefficients = doubleArrayOf(
@@ -1499,6 +1580,11 @@ class InterdaySearchEngine(
         }
         if (config.flatRegimeTrendAgreementBoost < 0.0 || config.flatRegimeTrendAgreementBoost > 1.0) {
             reasons += "flat regime trend agreement boost must be within [0,1]"
+        }
+        if (config.compressionWindowDays < 4) reasons += "compression window days must be >= 4"
+        if (config.compressionSleeveSizePerSide < 2) reasons += "compression sleeve size per side must be >= 2"
+        if (config.compressionPenaltyStrength < 0.0 || config.compressionPenaltyStrength > 1.0) {
+            reasons += "compression penalty strength must be within [0,1]"
         }
         return InterdayValidation(
             accepted = backtestAccepted && forwardAccepted && reasons.isEmpty(),
@@ -2337,6 +2423,24 @@ class InterdaySearchEngine(
         val coMomentum: Double
     )
 
+    private data class CompressionPenaltyState(
+        val mode: InterdayCompressionPenaltyMode,
+        val zScore: Double,
+        val scale: Double,
+        val windowBars: Int,
+        val sleeveSizePerSide: Int
+    ) {
+        companion object {
+            fun disabled(): CompressionPenaltyState = CompressionPenaltyState(
+                mode = InterdayCompressionPenaltyMode.NONE,
+                zScore = 0.0,
+                scale = 1.0,
+                windowBars = 0,
+                sleeveSizePerSide = 0
+            )
+        }
+    }
+
     private data class PositionAdjustment(
         val symbol: String,
         val deltaWeight: Double,
@@ -2518,6 +2622,15 @@ private fun robustZScore(history: List<Double>, value: Double): Double {
     val center = median(history)
     val scale = medianAbsoluteDeviation(history, center).coerceAtLeast(1e-6)
     return ((value - center) / scale).coerceIn(-10.0, 10.0)
+}
+
+private fun compressionPenaltyScale(zScore: Double, config: InterdayAlphaConfig): Double {
+    if (config.compressionPenaltyMode == InterdayCompressionPenaltyMode.NONE) return 1.0
+    val strength = config.compressionPenaltyStrength.coerceIn(0.0, 1.0)
+    if (strength <= 1e-9) return 1.0
+    val threshold = config.compressionThresholdZ
+    val logistic = 1.0 / (1.0 + exp(-(zScore - threshold)))
+    return (1.0 - strength * logistic).coerceIn(0.05, 1.0)
 }
 
 private fun flatRegimeGateActive(

@@ -290,6 +290,27 @@ class InterdaySearchEngineTest {
     }
 
     @Test
+    fun `compression penalty scale decreases as pc1 share z moves through threshold`() {
+        val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod("compressionPenaltyScale", Double::class.javaPrimitiveType, InterdayAlphaConfig::class.java)
+        method.isAccessible = true
+
+        val config = InterdayAlphaConfig(
+            compressionPenaltyMode = InterdayCompressionPenaltyMode.PC1_SHARE,
+            compressionThresholdZ = 1.0,
+            compressionPenaltyStrength = 0.5
+        )
+
+        val low = method.invoke(null, 0.0, config) as Double
+        val threshold = method.invoke(null, 1.0, config) as Double
+        val high = method.invoke(null, 2.0, config) as Double
+
+        assertTrue(low > threshold)
+        assertTrue(threshold > high)
+        assertTrue(high < 1.0)
+    }
+
+    @Test
     fun `training target bars follow forward horizon rather than rebalance cadence`() {
         val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
             .getDeclaredMethod("trainingTargetBars", InterdayAlphaConfig::class.java)

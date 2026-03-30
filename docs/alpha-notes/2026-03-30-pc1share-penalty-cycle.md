@@ -1,0 +1,89 @@
+# 2026-03-30 PC1Share Penalty Cycle
+
+- readiness
+  - `2026-03-30T07:10:11.540947082Z`
+  - `READY`
+  - `eligible=147`
+  - `critical=0`
+  - `coverage_fail=0`
+  - `finalized_fail=0`
+  - `execution_fail=0`
+  - `live_sparse=29`
+
+- research basis
+  - `deep-research-report3.md`
+  - prior diagnostic note:
+    - [2026-03-30-correlation-compression-diagnostic.md](/home/gerald/IdeaProjects/Datamancy/docs/alpha-notes/2026-03-30-correlation-compression-diagnostic.md)
+  - mechanism under test:
+    - new-entry-only `PC1Share` penalty
+    - no `CoMom`
+    - no hard gate
+    - no incumbent suppression
+
+- hypothesis
+  - penalizing new entries during high residual compression should improve the accepted daily survivor by reducing bad `72h` factor drift without needing to kill most of the book
+  - a valid control should either improve `market_trend=flat` directly or at least preserve enough sample that any overall edge improvement is not just a thin participation artifact
+
+- experiment
+  - implemented `compressionPenaltyMode=PC1_SHARE` with:
+    - score and expected-edge scaling on new entries only
+    - logistic penalty around `compressionThresholdZ`
+    - windows tested: `10d`, `14d`
+    - sleeve sizes per side: `10`, `12`
+    - thresholds: `0.75`, `1.0`, `1.25`
+    - strengths: `0.25`, `0.50`
+  - local verification:
+    - `:trading-sdk:test --tests org.datamancy.trading.alpha.InterdaySearchEngineTest`
+  - targeted deploy:
+    - rebuilt `trading-policy` and `alpha-discovery-service`
+    - restarted only `alpha-discovery-service` on `latium`
+  - control rerun timestamp:
+    - `2026-03-30T07:13:07.860942083Z`
+  - control survivor:
+    - backtest: `1.5940 edge bps`, `222 trades`
+    - forward: `1.4867 edge bps`, `7 trades`
+    - `market_trend=flat`: `-5.5040 edge bps`, `21 trades`
+  - sweep:
+    - `24` live `run` evaluations from `2026-03-30T07:16:20.896647401Z` to `2026-03-30T08:03:13.152114790Z`
+
+- result
+  - weak branch is dead:
+    - `strength=0.25` failed `12/12`
+    - average backtest: `0.6477 edge bps`
+    - average trades: `150.3`
+    - average forward: `2.2226 edge bps`
+    - average `market_trend=flat`: `-15.8616 edge bps`
+  - strong branch is not a clean fix:
+    - `strength=0.50` accepted `10/12`
+    - average backtest: `2.4440 edge bps`
+    - average trades: `116.3`
+    - average forward: `3.0815 edge bps`
+    - average `market_trend=flat`: `-11.0503 edge bps`
+  - no accepted variant with nonzero flat trades improved the flat slice versus the control:
+    - accepted nonzero-flat variants stayed at either `-14.4580` or `-18.6930 edge bps`
+    - only the `z=0.75` strong variants improved flat by deleting flat trades entirely:
+      - `flat tradeCount=0`
+  - best headline variant was not trustworthy enough:
+    - `w10/s12/z0.75/str0.50`
+    - `2026-03-30T07:30:14.937507518Z`
+    - backtest: `5.4434 edge bps`, `77 trades`
+    - forward: `2.7853 edge bps`, `6 trades`
+    - `market_trend=flat`: `0.0 edge bps`, `0 trades`
+    - interpretation:
+      - this looks like heavy participation suppression, not a repaired alpha surface
+  - best trade-count-preserving accepted point still failed the mechanism test:
+    - `w14/s10/z1.25/str0.50`
+    - `2026-03-30T07:50:18.473170937Z`
+    - backtest: `1.5574 edge bps`, `142 trades`
+    - forward: `3.2455 edge bps`, `6 trades`
+    - `market_trend=flat`: `-18.6930 edge bps`, `7 trades`
+
+- remaining risk
+  - forward sample remained only `5-6` trades on the penalty variants
+  - the penalty may still have diagnostic value as a state variable, but this specific new-entry logistic overlay is not showing a robust plateau
+  - broadening or retuning this penalty without a new mechanism would likely just search for a thinner participation island
+
+- next step
+  - kill the current new-entry-only `PC1Share` penalty path for promotion work
+  - keep the diagnostic evidence, but treat it as a research clue rather than a deployable control
+  - return to core daily trend-model improvement and other research-supported alpha-definition upgrades

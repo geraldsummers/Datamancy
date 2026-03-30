@@ -76,6 +76,11 @@ enum class InterdayFlatRegimeEntryControlMode {
     COMBINED
 }
 
+enum class InterdayCompressionPenaltyMode {
+    NONE,
+    PC1_SHARE
+}
+
 data class UniverseBoundsSpec(
     val timeSeriesNormalization: String = "rolling_median_mad",
     val crossSectionalNormalization: String = "rank_gaussian",

@@ -71,21 +71,21 @@ Validated current alpha-system reality:
 - trading policy is centralized and authoritative; notebooks and prompts are clients, not the source of truth
 
 Validated current live readiness sample:
-- timestamp: `2026-03-30T06:41:12.747333245Z`
+- timestamp: `2026-03-30T07:10:11.540947082Z`
 - exchange: `hyperliquid_mainnet`
-- `eligibleSymbols=148`
+- `eligibleSymbols=147`
 - `criticalSymbols=0`
 - `coverageFailSymbols=0`
 - `finalizedFailSymbols=0`
 - `executionFailSymbols=0`
-- `liveSparseSymbols=27`
+- `liveSparseSymbols=29`
 - verdict: `READY`
 - latest frontiers at that check:
-  - `market_data candle_1m = 2026-03-30 06:41:00+00`
-  - `market_data trade = 2026-03-30 06:41:09.486+00`
-  - `orderbook_data = 2026-03-30 06:41:00.66+00`
-  - `market_data funding = 2026-03-30 06:41:08+00`
-  - `research_features_1m = 2026-03-30 06:39:00+00`
+  - `market_data candle_1m = 2026-03-30 07:10:00+00`
+  - `market_data trade = 2026-03-30 07:10:06.871+00`
+  - `orderbook_data = 2026-03-30 07:10:00.99+00`
+  - `market_data funding = 2026-03-30 07:10:04+00`
+  - `research_features_1m = 2026-03-30 07:08:00+00`
 
 Important rule about status:
 - any hardcoded status in this prompt can be stale
@@ -146,6 +146,29 @@ Current empirically measured alpha findings to build on:
     - high residual compression is followed by materially worse factor drift in the `10d-14d` / `10-12` neighborhood
     - broader-sleeve `CoMom` does not transport on this sample and should not be the first control
     - strict flat-state evidence is still thin because only `2` strict flat dates appear in this run
+- live `PC1Share` new-entry penalty transport failed on the accepted daily survivor:
+  - readiness before the cycle: `2026-03-30T07:10:11.540947082Z`, `READY`
+  - control rerun at `2026-03-30T07:13:07.860942083Z` stayed unchanged:
+    - backtest: `1.5940 edge bps`, `222 trades`
+    - forward: `1.4867 edge bps`, `7 trades`
+    - `market_trend=flat`: `-5.5040 edge bps`, `21 trades`
+  - `24`-variant sweep on `windowDays in {10,14}`, `sleeveSizePerSide in {10,12}`, `thresholdZ in {0.75,1.0,1.25}`, `strength in {0.25,0.50}`:
+    - `strength=0.25` failed `12/12`; average backtest `0.6477 edge bps`, average `market_trend=flat = -15.8616 edge bps`
+    - `strength=0.50` accepted `10/12`, but average trades fell from `222` to `116.3`
+    - no accepted variant with nonzero flat trades improved the flat slice versus the control
+    - only `z=0.75` / `strength=0.50` variants improved flat by eliminating flat trades entirely (`flat tradeCount=0`)
+  - best headline point was:
+    - `2026-03-30T07:30:14.937507518Z`
+    - `windowDays=10`
+    - `sleeveSizePerSide=12`
+    - `thresholdZ=0.75`
+    - `strength=0.50`
+    - backtest: `5.4434 edge bps`, `77 trades`
+    - forward: `2.7853 edge bps`, `6 trades`
+    - `market_trend=flat`: `0.0 edge bps`, `0 trades`
+  - interpretation:
+    - this penalty behaves like a crude participation suppressor, not a robust flat-regime repair
+    - do not spend more cycles on this tested `PC1Share` entry-penalty surface without a new mechanism or stronger research support
 - immediate alpha-shape neighbor probing after that control pass also failed to improve the winner:
   - probe timestamp: `2026-03-30T03:30:51.570587874Z`
   - no neighbor beat the baseline on both overall edge and flat-slice behavior
@@ -162,6 +185,9 @@ Current empirically measured alpha findings to build on:
   - inspection-only compression diagnostics:
     - `PC1Share`
     - broader-sleeve `CoMom`
+  - compression penalty mode:
+    - `NONE`
+    - `PC1_SHARE`
   - regime-sliced performance output, including `market_trend`
 - prior best measured region on latium before the structural-upgrade pass was:
   - `signalBarMinutes=1440`
@@ -206,7 +232,7 @@ Current empirically measured alpha findings to build on:
   - the best verified backtest edge `1.5940` bps clears search but still misses the stricter `2.0` bps promotion gate
   - forward sample is still only `7` trades
   - the best survivor remains negative in the `market_trend=flat` slice at `-5.5040` edge bps on the current accepted daily winner
-- treat this as a deeper flat-regime model-improvement problem, not an infra-readiness problem and not a simple local-threshold-tuning problem
+- treat this as a deeper flat-regime model-improvement problem, not an infra-readiness problem, not a simple local-threshold-tuning problem, and not a solved `PC1Share` entry-penalty problem
 
 Core mission:
 1. Prove or kill alpha.
@@ -388,7 +414,8 @@ Immediate priorities:
 6. keep execution and risk models separate from the price-prediction model
 7. hold exit-overlay expansion unless the core daily surface stops failing backtest edge or new evidence specifically justifies deeper exit research
 8. use testnet only when there is a clear question it can answer about fills, drift, or cost realism
-9. do not revive dead paths without new evidence: reversion, cohort alpha, hierarchy blending, triangular arb
+9. do not spend more cycles on the tested `PC1Share` new-entry penalty surface without a new mechanism or stronger external support
+10. do not revive dead paths without new evidence: reversion, cohort alpha, hierarchy blending, triangular arb
 
 Operator deep-research escalation:
 - if the current research reports are insufficient to justify the next material adjustment, explicitly ask the operator for deeper research
