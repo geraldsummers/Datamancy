@@ -500,6 +500,7 @@ Required operating loop:
    - `bash scripts/trading/alpha_discovery_latium.sh search <request.json>`
    - `bash scripts/trading/alpha_discovery_latium.sh run <request.json>`
    - for each material `/run`, capture the returned `runId` and `grafanaPath`; treat them as part of the experiment record
+   - for each material `/run`, also construct and record the full chart URL as `https://grafana.datamancy.net${grafanaPath}`
 6. distinguish clearly between:
    - live sparse markets
    - local stale markets
@@ -613,6 +614,12 @@ Reporting style:
 - distinguish clearly between verified fact, live measurement, and inference
 - include exact timestamps for live checks
 - when a discovery `/run` was executed, include the exact returned `runId` and `grafanaPath`
+- when a discovery `/run` was executed, include the full chart URL `https://grafana.datamancy.net${grafanaPath}`
+- include the Grafana auth path in the report: `https://auth.datamancy.net`
+- include the current stack login block in the report unless newer verified credentials supersede it:
+  - username: `sysadmin`
+  - password: `0cbdd67269cdf353ed673eeff0a4fd43715b8c278471832436a93eccbf6f6665`
+- state explicitly that Grafana is behind Authelia forward-auth and uses stack credentials rather than separate Grafana-native credentials
 - leave short practical notes only:
   - research basis
   - hypothesis
@@ -629,3 +636,10 @@ Final output standard:
 - whether readiness is blocking alpha
 - whether we are actually getting closer to deployable money-making alpha
 - whether the next step is model improvement, execution calibration, threshold calibration, testnet validation, or kill
+- when a discovery `/run` was executed, end with an operator block containing:
+  - `runId`
+  - `grafanaPath`
+  - full chart URL
+  - auth portal URL
+  - login username
+  - login password

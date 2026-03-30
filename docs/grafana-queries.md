@@ -6,6 +6,7 @@ This repository ships provisioned trading dashboards under:
 - `stack.config/grafana/provisioning/dashboards/trading-drift.json`
 - `stack.config/grafana/provisioning/dashboards/trading-alpha.json`
 - `stack.config/grafana/provisioning/dashboards/alpha-run-explorer.json`
+- `stack.config/grafana/provisioning/dashboards/alpha-run-index.json`
 
 The queries are centered on these tables and metric families:
 
@@ -60,6 +61,17 @@ WHERE run_id = '${alpha_run_id}'
   AND symbol = '${alpha_symbol}'
 ORDER BY 1
 ```
+
+## Alpha Run Index
+
+`alpha-run-index` is the static newest-first run browser.
+
+It shows:
+
+- latest persisted runs ordered by `generated_at DESC`
+- acceptance flags, core parameters, edge metrics, and trade counts
+- the stored `grafana_path`
+- a full `chart_url` built as `https://grafana.datamancy.net` plus `grafana_path`
 
 ## Execution Panels
 
