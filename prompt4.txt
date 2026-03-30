@@ -118,13 +118,13 @@ Current empirically measured alpha findings to build on:
     - `tailWeightingMode=VOLATILITY_SCALED`
     - `fundingOverlayMode=LINEAR_FACTOR`
     - `fundingWeight=0.15`
-  - current best-balanced structural lead after recheck is:
-    - `residualizationBetaMode=EWMA`
-    - `residualizationMarketProxyMode=EQUAL_WEIGHT`
-    - `tailWeightingMode=EQUAL_WEIGHT`
+  - current operational structural lead after neighborhood stability testing is:
+    - `residualizationBetaMode=SIMPLE`
+    - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
+    - `tailWeightingMode=VOLATILITY_SCALED`
     - `fundingOverlayMode=LINEAR_FACTOR`
     - `fundingWeight=0.15`
-  - the current live tail boundary is between `selectionQuantile=0.021` and `0.022`
+  - the current lead prefers `selectionQuantile in {0.020,0.021}` over `0.022+`
 - the current EMA trend-shape survivor pocket is:
   - control accepted point at `2026-03-30T11:23:32.045553789Z`:
     - `trendScoreMode=EMA_RETURN_STACK`
@@ -192,6 +192,25 @@ Current empirically measured alpha findings to build on:
     - the upgraded EMA surface no longer prefers the old structural control unambiguously
     - equal-weight proxy plus equal-weight tails materially improved forward on this window while keeping backtest and flat behavior acceptable
     - the `SIMPLE / LIQUIDITY_WEIGHTED / VOLATILITY_SCALED` branch remains the strongest backtest-first alternative and should not be discarded
+- direct A/B neighborhood stability test on `2026-03-30T20:04Z` to `2026-03-30T20:39Z` resolved the branch choice:
+  - branch A: `EWMA / EQUAL_WEIGHT / EQUAL_WEIGHT / LINEAR_FACTOR 0.15`
+    - control `2/8/16`: backtest `2.8125`, forward `3.8842`, `flat=10.6741`, accepted
+    - `2/7/16`: backtest `0.1293`, rejected
+    - `2/9/16`: backtest `0.0420`, rejected
+    - `2/8/14`: backtest `1.4306`, rejected
+    - `2/8/18`: backtest `-2.2040`, rejected
+    - interpretation: branch A is a forward-rich but knife-edge geometry spike, not an operational control
+  - branch B: `SIMPLE / LIQUIDITY_WEIGHTED / VOLATILITY_SCALED / LINEAR_FACTOR 0.15`
+    - control `2/8/16`: backtest `3.4514`, forward `1.4014`, `flat=12.3508`, accepted
+    - `2/7/16`: backtest `2.4264`, forward `0.6169`, accepted
+    - `2/9/16`: backtest `2.7343`, forward `0.6210`, accepted
+    - `2/8/14`: backtest `3.2042`, forward `1.1359`, accepted
+    - `2/8/18`: backtest `-1.3397`, rejected
+    - interpretation: branch B has real local plateau support and is the operational lead
+  - branch-B tail calibration:
+    - `selectionQuantile in {0.020,0.021}`: backtest `3.4514`, forward `1.4014`, `flat=12.3508`
+    - `selectionQuantile in {0.022,0.025}`: backtest `2.7528`, forward `1.4024`, `flat=10.8895`
+    - interpretation: branch B also prefers the narrower tail set, but the boundary is softer than on the displaced branch-A control
 - funding overlay retest on the current best EMA geometry (`2/8/16`, `vol=14`) at `2026-03-30T11:51Z` to `2026-03-30T12:00Z` found:
   - `LINEAR_FACTOR`, `fundingWeight=0.15`: backtest `2.0662`, forward `1.4078`, accepted
   - `NONE`, `fundingWeight=0.0`: backtest `1.2283`, forward `0.2105`, rejected
