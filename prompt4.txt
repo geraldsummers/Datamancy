@@ -71,21 +71,21 @@ Validated current alpha-system reality:
 - trading policy is centralized and authoritative; notebooks and prompts are clients, not the source of truth
 
 Validated current live readiness sample:
-- timestamp: `2026-03-30T00:40:00.961892933Z`
+- timestamp: `2026-03-30T02:53:43.772416351Z`
 - exchange: `hyperliquid_mainnet`
-- `eligibleSymbols=149`
+- `eligibleSymbols=148`
 - `criticalSymbols=0`
 - `coverageFailSymbols=0`
 - `finalizedFailSymbols=0`
 - `executionFailSymbols=0`
-- `liveSparseSymbols=22`
+- `liveSparseSymbols=27`
 - verdict: `READY`
 - latest frontiers at that check:
-  - `market_data candle_1m = 2026-03-30 00:39:00+00`
-  - `market_data trade = 2026-03-30 00:39:59.097+00`
-  - `orderbook_data = 2026-03-30 00:39:50.213+00`
-  - `market_data funding = 2026-03-30 00:39:58+00`
-  - `research_features_1m = 2026-03-30 00:38:00+00`
+  - `market_data candle_1m = 2026-03-30 02:53:00+00`
+  - `market_data trade = 2026-03-30 02:53:40.992+00`
+  - `orderbook_data = 2026-03-30 02:53:30.468+00`
+  - `market_data funding = 2026-03-30 02:53:38+00`
+  - `research_features_1m = 2026-03-30 02:52:00+00`
 
 Important rule about status:
 - any hardcoded status in this prompt can be stale
@@ -100,8 +100,17 @@ Current empirically measured alpha findings to build on:
 - narrow selection tails are helping; the best observed region is around `2.5%` to `3%`
 - funding is helping on the current 1d trend surface
 - open interest is currently not helping this surface and often degrades forward behavior
-- factor lookback semantics were fixed; `factorLookbackDays` now actually changes the residualization window and exposed a real `18d/19d/21d` battleground
+- factor lookback semantics were fixed; `factorLookbackDays` now actually changes the residualization window and the current live battleground has tightened to `18d/19d`, with `18d` leading
 - search-threshold calibration was implemented and the search gate was lowered from `2.0` to `1.5` bps; treat this as a search-only calibration, not automatic promotion permission
+- the current structural survivor cluster is:
+  - `residualizationBetaMode=EWMA`
+  - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
+  - `tailWeightingMode=VOLATILITY_SCALED`
+  - `fundingOverlayMode=LINEAR_FACTOR`
+  - `selectionQuantile in [0.025,0.03]`
+  - `fundingWeight in [0.15,0.30]`
+- `BOUNDED_REINFORCEMENT` and `EQUAL_WEIGHT` survived earlier exploratory passes but did not survive the latest after-cost daily search leaderboard
+- same-window threshold calibration on the latest daily structural search only found feasible acceptance at `0.0` bps; treat that as evidence that the current `1.5` bps search gate may be above this pocket, not as permission to lower policy without prior-window calibration
 - currently implemented interday research controls now include:
   - residualization beta mode: `SIMPLE` / `EWMA`
   - residualization market proxy mode: `EQUAL_WEIGHT` / `LIQUIDITY_WEIGHTED`
@@ -124,25 +133,25 @@ Current empirically measured alpha findings to build on:
   - `exitOverlayMode=TRAILING_AND_TAKE_PROFIT`
   - backtest: `220 trades`, `-5.8107 edge bps`, `-3.1439 calmar`
   - forward: `11 trades`, `1.9818 edge bps`
-- strongest recent structural-upgrade candidate measured on latium was:
+- strongest recent daily structural survivor measured on latium was:
   - `signalBarMinutes=1440`
   - `forwardHours=72`
   - `residualizationMode=MARKET`
-  - `factorLookbackDays=19`
+  - `factorLookbackDays=18`
   - `selectionQuantile=0.025`
   - `residualizationBetaMode=EWMA`
   - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
-  - `tailWeightingMode=EQUAL_WEIGHT`
+  - `tailWeightingMode=VOLATILITY_SCALED`
   - `fundingWeight=0.30`
-  - `fundingOverlayMode=BOUNDED_REINFORCEMENT`
+  - `fundingOverlayMode=LINEAR_FACTOR`
   - `openInterestWeight=0.00`
   - `exitOverlayMode=TRAILING_AND_TAKE_PROFIT`
-  - backtest: `386 trades`, `-1.9663 edge bps`, `-1.7410 calmar`
-  - forward: `7 trades`, `7.6353 edge bps`
+  - backtest: `229 trades`, `0.5109 edge bps`, `1.7680 calmar`
+  - forward: `7 trades`, `0.8597 edge bps`
 - tested `TREND_BREAK` exit overlay did not help this surface:
   - backtest: `138 trades`, `-8.3229 edge bps`
   - forward: `12 trades`, `1.4117 edge bps`
-- none of the currently measured daily variants are promotable yet because backtest edge remains negative after costs
+- none of the currently measured daily variants are promotable yet because the best verified backtest edge is still only `0.5109` bps after costs, below the `1.5` bps search gate and the stricter `2.0` bps promotion gate
 - treat this as a strategy-optimization and threshold-calibration problem, not an infra-readiness problem
 
 Core mission:

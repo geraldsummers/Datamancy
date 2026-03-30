@@ -1,0 +1,86 @@
+# 2026-03-30 Daily Structural Search Follow-up
+
+- readiness
+  - `2026-03-30T02:53:43.772416351Z`
+  - `READY`
+  - `eligible=148`
+  - `critical=0`
+  - `coverage_fail=0`
+  - `execution_fail=0`
+  - `live_sparse=27`
+
+- research basis
+  - `deep-research-report.md`
+  - `deep-research-report2.md`
+  - residualisation-window stability
+  - narrow-tail portfolio geometry
+  - funding as overlay rather than hidden rank driver
+  - threshold calibration as a decision rule, not a vanity metric
+
+- hypothesis
+  - the upgraded daily `72h` structural region could clear from negative to positive after-cost backtest edge if the current battleground is really `18d/19d` with smoother market residualisation and volatility-scaled tails
+
+- experiment
+  - live search `generatedAt=2026-03-30T02:57:30.895207989Z`
+  - `48` evaluated configs
+  - fixed surface:
+    - `signalBarMinutes=1440`
+    - `forwardHours=72`
+    - `rebalanceCadenceHours=24`
+    - `residualizationMode=MARKET`
+    - `exitOverlayMode=TRAILING_AND_TAKE_PROFIT`
+    - `openInterestWeight=0.00`
+  - searched:
+    - `factorLookbackDays in {18,19,20,21}`
+    - `selectionQuantile in {0.025,0.03}`
+    - `residualizationBetaMode in {SIMPLE,EWMA}`
+    - `residualizationMarketProxyMode in {EQUAL_WEIGHT,LIQUIDITY_WEIGHTED}`
+    - `tailWeightingMode in {VOLATILITY_SCALED,EQUAL_WEIGHT}`
+    - `fundingWeight in {0.15,0.30}`
+    - `fundingOverlayMode in {LINEAR_FACTOR,BOUNDED_REINFORCEMENT}`
+  - same-window threshold sweep:
+    - `minNetEdgeBps in {0.0,0.5,1.0,1.25,1.5,1.75,2.0}`
+
+- result
+  - survivor cluster collapsed to:
+    - `factorLookbackDays in {18,19}`
+    - `residualizationBetaMode=EWMA`
+    - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
+    - `tailWeightingMode=VOLATILITY_SCALED`
+    - `fundingOverlayMode=LINEAR_FACTOR`
+  - strongest balance candidate:
+    - `factorLookbackDays=18`
+    - `selectionQuantile=0.025`
+    - `fundingWeight=0.30`
+    - backtest: `229 trades`, `0.5109 edge bps`, `1.7680 calmar`, `1.1700% net return`, `4.8117% max drawdown`, `12.9637% avg turnover`
+    - forward: `7 trades`, `0.8597 edge bps`, `483.3332 calmar`, `0.0602% net return`, `0.0240% max drawdown`, `12.6714% avg turnover`
+  - strongest neighboring config:
+    - `factorLookbackDays=18`
+    - `selectionQuantile=0.03`
+    - `fundingWeight=0.30`
+    - backtest: `244 trades`, `0.2113 edge bps`
+    - forward: `8 trades`, `0.7284 edge bps`
+  - the latest leaderboard did not keep `BOUNDED_REINFORCEMENT`; the top region reverted to `LINEAR_FACTOR`
+  - the latest leaderboard did not keep `EQUAL_WEIGHT`; its best observed backtest edge in this search was `-0.5201` bps
+  - same-window threshold calibration only found a feasible threshold at `0.0` bps:
+    - `acceptedCandidates=4`
+    - `medianBacktestEdgeBps=0.2231`
+    - `medianForwardEdgeBps=0.7288`
+  - forward regime slices on the strongest balance candidate were directionally mixed and sample-starved:
+    - `market_trend=flat`: `4 trades`, `-0.6002 edge bps`
+    - `market_trend=up`: `1 trade`, `8.4209 edge bps`
+
+- remaining risk
+  - still not promotable:
+    - best verified backtest edge is `0.5109` bps, below the current `1.5` bps search gate and `2.0` bps promotion gate
+    - forward sample is only `7` trades
+    - same-window threshold calibration is evidence of gate mismatch, not policy-grade calibration
+    - flat-regime forward behavior is still weak
+
+- next step
+  - keep the structural region fixed around `18d/19d`, `EWMA`, `LIQUIDITY_WEIGHTED`, `VOLATILITY_SCALED`, `LINEAR_FACTOR`
+  - spend the next cycle on core trend-model improvement inside that pocket:
+    - multi-horizon return geometry
+    - regression lookback geometry
+    - MA filter stabilization
+  - run threshold calibration on prior windows only before considering any policy change
