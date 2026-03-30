@@ -61,7 +61,10 @@ object AlphaDefaultsFactory {
                 bootstrapReplications = policy.research.validation.bootstrapReplications,
                 requireDeflatedSharpe = policy.research.validation.requireDeflatedSharpe,
                 requireWhitesRealityCheck = policy.research.validation.requireWhitesRealityCheck,
-                regimeSlices = policy.research.validation.regimeSlices
+                regimeSlices = (policy.research.validation.regimeSlices + "market_trend")
+                    .map { it.trim().lowercase() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
             )
         )
     }

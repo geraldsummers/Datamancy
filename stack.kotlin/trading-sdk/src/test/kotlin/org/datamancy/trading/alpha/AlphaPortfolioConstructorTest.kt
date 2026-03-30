@@ -179,6 +179,46 @@ class AlphaPortfolioConstructorTest {
         assertTrue(response.targets.all { it.expectedNetEdgeBps > 0.0 })
     }
 
+    @Test
+    fun `equal weight tail mode keeps selected symbols evenly sized`() {
+        val response = constructor.construct(
+            AlphaPortfolioRequest(
+                signals = listOf(
+                    AlphaSignalScore(symbol = "BTC", score = 12.0, confidence = 0.80, predictedVolatility = 0.25, liquidityScore = 1.0, expectedNetEdgeBps = 12.0),
+                    AlphaSignalScore(symbol = "ETH", score = 11.0, confidence = 0.80, predictedVolatility = 1.20, liquidityScore = 1.0, expectedNetEdgeBps = 11.0),
+                    AlphaSignalScore(symbol = "SOL", score = 10.0, confidence = 0.80, predictedVolatility = 0.55, liquidityScore = 1.0, expectedNetEdgeBps = 10.0)
+                ),
+                longShort = false,
+                respectProvidedSignalSet = true,
+                weightingMode = InterdayTailWeightingMode.EQUAL_WEIGHT,
+                targetGrossFraction = 0.09
+            )
+        )
+
+        val weights = response.targets.map { it.weightFraction }
+        assertEquals(3, weights.size)
+        assertTrue(weights.max() - weights.min() < 1e-9)
+    }
+
+    @Test
+    fun `sizing multipliers tilt allocations inside selected tails`() {
+        val response = constructor.construct(
+            AlphaPortfolioRequest(
+                signals = listOf(
+                    AlphaSignalScore(symbol = "ALPHA", score = 10.0, confidence = 0.80, predictedVolatility = 0.6, liquidityScore = 1.0, expectedNetEdgeBps = 10.0, sizingMultiplier = 1.30),
+                    AlphaSignalScore(symbol = "BRAVO", score = 10.0, confidence = 0.80, predictedVolatility = 0.6, liquidityScore = 1.0, expectedNetEdgeBps = 10.0, sizingMultiplier = 0.70)
+                ),
+                longShort = false,
+                respectProvidedSignalSet = true,
+                weightingMode = InterdayTailWeightingMode.EQUAL_WEIGHT,
+                targetGrossFraction = 0.08
+            )
+        )
+
+        val weightsBySymbol = response.targets.associateBy({ it.symbol }, { it.weightFraction })
+        assertTrue(weightsBySymbol.getValue("ALPHA") > weightsBySymbol.getValue("BRAVO"))
+    }
+
     private fun sampleSignals(confidence: Double): List<AlphaSignalScore> = listOf(
         AlphaSignalScore(symbol = "BTC", score = 14.0, confidence = confidence, predictedVolatility = 0.4, liquidityScore = 1.0, expectedNetEdgeBps = 14.0),
         AlphaSignalScore(symbol = "ETH", score = 11.0, confidence = confidence, predictedVolatility = 0.5, liquidityScore = 1.0, expectedNetEdgeBps = 11.0),

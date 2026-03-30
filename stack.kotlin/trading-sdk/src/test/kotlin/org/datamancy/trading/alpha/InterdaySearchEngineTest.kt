@@ -238,6 +238,113 @@ class InterdaySearchEngineTest {
         assertTrue(response.selectedSignals.isNotEmpty())
         assertTrue(response.selectedSignals.all { it.marketBeta == 0.0 })
     }
+
+    @Test
+    fun `ewma liquidity weighted residualization still produces finite market betas`() = kotlinx.coroutines.runBlocking {
+        val response = engine.run(
+            InterdayAlphaRunRequest(
+                config = InterdayAlphaConfig(
+                    exchange = "hyperliquid_mainnet",
+                    signalBarMinutes = 240,
+                    lookbackHours = 480,
+                    forwardHours = 72,
+                    rebalanceCadenceHours = 24,
+                    selectionQuantile = 0.34,
+                    minConfidence = 0.15,
+                    residualizationMode = InterdayResidualizationMode.MARKET,
+                    residualizationBetaMode = InterdayResidualizationBetaMode.EWMA,
+                    residualizationMarketProxyMode = InterdayResidualizationMarketProxyMode.LIQUIDITY_WEIGHTED,
+                    residualizationHalfLifeDays = 10
+                )
+            )
+        )
+
+        assertTrue(response.selectedSignals.isNotEmpty())
+        assertTrue(response.selectedSignals.all { it.marketBeta.isFinite() })
+        assertTrue(response.backtest.regimeSlices.any { it.slice == "market_trend" })
+    }
+
+    @Test
+    fun `bounded funding overlay exposes non unit sizing multipliers`() = kotlinx.coroutines.runBlocking {
+        val response = engine.run(
+            InterdayAlphaRunRequest(
+                config = InterdayAlphaConfig(
+                    exchange = "hyperliquid_mainnet",
+                    signalBarMinutes = 240,
+                    lookbackHours = 480,
+                    forwardHours = 72,
+                    rebalanceCadenceHours = 24,
+                    selectionQuantile = 0.34,
+                    minConfidence = 0.15,
+                    fundingWeight = 0.35,
+                    fundingOverlayMode = InterdayFundingOverlayMode.BOUNDED_REINFORCEMENT
+                )
+            )
+        )
+
+        assertTrue(response.selectedSignals.isNotEmpty())
+        assertTrue(response.selectedSignals.any { kotlin.math.abs(it.fundingOverlayMultiplier - 1.0) > 1e-6 })
+    }
+
+    @Test
+    fun `time stop exit overlay triggers after stale low progress hold`() {
+        val method = Class.forName("org.datamancy.trading.alpha.InterdaySearchEngineKt")
+            .getDeclaredMethod(
+                "shouldForceFlattenByExitOverlay",
+                Double::class.javaPrimitiveType,
+                Instant::class.java,
+                Double::class.javaObjectType,
+                InterdaySignalSnapshot::class.java,
+                InterdayAlphaConfig::class.java,
+                Instant::class.java
+            )
+        method.isAccessible = true
+
+        val entryTime = Instant.parse("2026-01-01T00:00:00Z")
+        val currentTime = entryTime.plusSeconds(3L * 24L * 3600L)
+        val signal = InterdaySignalSnapshot(
+            symbol = "ALPHA",
+            direction = AlphaDirection.LONG,
+            score = 2.0,
+            empiricalScore = 0.0002,
+            residualRank = 0.5,
+            confidence = 0.7,
+            liquidityScore = 1.0,
+            trendScore = 0.5,
+            trendAgreement = 0.4,
+            pullbackScore = 0.2,
+            fundingScore = 0.0,
+            openInterestScore = 0.0,
+            expansionScore = 0.4,
+            reversalRiskScore = 0.1,
+            marketBeta = 0.3,
+            upperBound = 2.0,
+            lowerBound = -2.0,
+            expectedResidualReturnBps = 4.0,
+            expectedEntryCostBps = 1.0,
+            expectedTurnoverPenaltyBps = 0.5,
+            expectedNetEdgeBps = 2.5,
+            close = 100.0,
+            predictedVolatility = 0.3
+        )
+
+        val triggered = method.invoke(
+            null,
+            0.08,
+            entryTime,
+            0.10,
+            signal,
+            InterdayAlphaConfig(
+                signalBarMinutes = 1440,
+                exitOverlayMode = InterdayExitOverlayMode.TIME_STOP,
+                timeStopBars = 3,
+                timeStopMinProgressVol = 0.25
+            ),
+            currentTime
+        ) as Boolean
+
+        assertTrue(triggered)
+    }
 }
 
 private fun syntheticPanel(): InterdayPanel {

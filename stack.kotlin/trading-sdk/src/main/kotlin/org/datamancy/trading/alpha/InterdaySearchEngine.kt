@@ -5,6 +5,7 @@ import java.time.Duration
 import java.time.Instant
 import kotlin.math.abs
 import kotlin.math.ceil
+import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
@@ -185,6 +186,14 @@ class InterdaySearchEngine(
             searchSpace.residualizationModes.ifEmpty { listOf(base.residualizationMode) },
             base.residualizationMode
         )
+        val residualizationBetaModes = prioritizeAnchored(
+            searchSpace.residualizationBetaModes.ifEmpty { listOf(base.residualizationBetaMode) },
+            base.residualizationBetaMode
+        )
+        val residualizationMarketProxyModes = prioritizeAnchored(
+            searchSpace.residualizationMarketProxyModes.ifEmpty { listOf(base.residualizationMarketProxyMode) },
+            base.residualizationMarketProxyMode
+        )
         val signalBars = prioritizeValues(searchSpace.signalBarMinutes.ifEmpty { listOf(base.signalBarMinutes) }, base.signalBarMinutes)
         val lookbacks = prioritizeValues(searchSpace.lookbackHours.ifEmpty { listOf(base.lookbackHours) }, base.lookbackHours)
         val forwards = prioritizeValues(searchSpace.forwardHours.ifEmpty { listOf(base.forwardHours) }, base.forwardHours)
@@ -193,7 +202,15 @@ class InterdaySearchEngine(
             searchSpace.factorLookbackDays.ifEmpty { listOf(base.factorLookbackDays) },
             base.factorLookbackDays
         )
+        val residualizationHalfLifeDays = prioritizeValues(
+            searchSpace.residualizationHalfLifeDays.ifEmpty { listOf(base.residualizationHalfLifeDays) },
+            base.residualizationHalfLifeDays
+        )
         val quantiles = prioritizeDoubles(searchSpace.selectionQuantiles.ifEmpty { listOf(base.selectionQuantile) }, base.selectionQuantile)
+        val tailWeightingModes = prioritizeAnchored(
+            searchSpace.tailWeightingModes.ifEmpty { listOf(base.tailWeightingMode) },
+            base.tailWeightingMode
+        )
         val fastDays = prioritizeValues(searchSpace.fastTrendDays.ifEmpty { listOf(base.fastTrendDays) }, base.fastTrendDays)
         val mediumDays = prioritizeValues(searchSpace.mediumTrendDays.ifEmpty { listOf(base.mediumTrendDays) }, base.mediumTrendDays)
         val slowDays = prioritizeValues(searchSpace.slowTrendDays.ifEmpty { listOf(base.slowTrendDays) }, base.slowTrendDays)
@@ -204,13 +221,26 @@ class InterdaySearchEngine(
         val perturbThresholds = prioritizeDoubles(searchSpace.perturbationThresholdZ.ifEmpty { listOf(base.perturbationThresholdZ) }, base.perturbationThresholdZ)
         val slopeWeights = prioritizeDoubles(searchSpace.slopeWeight.ifEmpty { listOf(base.slopeWeight) }, base.slopeWeight)
         val fundingWeights = prioritizeDoubles(searchSpace.fundingWeight.ifEmpty { listOf(base.fundingWeight) }, base.fundingWeight)
+        val fundingOverlayModes = prioritizeAnchored(
+            searchSpace.fundingOverlayModes.ifEmpty { listOf(base.fundingOverlayMode) },
+            base.fundingOverlayMode
+        )
         val openInterestWeights = prioritizeDoubles(searchSpace.openInterestWeight.ifEmpty { listOf(base.openInterestWeight) }, base.openInterestWeight)
         val pullbackWeights = prioritizeDoubles(searchSpace.pullbackWeight.ifEmpty { listOf(base.pullbackWeight) }, base.pullbackWeight)
         val minTrendAgreements = prioritizeDoubles(searchSpace.minTrendAgreement.ifEmpty { listOf(base.minTrendAgreement) }, base.minTrendAgreement)
         val adxThresholds = prioritizeDoubles(searchSpace.adxThreshold.ifEmpty { listOf(base.adxThreshold) }, base.adxThreshold)
         val minConfidences = prioritizeDoubles(searchSpace.minConfidence.ifEmpty { listOf(base.minConfidence) }, base.minConfidence)
+        val exitOverlayModes = prioritizeAnchored(
+            searchSpace.exitOverlayModes.ifEmpty { listOf(base.exitOverlayMode) },
+            base.exitOverlayMode
+        )
         val trailingStops = prioritizeDoubles(searchSpace.trailingStopVolMultiple.ifEmpty { listOf(base.trailingStopVolMultiple) }, base.trailingStopVolMultiple)
         val takeProfits = prioritizeDoubles(searchSpace.takeProfitVolMultiple.ifEmpty { listOf(base.takeProfitVolMultiple) }, base.takeProfitVolMultiple)
+        val timeStopBars = prioritizeValues(searchSpace.timeStopBars.ifEmpty { listOf(base.timeStopBars) }, base.timeStopBars)
+        val timeStopMinProgressVol = prioritizeDoubles(
+            searchSpace.timeStopMinProgressVol.ifEmpty { listOf(base.timeStopMinProgressVol) },
+            base.timeStopMinProgressVol
+        )
         val executionWindows = prioritizeValues(searchSpace.executionWindowMinutes.ifEmpty { listOf(base.executionWindowMinutes) }, base.executionWindowMinutes)
         val targetGrossFractionScales = prioritizeDoubles(searchSpace.targetGrossFractionScale.ifEmpty { listOf(base.targetGrossFractionScale) }, base.targetGrossFractionScale)
         val expectedCostPenaltyWeights = prioritizeDoubles(
@@ -232,12 +262,16 @@ class InterdaySearchEngine(
         val generated = mutableListOf<InterdayAlphaConfig>()
         outer@ for (adjustmentMode in adjustmentModes) {
             for (residualizationMode in residualizationModes) {
-                for (signalBar in signalBars) {
-                    for (lookback in lookbacks) {
-                        for (forward in forwards) {
-                            for (cadence in cadences) {
-                                for (factorLookbackDay in factorLookbackDays) {
-                                    for (quantile in quantiles) {
+                for (residualizationBetaMode in residualizationBetaModes) {
+                    for (residualizationMarketProxyMode in residualizationMarketProxyModes) {
+                        for (signalBar in signalBars) {
+                            for (lookback in lookbacks) {
+                                for (forward in forwards) {
+                                    for (cadence in cadences) {
+                                        for (factorLookbackDay in factorLookbackDays) {
+                                            for (residualizationHalfLifeDay in residualizationHalfLifeDays) {
+                                                for (quantile in quantiles) {
+                                                    for (tailWeightingMode in tailWeightingModes) {
                                 for (fast in fastDays) {
                                     for (medium in mediumDays) {
                                         for (slow in slowDays) {
@@ -249,30 +283,38 @@ class InterdaySearchEngine(
                                                             for (perturbThreshold in perturbThresholds) {
                                                                 for (slopeWeight in slopeWeights) {
                                                                     for (fundingWeight in fundingWeights) {
-                                                                        for (openInterestWeight in openInterestWeights) {
-                                                                            for (pullbackWeight in pullbackWeights) {
-                                                                                for (minTrendAgreement in minTrendAgreements) {
-                                                                                    for (adxThreshold in adxThresholds) {
-                                                                                        for (minConfidence in minConfidences) {
-                                                                                            for (trailing in trailingStops) {
-                                                                                                for (takeProfit in takeProfits) {
-                                                                                                    for (executionWindow in executionWindows) {
-                                                                                                        for (targetGrossFractionScale in targetGrossFractionScales) {
-                                                                                                            for (expectedCostPenaltyWeight in expectedCostPenaltyWeights) {
-                                                                                                                for (turnoverPenaltyWeight in turnoverPenaltyWeights) {
-                                                                                                                    for (entryEdgeFloor in entryEdgeFloorBps) {
-                                                                                                                        for (holdEdgeFloor in holdEdgeFloorBps) {
-                                                                                                                            for (regimeDirectionalSuppressionThreshold in regimeDirectionalSuppressionThresholds) {
-                                                                                                                                for (regimeNetBiasScale in regimeNetBiasScales) {
-                                                                                                                                    generated += base.copy(
+                                                                        for (fundingOverlayMode in fundingOverlayModes) {
+                                                                            for (openInterestWeight in openInterestWeights) {
+                                                                                for (pullbackWeight in pullbackWeights) {
+                                                                                    for (minTrendAgreement in minTrendAgreements) {
+                                                                                        for (adxThreshold in adxThresholds) {
+                                                                                            for (minConfidence in minConfidences) {
+                                                                                                for (exitOverlayMode in exitOverlayModes) {
+                                                                                                    for (trailing in trailingStops) {
+                                                                                                        for (takeProfit in takeProfits) {
+                                                                                                            for (timeStopBar in timeStopBars) {
+                                                                                                                for (timeStopProgress in timeStopMinProgressVol) {
+                                                                                                                    for (executionWindow in executionWindows) {
+                                                                                                                        for (targetGrossFractionScale in targetGrossFractionScales) {
+                                                                                                                            for (expectedCostPenaltyWeight in expectedCostPenaltyWeights) {
+                                                                                                                                for (turnoverPenaltyWeight in turnoverPenaltyWeights) {
+                                                                                                                                    for (entryEdgeFloor in entryEdgeFloorBps) {
+                                                                                                                                        for (holdEdgeFloor in holdEdgeFloorBps) {
+                                                                                                                                            for (regimeDirectionalSuppressionThreshold in regimeDirectionalSuppressionThresholds) {
+                                                                                                                                                for (regimeNetBiasScale in regimeNetBiasScales) {
+                                                                                                                                                    generated += base.copy(
                                                                                                                                         adjustmentMode = adjustmentMode,
                                                                                                                                         residualizationMode = residualizationMode,
+                                                                                                                                        residualizationBetaMode = residualizationBetaMode,
+                                                                                                                                        residualizationMarketProxyMode = residualizationMarketProxyMode,
                                                                                                                                         signalBarMinutes = signalBar,
                                                                                                                                         lookbackHours = lookback,
                                                                                                                                         forwardHours = forward,
                                                                                                                                         rebalanceCadenceHours = cadence,
                                                                                                                                         factorLookbackDays = factorLookbackDay,
+                                                                                                                                        residualizationHalfLifeDays = residualizationHalfLifeDay,
                                                                                                                                         selectionQuantile = quantile,
+                                                                                                                                        tailWeightingMode = tailWeightingMode,
                                                                                                                                         fastTrendDays = fast,
                                                                                                                                         mediumTrendDays = medium,
                                                                                                                                         slowTrendDays = slow,
@@ -283,13 +325,17 @@ class InterdaySearchEngine(
                                                                                                                                         perturbationThresholdZ = perturbThreshold,
                                                                                                                                         slopeWeight = slopeWeight,
                                                                                                                                         fundingWeight = fundingWeight,
+                                                                                                                                        fundingOverlayMode = fundingOverlayMode,
                                                                                                                                         openInterestWeight = openInterestWeight,
                                                                                                                                         pullbackWeight = pullbackWeight,
                                                                                                                                         minTrendAgreement = minTrendAgreement,
                                                                                                                                         adxThreshold = adxThreshold,
                                                                                                                                         minConfidence = minConfidence,
+                                                                                                                                        exitOverlayMode = exitOverlayMode,
                                                                                                                                         trailingStopVolMultiple = trailing,
                                                                                                                                         takeProfitVolMultiple = takeProfit,
+                                                                                                                                        timeStopBars = timeStopBar,
+                                                                                                                                        timeStopMinProgressVol = timeStopProgress,
                                                                                                                                         executionWindowMinutes = executionWindow,
                                                                                                                                         targetGrossFractionScale = targetGrossFractionScale,
                                                                                                                                         expectedCostPenaltyWeight = expectedCostPenaltyWeight,
@@ -300,12 +346,18 @@ class InterdaySearchEngine(
                                                                                                                                         regimeNetBiasScale = regimeNetBiasScale
                                                                                                                                     )
                                                                                                                                     if (generated.size >= maxEvaluations) break@outer
+                                                                                                                                                }
+                                                                                                                                            }
+                                                                                                                                        }
+                                                                                                                                    }
                                                                                                                                 }
                                                                                                                             }
                                                                                                                         }
                                                                                                                     }
                                                                                                                 }
                                                                                                             }
+                                                                                                        }
+                                                                                                    }
                                                                                                 }
                                                                                             }
                                                                                         }
@@ -324,7 +376,9 @@ class InterdaySearchEngine(
                                     }
                                 }
                             }
-                        }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -376,7 +430,17 @@ class InterdaySearchEngine(
         var latestTargets = emptyList<AlphaPortfolioTarget>()
         var latestDesiredWeights = emptyMap<String, Double>()
         var latestSignalsBySymbol = emptyMap<String, InterdaySignalSnapshot>()
-        var latestRegime = RegimeState(score = 0.0, breadth = 0.0, anchorTrend = 0.0, dispersion = 0.0)
+        var latestRegime = RegimeState(
+            score = 0.0,
+            breadth = 0.0,
+            anchorTrend = 0.0,
+            dispersion = 0.0,
+            realizedVolatility = 0.0,
+            liquidityScore = 0.0,
+            fundingPressure = 0.0,
+            openInterestPressure = 0.0,
+            marketTrendScore = 0.0
+        )
 
         for (index in 1 until panel.timeline.size) {
             val time = panel.timeline[index]
@@ -397,7 +461,7 @@ class InterdaySearchEngine(
                 activePositions.values.forEach { position ->
                     val bar = seriesBySymbol[position.symbol]?.bars?.get(index) ?: return@forEach
                     position.refresh(bar)
-                    adjustments += position.trailingAdjustments(config, bar, time)
+                    adjustments += position.overlayAdjustments(config, bar, time)
                 }
                 adjustments.forEach { adjustment ->
                     val bar = seriesBySymbol[adjustment.symbol]?.bars?.get(index) ?: return@forEach
@@ -496,7 +560,8 @@ class InterdaySearchEngine(
                         expectedEntryCostBps = it.expectedEntryCostBps,
                         expectedTurnoverPenaltyBps = it.expectedTurnoverPenaltyBps,
                         expectedNetEdgeBps = it.expectedNetEdgeBps,
-                        currentWeightFraction = currentWeights[it.symbol] ?: 0.0
+                        currentWeightFraction = currentWeights[it.symbol] ?: 0.0,
+                        sizingMultiplier = it.fundingOverlayMultiplier
                     )
                 }.filter {
                     it.score.isFinite() &&
@@ -514,6 +579,7 @@ class InterdaySearchEngine(
                             signals = portfolioSignals,
                             selectionQuantile = config.selectionQuantile,
                             respectProvidedSignalSet = true,
+                            weightingMode = config.tailWeightingMode,
                             targetGrossFraction = scaledGrossFraction,
                             currentWeightsBySymbol = currentWeights.toMap(),
                             minExpectedNetEdgeBps = config.entryEdgeFloorBps,
@@ -587,7 +653,15 @@ class InterdaySearchEngine(
                         regimeScore = latestRegime.score,
                         config = config
                     )
-                    val plannedDelta = if (forcedFlatten) {
+                    val exitOverlayFlatten = rebalanceNow && shouldForceFlattenByExitOverlay(
+                        currentSigned = currentSigned,
+                        positionEntryTime = activePositions[symbol]?.entryTime,
+                        maxFavorableMoveVol = activePositions[symbol]?.maxFavorableMoveVol(),
+                        signal = signal,
+                        config = config,
+                        time = time
+                    )
+                    val plannedDelta = if (forcedFlatten || exitOverlayFlatten) {
                         -currentSigned
                     } else {
                         gradualDelta(currentSigned, targetSigned, step)
@@ -612,6 +686,7 @@ class InterdaySearchEngine(
                         time = time,
                         reason = when {
                             forcedFlatten -> "regime-flush"
+                            exitOverlayFlatten -> "exit-overlay"
                             rebalanceNow -> "rebalance"
                             else -> "continuous-ramp"
                         },
@@ -642,22 +717,26 @@ class InterdaySearchEngine(
         val backtest = buildPerformance(
             segment = "backtest",
             snapshots = snapshots,
+            regimes = regimeSnapshots,
             trades = trades,
             splitTime = splitTime,
             beforeSplit = true,
             signalBarMinutes = config.signalBarMinutes,
             searchPolicy = searchPolicy,
-            regimeStrengthThreshold = config.regimeStrengthThreshold
+            regimeStrengthThreshold = config.regimeStrengthThreshold,
+            configuredRegimeSlices = normalizedRegimeSlices(policy.research.validation.regimeSlices)
         )
         val forward = buildPerformance(
             segment = "forward",
             snapshots = snapshots,
+            regimes = regimeSnapshots,
             trades = trades,
             splitTime = splitTime,
             beforeSplit = false,
             signalBarMinutes = config.signalBarMinutes,
             searchPolicy = searchPolicy,
-            regimeStrengthThreshold = config.regimeStrengthThreshold
+            regimeStrengthThreshold = config.regimeStrengthThreshold,
+            configuredRegimeSlices = normalizedRegimeSlices(policy.research.validation.regimeSlices)
         )
         val validation = validate(config, backtest, forward, searchPolicy)
         val inspection = if (includeInspection) {
@@ -764,6 +843,7 @@ class InterdaySearchEngine(
                 targetSigned = signedAssumedTarget,
                 defaults = portfolioDefaults
             )
+            val fundingOverlayMultiplier = features.overlaySizingMultiplier(config)
             val expectedNetEdgeBps = expectedResidualReturnBps -
                 config.expectedCostPenaltyWeight * expectedEntryCostBps -
                 config.turnoverPenaltyWeight * expectedTurnoverPenaltyBps
@@ -775,7 +855,8 @@ class InterdaySearchEngine(
                 expectedTurnoverPenaltyBps = expectedTurnoverPenaltyBps,
                 expectedNetEdgeBps = expectedNetEdgeBps,
                 executionSupport = executionSupport,
-                provisionalConfidence = provisionalConfidence
+                provisionalConfidence = provisionalConfidence,
+                fundingOverlayMultiplier = fundingOverlayMultiplier
             )
         }
         val expectedEdgeScores = edgeEstimates.mapValues { (_, estimate) -> estimate.expectedNetEdgeBps }
@@ -809,10 +890,15 @@ class InterdaySearchEngine(
                 trendScore = features.trend,
                 trendAgreement = features.trendAgreement,
                 pullbackScore = features.pullback,
-                fundingScore = features.funding,
+                fundingScore = when (config.fundingOverlayMode) {
+                    InterdayFundingOverlayMode.BOUNDED_REINFORCEMENT,
+                    InterdayFundingOverlayMode.CROWDING_GUARD -> features.fundingAlignment
+                    else -> features.fundingCarry
+                },
                 openInterestScore = features.openInterest,
                 expansionScore = features.expansion,
                 reversalRiskScore = features.reversalRisk,
+                fundingOverlayMultiplier = estimate.fundingOverlayMultiplier,
                 marketBeta = structuralState.marketBetaBySymbol[candidate.symbol] ?: 0.0,
                 upperBound = upperBound,
                 lowerBound = lowerBound,
@@ -907,7 +993,8 @@ class InterdaySearchEngine(
                 trendDirection * adxSupport
             ).average().coerceIn(-1.0, 1.0)
             val pullbackSupport = (-trendDirection * candidate.perturbation).coerceAtLeast(0.0)
-            val fundingSupport = (-trendDirection * fundingRanks.getValue(candidate.symbol)).coerceIn(-1.0, 1.0)
+            val fundingCarry = (-trendDirection * fundingRanks.getValue(candidate.symbol)).coerceIn(-1.0, 1.0)
+            val fundingAlignment = (trendDirection * fundingRanks.getValue(candidate.symbol)).coerceIn(-1.0, 1.0)
             val openInterestSupport = (trendDirection * oiRanks.getValue(candidate.symbol)).coerceIn(-1.0, 1.0)
             val expansion = listOf(
                 (trendDirection * mediumRanks.getValue(candidate.symbol)).coerceAtLeast(0.0),
@@ -928,7 +1015,8 @@ class InterdaySearchEngine(
                 trend = trend,
                 trendAgreement = trendAgreement,
                 pullback = (pullbackSupport / config.perturbationThresholdZ.coerceAtLeast(0.25)).coerceIn(0.0, 1.0),
-                funding = fundingSupport,
+                fundingCarry = fundingCarry,
+                fundingAlignment = fundingAlignment,
                 openInterest = openInterestSupport,
                 expansion = expansion,
                 reversalRisk = reversalRisk,
@@ -945,7 +1033,7 @@ class InterdaySearchEngine(
         liquidityRanks: Map<String, Double>
     ): RegimeState {
         val raw = collectRawSignals(panel, index, config, indicators, liquidityRanks)
-        if (raw.isEmpty()) return RegimeState(0.0, 0.0, 0.0, 0.0)
+        if (raw.isEmpty()) return RegimeState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         val mediumRanks = centeredRanks(raw.associate { it.symbol to it.mediumReturn })
         val slowRanks = centeredRanks(raw.associate { it.symbol to it.slowReturn })
         val breadth = raw.map {
@@ -967,11 +1055,20 @@ class InterdaySearchEngine(
             breadth,
             anchorTrend.coerceIn(-1.0, 1.0)
         ).average().coerceIn(-1.0, 1.0)
+        val realizedVolatility = raw.map { it.volatility }.averageOrZero()
+        val liquidityScore = raw.map { it.liquidityRank.coerceIn(0.0, 1.0) }.averageOrZero()
+        val fundingPressure = raw.map { it.fundingRate }.averageOrZero()
+        val openInterestPressure = raw.map { it.openInterestMomentum }.averageOrZero()
         return RegimeState(
             score = score,
             breadth = breadth,
             anchorTrend = anchorTrend.coerceIn(-1.0, 1.0),
-            dispersion = dispersion.coerceIn(0.0, 1.0)
+            dispersion = dispersion.coerceIn(0.0, 1.0),
+            realizedVolatility = realizedVolatility,
+            liquidityScore = liquidityScore,
+            fundingPressure = fundingPressure,
+            openInterestPressure = openInterestPressure,
+            marketTrendScore = anchorTrend.coerceIn(-1.0, 1.0)
         )
     }
 
@@ -1062,7 +1159,10 @@ class InterdaySearchEngine(
                 logReturnAt(series.bars, cursor)?.let { series.symbol to it }
             }.toMap()
             if (rawReturns.isEmpty()) continue
-            val marketReturn = rawReturns.values.averageOrZero()
+            val marketReturn = weightedAverage(
+                valuesBySymbol = rawReturns,
+                weightsBySymbol = structuralState.marketProxyWeightsBySymbol
+            )
             structuralState.marketBetaBySymbol.forEach { (symbol, marketBeta) ->
                 val symbolReturn = rawReturns[symbol] ?: return@forEach
                 val residualReturn = symbolReturn - marketBeta * marketReturn
@@ -1196,6 +1296,10 @@ class InterdaySearchEngine(
         }
         if (config.layeredStopFractions.sum() < 0.99) reasons += "layered stop fractions should sum close to 1.0"
         if (config.layeredStopMultipliers.size != config.layeredStopFractions.size) reasons += "layered stop bands and fractions differ in size"
+        if (config.exitOverlayMode == InterdayExitOverlayMode.TIME_STOP && config.timeStopBars < 1) reasons += "time stop bars must be >= 1"
+        if (config.residualizationBetaMode == InterdayResidualizationBetaMode.EWMA && config.residualizationHalfLifeDays < 1) {
+            reasons += "ewma residualization half-life days must be >= 1"
+        }
         return InterdayValidation(
             accepted = backtestAccepted && forwardAccepted && reasons.isEmpty(),
             backtestAccepted = backtestAccepted,
@@ -1239,12 +1343,14 @@ class InterdaySearchEngine(
     private fun buildPerformance(
         segment: String,
         snapshots: List<InterdayPortfolioSnapshot>,
+        regimes: List<InterdayRegimeSnapshot>,
         trades: List<InterdayTradeRecord>,
         splitTime: Instant?,
         beforeSplit: Boolean,
         signalBarMinutes: Int,
         searchPolicy: org.datamancy.trading.policy.AlphaSearchPolicy,
-        regimeStrengthThreshold: Double
+        regimeStrengthThreshold: Double,
+        configuredRegimeSlices: List<String>
     ): InterdayPerformance {
         val segmentSnapshots = snapshots.filter { snapshot ->
             when {
@@ -1258,6 +1364,13 @@ class InterdaySearchEngine(
                 splitTime == null -> true
                 beforeSplit -> trade.exitTime <= splitTime
                 else -> trade.exitTime > splitTime
+            }
+        }
+        val segmentRegimes = regimes.filter { regime ->
+            when {
+                splitTime == null -> true
+                beforeSplit -> regime.time <= splitTime
+                else -> regime.time > splitTime
             }
         }
         if (segmentSnapshots.size < 2) {
@@ -1296,6 +1409,13 @@ class InterdaySearchEngine(
         val pnlSkew = pnlSkew(segmentTrades.map { it.pnlPct })
         val avgWinnerLoserRatio = avgWinnerLoserRatio(segmentTrades)
         val killSwitchUtilizationMax = killSwitchUtilizationMax(segmentSnapshots, searchPolicy, regimeStrengthThreshold)
+        val regimeSlices = buildRegimeSlicePerformance(
+            segmentSnapshots = segmentSnapshots,
+            segmentRegimes = segmentRegimes,
+            segmentTrades = segmentTrades,
+            signalBarMinutes = signalBarMinutes,
+            configuredRegimeSlices = configuredRegimeSlices
+        )
         return InterdayPerformance(
             segment = segment,
             startTime = segmentSnapshots.first().time,
@@ -1321,7 +1441,8 @@ class InterdaySearchEngine(
             profitGivebackPct = profitGivebackPct,
             pnlSkew = pnlSkew,
             avgWinnerLoserRatio = avgWinnerLoserRatio,
-            killSwitchUtilizationMax = killSwitchUtilizationMax
+            killSwitchUtilizationMax = killSwitchUtilizationMax,
+            regimeSlices = regimeSlices
         )
     }
 
@@ -1658,6 +1779,11 @@ class InterdaySearchEngine(
         breadth = regime.breadth,
         anchorTrend = regime.anchorTrend,
         dispersion = regime.dispersion,
+        realizedVolatility = regime.realizedVolatility,
+        liquidityScore = regime.liquidityScore,
+        fundingPressure = regime.fundingPressure,
+        openInterestPressure = regime.openInterestPressure,
+        marketTrendScore = regime.marketTrendScore,
         grossExposureFraction = snapshot.grossExposureFraction,
         longExposureFraction = snapshot.longExposureFraction,
         shortExposureFraction = snapshot.shortExposureFraction,
@@ -1666,6 +1792,98 @@ class InterdaySearchEngine(
         wrongWayExposureFraction = snapshot.wrongWayExposureFraction,
         killSwitchUtilization = snapshot.killSwitchUtilization
     )
+
+    private fun buildRegimeSlicePerformance(
+        segmentSnapshots: List<InterdayPortfolioSnapshot>,
+        segmentRegimes: List<InterdayRegimeSnapshot>,
+        segmentTrades: List<InterdayTradeRecord>,
+        signalBarMinutes: Int,
+        configuredRegimeSlices: List<String>
+    ): List<InterdayRegimeSlicePerformance> {
+        if (segmentSnapshots.size < 2 || segmentRegimes.isEmpty()) return emptyList()
+        val regimeByTime = segmentRegimes.associateBy { it.time }
+        val observations = segmentSnapshots.zipWithNext().mapNotNull { (left, right) ->
+            val regime = regimeByTime[right.time] ?: return@mapNotNull null
+            if (left.equity <= 0.0 || right.equity <= 0.0) return@mapNotNull null
+            RegimeSliceObservation(
+                time = right.time,
+                logReturn = ln(right.equity / left.equity),
+                turnoverFraction = right.turnoverFraction,
+                grossExposureFraction = right.grossExposureFraction,
+                regime = regime
+            )
+        }
+        if (observations.isEmpty()) return emptyList()
+        val tradesByTime = segmentTrades.groupBy { it.exitTime }
+        return configuredRegimeSlices.flatMap { slice ->
+            when (slice.trim().lowercase()) {
+                "volatility" -> quantileRegimeSlices(slice, observations, tradesByTime, signalBarMinutes) { it.regime.realizedVolatility }
+                "liquidity" -> quantileRegimeSlices(slice, observations, tradesByTime, signalBarMinutes) { it.regime.liquidityScore }
+                "funding" -> quantileRegimeSlices(slice, observations, tradesByTime, signalBarMinutes) { abs(it.regime.fundingPressure) }
+                "open_interest" -> quantileRegimeSlices(slice, observations, tradesByTime, signalBarMinutes) { abs(it.regime.openInterestPressure) }
+                "market_trend" -> directionalRegimeSlices(slice, observations, tradesByTime, signalBarMinutes)
+                else -> emptyList()
+            }
+        }
+    }
+
+    private fun quantileRegimeSlices(
+        slice: String,
+        observations: List<RegimeSliceObservation>,
+        tradesByTime: Map<Instant, List<InterdayTradeRecord>>,
+        signalBarMinutes: Int,
+        selector: (RegimeSliceObservation) -> Double
+    ): List<InterdayRegimeSlicePerformance> {
+        if (observations.isEmpty()) return emptyList()
+        val sortedValues = observations.map(selector).sorted()
+        val lowCut = quantile(sortedValues, 0.33)
+        val highCut = quantile(sortedValues, 0.67)
+        return listOf(
+            "low" to observations.filter { selector(it) <= lowCut },
+            "mid" to observations.filter { selector(it) > lowCut && selector(it) < highCut },
+            "high" to observations.filter { selector(it) >= highCut }
+        ).mapNotNull { (bucket, bucketObservations) ->
+            summarizeRegimeSlice(slice, bucket, bucketObservations, tradesByTime, signalBarMinutes)
+        }
+    }
+
+    private fun directionalRegimeSlices(
+        slice: String,
+        observations: List<RegimeSliceObservation>,
+        tradesByTime: Map<Instant, List<InterdayTradeRecord>>,
+        signalBarMinutes: Int
+    ): List<InterdayRegimeSlicePerformance> = listOf(
+        "down" to observations.filter { it.regime.marketTrendScore <= -0.15 },
+        "flat" to observations.filter { it.regime.marketTrendScore > -0.15 && it.regime.marketTrendScore < 0.15 },
+        "up" to observations.filter { it.regime.marketTrendScore >= 0.15 }
+    ).mapNotNull { (bucket, bucketObservations) ->
+        summarizeRegimeSlice(slice, bucket, bucketObservations, tradesByTime, signalBarMinutes)
+    }
+
+    private fun summarizeRegimeSlice(
+        slice: String,
+        bucket: String,
+        observations: List<RegimeSliceObservation>,
+        tradesByTime: Map<Instant, List<InterdayTradeRecord>>,
+        signalBarMinutes: Int
+    ): InterdayRegimeSlicePerformance? {
+        if (observations.isEmpty()) return null
+        val tradeCount = observations.sumOf { tradesByTime[it.time]?.size ?: 0 }
+        val returns = observations.map { it.logReturn }
+        val netReturnPct = (exp(returns.sum()) - 1.0) * 100.0
+        return InterdayRegimeSlicePerformance(
+            slice = slice,
+            bucket = bucket,
+            sampleCount = observations.size,
+            tradeCount = tradeCount,
+            netReturnPct = netReturnPct,
+            edgeAfterCostBps = if (tradeCount == 0) 0.0 else (netReturnPct * 100.0) / tradeCount.toDouble(),
+            sharpe = annualizedSharpe(returns, signalBarMinutes),
+            avgTurnoverPct = observations.map { it.turnoverFraction }.average() * 100.0,
+            avgGrossExposureFraction = observations.map { it.grossExposureFraction }.average(),
+            positiveReturnRate = observations.count { it.logReturn > 0.0 }.toDouble() / observations.size.toDouble()
+        )
+    }
 
     private fun requiredHistoryHours(config: InterdayAlphaConfig): Int {
         val indicatorHours = max(
@@ -1708,7 +1926,8 @@ class InterdaySearchEngine(
         profitGivebackPct = 0.0,
         pnlSkew = 0.0,
         avgWinnerLoserRatio = 0.0,
-        killSwitchUtilizationMax = 0.0
+        killSwitchUtilizationMax = 0.0,
+        regimeSlices = emptyList()
     )
 
     private data class PanelCacheKey(
@@ -1716,6 +1935,14 @@ class InterdaySearchEngine(
         val signalBarMinutes: Int,
         val requiredHistoryHours: Int,
         val maxSymbols: Int
+    )
+
+    private data class RegimeSliceObservation(
+        val time: Instant,
+        val logReturn: Double,
+        val turnoverFraction: Double,
+        val grossExposureFraction: Double,
+        val regime: InterdayRegimeSnapshot
     )
 
     data class IndicatorWindows(
@@ -1784,7 +2011,8 @@ class InterdaySearchEngine(
         val trend: Double,
         val trendAgreement: Double,
         val pullback: Double,
-        val funding: Double,
+        val fundingCarry: Double,
+        val fundingAlignment: Double,
         val openInterest: Double,
         val expansion: Double,
         val reversalRisk: Double,
@@ -1794,12 +2022,32 @@ class InterdaySearchEngine(
             trend,
             trendAgreement,
             pullback * config.pullbackWeight.coerceAtLeast(0.05),
-            funding * config.fundingWeight.coerceAtLeast(0.05),
+            linearFundingContribution(config),
             openInterest * config.openInterestWeight.coerceAtLeast(0.05),
             expansion,
             reversalRisk,
             liquidity
         )
+
+        private fun linearFundingContribution(config: InterdayAlphaConfig): Double =
+            if (config.fundingOverlayMode == InterdayFundingOverlayMode.LINEAR_FACTOR) {
+                fundingCarry * config.fundingWeight.coerceAtLeast(0.05)
+            } else {
+                0.0
+            }
+
+        fun overlaySizingMultiplier(config: InterdayAlphaConfig): Double {
+            val strength = config.fundingWeight.coerceIn(0.0, 1.0)
+            if (strength <= 1e-9) return 1.0
+            return when (config.fundingOverlayMode) {
+                InterdayFundingOverlayMode.NONE,
+                InterdayFundingOverlayMode.LINEAR_FACTOR -> 1.0
+                InterdayFundingOverlayMode.BOUNDED_REINFORCEMENT ->
+                    (1.0 + strength * fundingAlignment).coerceIn(0.70, 1.30)
+                InterdayFundingOverlayMode.CROWDING_GUARD ->
+                    (1.0 - strength * fundingAlignment.coerceAtLeast(0.0)).coerceIn(0.55, 1.0)
+            }
+        }
     }
 
     private data class EmpiricalWeights(
@@ -1830,14 +2078,16 @@ class InterdaySearchEngine(
         val expectedTurnoverPenaltyBps: Double,
         val expectedNetEdgeBps: Double,
         val executionSupport: Double,
-        val provisionalConfidence: Double
+        val provisionalConfidence: Double,
+        val fundingOverlayMultiplier: Double
     )
 
     data class StructuralState(
         val enabled: Boolean,
         val residualizedRaw: List<RawSignal>,
         val marketBetaBySymbol: Map<String, Double>,
-        val factorLookbackBars: Int
+        val factorLookbackBars: Int,
+        val marketProxyWeightsBySymbol: Map<String, Double>
     )
 
     data class DerivedTrendSignal(
@@ -1855,7 +2105,12 @@ class InterdaySearchEngine(
         val score: Double,
         val breadth: Double,
         val anchorTrend: Double,
-        val dispersion: Double
+        val dispersion: Double,
+        val realizedVolatility: Double,
+        val liquidityScore: Double,
+        val fundingPressure: Double,
+        val openInterestPressure: Double,
+        val marketTrendScore: Double
     )
 
     private data class PositionAdjustment(
@@ -1899,33 +2154,51 @@ class InterdaySearchEngine(
             AlphaDirection.SHORT -> ((averageEntryPrice / troughPrice.coerceAtLeast(1e-9)) - 1.0) * 100.0
         }
 
-        fun trailingAdjustments(config: InterdayAlphaConfig, bar: InterdayBar, time: Instant): List<PositionAdjustment> {
+        fun overlayAdjustments(config: InterdayAlphaConfig, bar: InterdayBar, time: Instant): List<PositionAdjustment> {
             val adjustments = mutableListOf<PositionAdjustment>()
-            config.layeredStopFractions.forEachIndexed { index, fraction ->
-                if (index in stopTriggered) return@forEachIndexed
-                val trigger = config.trailingStopVolMultiple * config.layeredStopMultipliers.getOrElse(index) { 1.0 }
-                val drawdownVol = when (direction) {
-                    AlphaDirection.LONG -> ((peakPrice - bar.close) / peakPrice.coerceAtLeast(1e-9)) / entryVolatility
-                    AlphaDirection.SHORT -> ((bar.close - troughPrice) / troughPrice.coerceAtLeast(1e-9)) / entryVolatility
+            when (config.exitOverlayMode) {
+                InterdayExitOverlayMode.NONE -> return emptyList()
+                InterdayExitOverlayMode.TRAILING_ONLY,
+                InterdayExitOverlayMode.TRAILING_AND_TAKE_PROFIT -> {
+                    config.layeredStopFractions.forEachIndexed { index, fraction ->
+                        if (index in stopTriggered) return@forEachIndexed
+                        val trigger = config.trailingStopVolMultiple * config.layeredStopMultipliers.getOrElse(index) { 1.0 }
+                        val drawdownVol = when (direction) {
+                            AlphaDirection.LONG -> ((peakPrice - bar.close) / peakPrice.coerceAtLeast(1e-9)) / entryVolatility
+                            AlphaDirection.SHORT -> ((bar.close - troughPrice) / troughPrice.coerceAtLeast(1e-9)) / entryVolatility
+                        }
+                        if (drawdownVol.coerceAtLeast(0.0) >= trigger) {
+                            stopTriggered += index
+                            adjustments += PositionAdjustment(symbol, weightFraction * fraction, "trailing-stop-$index@$time")
+                        }
+                    }
                 }
-                if (drawdownVol.coerceAtLeast(0.0) >= trigger) {
-                    stopTriggered += index
-                    adjustments += PositionAdjustment(symbol, weightFraction * fraction, "trailing-stop-$index@$time")
+                InterdayExitOverlayMode.TIME_STOP -> {
+                    val elapsedBars = Duration.between(entryTime, time).toMinutes().toDouble() / config.signalBarMinutes.toDouble().coerceAtLeast(1.0)
+                    val favorableMoveVol = maxFavorableMoveVol()
+                    if (elapsedBars >= config.timeStopBars.coerceAtLeast(1) && favorableMoveVol < config.timeStopMinProgressVol.coerceAtLeast(0.0)) {
+                        adjustments += PositionAdjustment(symbol, weightFraction, "time-stop@$time")
+                    }
                 }
+                InterdayExitOverlayMode.TREND_BREAK -> Unit
             }
-            config.takeProfitFractions.forEachIndexed { index, fraction ->
-                if (index in takeProfitTriggered) return@forEachIndexed
-                val trigger = config.takeProfitVolMultiple * config.takeProfitMultipliers.getOrElse(index) { 1.0 }
-                val favorableMoveVol = when (direction) {
-                    AlphaDirection.LONG -> ((peakPrice / averageEntryPrice) - 1.0) / entryVolatility
-                    AlphaDirection.SHORT -> ((averageEntryPrice / troughPrice.coerceAtLeast(1e-9)) - 1.0) / entryVolatility
-                }
-                if (favorableMoveVol >= trigger) {
-                    takeProfitTriggered += index
-                    adjustments += PositionAdjustment(symbol, weightFraction * fraction, "take-profit-$index@$time")
+            if (config.exitOverlayMode == InterdayExitOverlayMode.TRAILING_AND_TAKE_PROFIT) {
+                config.takeProfitFractions.forEachIndexed { index, fraction ->
+                    if (index in takeProfitTriggered) return@forEachIndexed
+                    val trigger = config.takeProfitVolMultiple * config.takeProfitMultipliers.getOrElse(index) { 1.0 }
+                    val favorableMoveVol = maxFavorableMoveVol()
+                    if (favorableMoveVol >= trigger) {
+                        takeProfitTriggered += index
+                        adjustments += PositionAdjustment(symbol, weightFraction * fraction, "take-profit-$index@$time")
+                    }
                 }
             }
             return adjustments
+        }
+
+        fun maxFavorableMoveVol(): Double = when (direction) {
+            AlphaDirection.LONG -> ((peakPrice / averageEntryPrice) - 1.0) / entryVolatility.coerceAtLeast(1e-6)
+            AlphaDirection.SHORT -> ((averageEntryPrice / troughPrice.coerceAtLeast(1e-9)) - 1.0) / entryVolatility.coerceAtLeast(1e-6)
         }
     }
 }
@@ -2007,6 +2280,37 @@ private fun shouldForceFlattenByRegime(
     return (regimeScore > 0.0 && currentSigned < 0.0) || (regimeScore < 0.0 && currentSigned > 0.0)
 }
 
+private fun shouldForceFlattenByExitOverlay(
+    currentSigned: Double,
+    positionEntryTime: Instant?,
+    maxFavorableMoveVol: Double?,
+    signal: InterdaySignalSnapshot?,
+    config: InterdayAlphaConfig,
+    time: Instant
+): Boolean {
+    if (abs(currentSigned) <= 1e-9 || positionEntryTime == null) return false
+    return when (config.exitOverlayMode) {
+        InterdayExitOverlayMode.TREND_BREAK -> {
+            signal == null ||
+                !holdsSignalDirection(currentSigned, signal.direction) ||
+                directionalEdgeBps(signal) < config.holdEdgeFloorBps ||
+                signal.trendAgreement < config.minTrendAgreement
+        }
+        InterdayExitOverlayMode.TIME_STOP -> {
+            val elapsedBars = Duration.between(positionEntryTime, time).toMinutes().toDouble() / config.signalBarMinutes.toDouble().coerceAtLeast(1.0)
+            elapsedBars >= config.timeStopBars.coerceAtLeast(1) &&
+                (maxFavorableMoveVol ?: 0.0) < config.timeStopMinProgressVol.coerceAtLeast(0.0)
+        }
+        else -> false
+    }
+}
+
+private fun normalizedRegimeSlices(configuredRegimeSlices: List<String>): List<String> =
+    (configuredRegimeSlices + "market_trend")
+        .map { it.trim().lowercase() }
+        .filter { it.isNotBlank() }
+        .distinct()
+
 private fun residualizationActive(config: InterdayAlphaConfig): Boolean =
     config.residualizationMode != InterdayResidualizationMode.NONE
 
@@ -2023,7 +2327,8 @@ private fun buildStructuralState(
             enabled = false,
             residualizedRaw = raw,
             marketBetaBySymbol = raw.associate { it.symbol to 0.0 },
-            factorLookbackBars = 0
+            factorLookbackBars = 0,
+            marketProxyWeightsBySymbol = raw.associate { it.symbol to 1.0 }
         )
 
     if (!enabled || raw.size < 4) return disabledState()
@@ -2038,11 +2343,21 @@ private fun buildStructuralState(
     }.toMap()
     if (returnsBySymbol.size < 4) return disabledState()
 
-    val marketSeries = averageSeries(returnsBySymbol.values.toList())
+    val marketProxyWeightsBySymbol = raw.associate { candidate -> candidate.symbol to liquidityProxyWeight(candidate) }
+    val marketSeries = averageSeries(
+        series = returnsBySymbol.map { (symbol, returns) -> symbol to returns },
+        proxyMode = config.residualizationMarketProxyMode,
+        liquidityWeightBySymbol = marketProxyWeightsBySymbol
+    )
     if (marketSeries.size < 4) return disabledState()
 
     val marketBetaBySymbol = returnsBySymbol.mapValues { (_, returns) ->
-        beta(returns, marketSeries).coerceIn(-3.0, 3.0)
+        beta(
+            left = returns,
+            right = marketSeries,
+            mode = config.residualizationBetaMode,
+            halfLifeBars = barsForDays(config.residualizationHalfLifeDays, config.signalBarMinutes)
+        ).coerceIn(-3.0, 3.0)
     }
 
     val derivedBySymbol = mutableMapOf<String, InterdaySearchEngine.DerivedTrendSignal>()
@@ -2081,7 +2396,8 @@ private fun buildStructuralState(
         enabled = true,
         residualizedRaw = residualizedRaw,
         marketBetaBySymbol = raw.associate { candidate -> candidate.symbol to (marketBetaBySymbol[candidate.symbol] ?: 0.0) },
-        factorLookbackBars = lookbackReturns
+        factorLookbackBars = lookbackReturns,
+        marketProxyWeightsBySymbol = marketProxyWeightsBySymbol
     )
 }
 
@@ -2126,11 +2442,39 @@ private fun minimumStructuralLookbackBars(
     max(perturbationLookbackBars, 4)
 )
 
-private fun averageSeries(series: List<List<Double>>): List<Double> {
-    val valid = series.filter { it.isNotEmpty() }
+private fun averageSeries(
+    series: List<Pair<String, List<Double>>>,
+    proxyMode: InterdayResidualizationMarketProxyMode,
+    liquidityWeightBySymbol: Map<String, Double>
+): List<Double> {
+    val valid = series.filter { it.second.isNotEmpty() }
     if (valid.isEmpty()) return emptyList()
-    val size = valid.minOf { it.size }
-    return List(size) { offset -> valid.map { it[offset] }.averageOrZero() }
+    val size = valid.minOf { it.second.size }
+    return List(size) { offset ->
+        when (proxyMode) {
+            InterdayResidualizationMarketProxyMode.EQUAL_WEIGHT ->
+                valid.map { it.second[offset] }.averageOrZero()
+            InterdayResidualizationMarketProxyMode.LIQUIDITY_WEIGHTED -> {
+                val weighted = valid.map { (symbol, values) ->
+                    val weight = liquidityWeightBySymbol[symbol]?.coerceAtLeast(1e-6) ?: 1.0
+                    values[offset] to weight
+                }
+                val denominator = weighted.sumOf { it.second }.coerceAtLeast(1e-6)
+                weighted.sumOf { it.first * it.second } / denominator
+            }
+        }
+    }
+}
+
+private fun weightedAverage(
+    valuesBySymbol: Map<String, Double>,
+    weightsBySymbol: Map<String, Double>
+): Double {
+    if (valuesBySymbol.isEmpty()) return 0.0
+    val denominator = valuesBySymbol.keys.sumOf { symbol -> weightsBySymbol[symbol]?.coerceAtLeast(1e-6) ?: 1.0 }.coerceAtLeast(1e-6)
+    return valuesBySymbol.entries.sumOf { (symbol, value) ->
+        value * (weightsBySymbol[symbol]?.coerceAtLeast(1e-6) ?: 1.0)
+    } / denominator
 }
 
 private fun subtractSeries(left: List<Double>, right: List<Double>, beta: Double): List<Double> {
@@ -2138,23 +2482,44 @@ private fun subtractSeries(left: List<Double>, right: List<Double>, beta: Double
     return List(size) { offset -> left[offset] - beta * right[offset] }
 }
 
-private fun beta(left: List<Double>, right: List<Double>): Double {
+private fun beta(
+    left: List<Double>,
+    right: List<Double>,
+    mode: InterdayResidualizationBetaMode,
+    halfLifeBars: Int
+): Double {
     val size = min(left.size, right.size)
     if (size < 4) return 0.0
     val leftWindow = left.takeLast(size)
     val rightWindow = right.takeLast(size)
-    val leftMean = leftWindow.average()
-    val rightMean = rightWindow.average()
+    val weights = when (mode) {
+        InterdayResidualizationBetaMode.SIMPLE -> List(size) { 1.0 }
+        InterdayResidualizationBetaMode.EWMA -> ewmaWeights(size, halfLifeBars)
+    }
+    val totalWeight = weights.sum().coerceAtLeast(1e-9)
+    val leftMean = leftWindow.indices.sumOf { offset -> leftWindow[offset] * weights[offset] } / totalWeight
+    val rightMean = rightWindow.indices.sumOf { offset -> rightWindow[offset] * weights[offset] } / totalWeight
     val covariance = leftWindow.indices.sumOf { offset ->
-        (leftWindow[offset] - leftMean) * (rightWindow[offset] - rightMean)
-    } / size.toDouble()
-    val variance = rightWindow.sumOf { value ->
-        val centered = value - rightMean
-        centered * centered
-    } / size.toDouble()
+        weights[offset] * (leftWindow[offset] - leftMean) * (rightWindow[offset] - rightMean)
+    } / totalWeight
+    val variance = rightWindow.indices.sumOf { offset ->
+        val centered = rightWindow[offset] - rightMean
+        weights[offset] * centered * centered
+    } / totalWeight
     if (variance <= 1e-10) return 0.0
     return covariance / variance
 }
+
+private fun ewmaWeights(size: Int, halfLifeBars: Int): List<Double> {
+    val safeHalfLife = halfLifeBars.coerceAtLeast(1).toDouble()
+    return List(size) { offset ->
+        val age = (size - 1 - offset).toDouble()
+        exp(-ln(2.0) * age / safeHalfLife)
+    }
+}
+
+private fun liquidityProxyWeight(candidate: InterdaySearchEngine.RawSignal): Double =
+    (candidate.depthUsd.coerceAtLeast(1.0).pow(0.25) * (0.25 + candidate.liquidityRank.coerceIn(0.0, 1.0))).coerceAtLeast(1e-6)
 
 private fun deriveTrendSignal(
     returns: List<Double>,

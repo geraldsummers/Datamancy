@@ -32,6 +32,36 @@ enum class InterdayResidualizationMode {
     MARKET
 }
 
+enum class InterdayResidualizationBetaMode {
+    SIMPLE,
+    EWMA
+}
+
+enum class InterdayResidualizationMarketProxyMode {
+    EQUAL_WEIGHT,
+    LIQUIDITY_WEIGHTED
+}
+
+enum class InterdayFundingOverlayMode {
+    NONE,
+    LINEAR_FACTOR,
+    BOUNDED_REINFORCEMENT,
+    CROWDING_GUARD
+}
+
+enum class InterdayTailWeightingMode {
+    VOLATILITY_SCALED,
+    EQUAL_WEIGHT
+}
+
+enum class InterdayExitOverlayMode {
+    NONE,
+    TRAILING_ONLY,
+    TRAILING_AND_TAKE_PROFIT,
+    TIME_STOP,
+    TREND_BREAK
+}
+
 data class UniverseBoundsSpec(
     val timeSeriesNormalization: String = "rolling_median_mad",
     val crossSectionalNormalization: String = "rank_gaussian",
@@ -155,7 +185,8 @@ data class AlphaSignalScore(
     val expectedEntryCostBps: Double = 0.0,
     val expectedTurnoverPenaltyBps: Double = 0.0,
     val expectedNetEdgeBps: Double = 0.0,
-    val currentWeightFraction: Double = 0.0
+    val currentWeightFraction: Double = 0.0,
+    val sizingMultiplier: Double = 1.0
 )
 
 data class AlphaPortfolioDefaults(
@@ -182,6 +213,7 @@ data class AlphaPortfolioRequest(
     val selectionQuantile: Double? = null,
     val respectProvidedSignalSet: Boolean = false,
     val longShort: Boolean? = null,
+    val weightingMode: InterdayTailWeightingMode? = null,
     val targetGrossFraction: Double? = null,
     val targetNetFraction: Double? = null,
     val maxWeightPerSymbol: Double? = null,

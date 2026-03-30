@@ -16,6 +16,7 @@ class AlphaPortfolioConstructor(
         val quantile = (request.selectionQuantile ?: policy.research.discovery.selectionQuantiles.first())
             .coerceIn(0.01, 0.50)
         val longShort = request.longShort ?: defaults.longShort
+        val weightingMode = request.weightingMode ?: defaultWeightingMode(defaults)
         val maxLongs = request.maxConcurrentLongs ?: defaults.maxConcurrentLongs
         val maxShorts = request.maxConcurrentShorts ?: defaults.maxConcurrentShorts
         val minExpectedNetEdgeBps = request.minExpectedNetEdgeBps ?: Double.NEGATIVE_INFINITY
@@ -66,7 +67,8 @@ class AlphaPortfolioConstructor(
             sideTarget = longTarget,
             maxWeightPerSymbol = maxWeightPerSymbol,
             defaults = defaults,
-            exposureFraction = exposureFraction
+            exposureFraction = exposureFraction,
+            weightingMode = weightingMode
         )
         targets += allocateSide(
             signals = selectedShorts,
@@ -74,7 +76,8 @@ class AlphaPortfolioConstructor(
             sideTarget = shortTarget,
             maxWeightPerSymbol = maxWeightPerSymbol,
             defaults = defaults,
-            exposureFraction = exposureFraction
+            exposureFraction = exposureFraction,
+            weightingMode = weightingMode
         )
 
         return AlphaPortfolioResponse(
@@ -92,7 +95,12 @@ class AlphaPortfolioConstructor(
                 if (request.respectProvidedSignalSet) {
                     "Provided signals were treated as the already-eligible basket, so sizing preserved cross-sectional diversification while preferring incumbents that still retain net edge."
                 } else {
-                    "Weights are volatility-scaled, cost-aware, and retention-biased to diversify trend risk across the universe without unnecessary churn."
+                    when (weightingMode) {
+                        InterdayTailWeightingMode.EQUAL_WEIGHT ->
+                            "Weights are equal-weighted inside the selected tails so breadth is preserved and tail wins are not driven by hidden volatility concentration."
+                        InterdayTailWeightingMode.VOLATILITY_SCALED ->
+                            "Weights are volatility-scaled, cost-aware, and retention-biased to diversify trend risk across the universe without unnecessary churn."
+                    }
                 }
             )
         )
@@ -122,14 +130,22 @@ class AlphaPortfolioConstructor(
         sideTarget: Double,
         maxWeightPerSymbol: Double,
         defaults: AlphaPortfolioDefaults,
-        exposureFraction: Double
+        exposureFraction: Double,
+        weightingMode: InterdayTailWeightingMode
     ): List<AlphaPortfolioTarget> {
         if (signals.isEmpty() || sideTarget <= 0.0) return emptyList()
         val rawWeights = signals.associateWith {
-            val volatility = it.predictedVolatility.coerceAtLeast(0.0001)
-            effectiveSizingEdgeBps(it, direction, defaults).coerceAtLeast(0.05) *
-                it.confidence.coerceIn(0.0, 1.0) *
-                it.liquidityScore.coerceIn(0.1, 1.0) / volatility
+            val sizingMultiplier = it.sizingMultiplier.coerceIn(0.25, 2.0)
+            when (weightingMode) {
+                InterdayTailWeightingMode.EQUAL_WEIGHT -> sizingMultiplier
+                InterdayTailWeightingMode.VOLATILITY_SCALED -> {
+                    val volatility = it.predictedVolatility.coerceAtLeast(0.0001)
+                    effectiveSizingEdgeBps(it, direction, defaults).coerceAtLeast(0.05) *
+                        it.confidence.coerceIn(0.0, 1.0) *
+                        it.liquidityScore.coerceIn(0.1, 1.0) *
+                        sizingMultiplier / volatility
+                }
+            }
         }
         val totalRaw = rawWeights.values.sum().coerceAtLeast(0.0001)
         return signals.mapNotNull { signal ->
@@ -157,10 +173,16 @@ class AlphaPortfolioConstructor(
                 turnoverDeltaFraction = turnoverDeltaFraction,
                 trailingStopVolMultiple = defaults.trailingStopVolMultiple,
                 takeProfitVolMultiple = defaults.takeProfitVolMultiple,
-                rationale = "${direction.name.lowercase()} edge=${adjustedExpectedNetEdgeBps}bps residual=${signal.expectedResidualReturnBps}bps current=${signal.currentWeightFraction} turnover=${turnoverDeltaFraction}"
+                rationale = "${direction.name.lowercase()} edge=${adjustedExpectedNetEdgeBps}bps residual=${signal.expectedResidualReturnBps}bps size_mult=${signal.sizingMultiplier} current=${signal.currentWeightFraction} turnover=${turnoverDeltaFraction}"
             )
         }
     }
+
+    private fun defaultWeightingMode(defaults: AlphaPortfolioDefaults): InterdayTailWeightingMode =
+        when (defaults.weightingMode.trim().lowercase()) {
+            "equal_weight", "equal_weight_tail", "equal" -> InterdayTailWeightingMode.EQUAL_WEIGHT
+            else -> InterdayTailWeightingMode.VOLATILITY_SCALED
+        }
 
     private fun selectionPriority(
         signal: AlphaSignalScore,
