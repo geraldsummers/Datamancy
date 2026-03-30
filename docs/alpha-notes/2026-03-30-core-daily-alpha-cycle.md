@@ -1,0 +1,121 @@
+# 2026-03-30 Core Daily Alpha Cycle
+
+- readiness
+  - before cycle:
+    - `2026-03-30T09:02:45.254721733Z`
+    - `READY`
+    - `eligible=146`
+    - `critical=0`
+    - `coverage_fail=0`
+    - `finalized_fail=0`
+    - `execution_fail=0`
+    - `live_sparse=30`
+  - after cycle:
+    - `2026-03-30T09:39:15.413768510Z`
+    - `READY`
+    - `eligible=146`
+    - `critical=0`
+    - `coverage_fail=0`
+    - `finalized_fail=0`
+    - `execution_fail=0`
+    - `live_sparse=28`
+
+- research basis
+  - `deep-research-report.md`
+  - `deep-research-report2.md`
+  - objective of this cycle:
+    - move back from flat-regime remedies to core daily alpha-definition improvement
+    - test whether the current daily survivor is still carried by local regression-window / slope tuning or by nearby horizon geometry
+
+- experiment
+  - fixed control under test:
+    - `strategyFamily=interday_relative_strength_trend_v2`
+    - `signalBarMinutes=1440`
+    - `forwardHours=72`
+    - `factorLookbackDays=18`
+    - `residualizationBetaMode=EWMA`
+    - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
+    - `tailWeightingMode=VOLATILITY_SCALED`
+    - `fundingOverlayMode=LINEAR_FACTOR`
+    - `fundingWeight=0.15`
+    - `selectionQuantile=0.025`
+    - `fastTrendDays=3`
+    - `mediumTrendDays=7`
+    - `slowTrendDays=14`
+    - `regressionDays=14`
+    - `slopeWeight=0.25`
+  - phase 1:
+    - swept `regressionDays in {10,14,18}` x `slopeWeight in {0.15,0.25,0.35}`
+    - control timestamp:
+      - `2026-03-30T09:05:29.250043451Z`
+  - phase 2:
+    - kept the phase-1 winner fixed
+    - tested bundled horizon geometry:
+      - `3/7/14`
+      - `4/8/16`
+      - `5/10/20`
+  - phase 3:
+    - kept the control geometry as anchor
+    - tested one-knob neighbors:
+      - `2/7/14`
+      - `3/8/14`
+      - `3/7/16`
+
+- result
+  - phase 1 confirmed the current regression window / slope control:
+    - control `14 / 0.25` at `2026-03-30T09:05:29.250043451Z`:
+      - backtest `1.5940 edge bps`, `222 trades`
+      - forward `1.4867 edge bps`, `7 trades`
+      - `market_trend=flat = -5.5040 edge bps`, `21 trades`
+    - every direct challenger failed:
+      - best `10d` row was `10 / 0.35` at `2026-03-30T09:11:43.114174496Z`:
+        - backtest `0.8198 edge bps`
+        - forward `-0.9822 edge bps`
+      - best `18d` row was `18 / 0.15` at `2026-03-30T09:20:08.455887269Z`:
+        - backtest `0.3972 edge bps`
+        - forward `-2.7950 edge bps`
+    - interpretation:
+      - `regressionDays=14` and `slopeWeight=0.25` remain the only accepted point in this local regression-strength neighborhood
+  - phase 2 killed bundled slower geometry:
+    - control `3/7/14` at `2026-03-30T09:27:36.096351494Z` stayed unchanged:
+      - backtest `1.5940 edge bps`
+      - forward `1.4867 edge bps`
+    - `4/8/16` at `2026-03-30T09:29:38.070346809Z`:
+      - backtest `-0.8567 edge bps`
+      - forward `-1.2800 edge bps`
+      - `market_trend=flat = 2.5783 edge bps`
+    - `5/10/20` at `2026-03-30T09:31:50.944974169Z`:
+      - backtest `-0.7574 edge bps`
+      - forward `0.4730 edge bps`
+      - `market_trend=flat = -8.0335 edge bps`
+    - interpretation:
+      - slower bundled geometry is not the improvement path
+      - flat-slice improvement from `4/8/16` is useless because it comes with broad strategy failure
+  - phase 3 confirmed a local geometry plateau around `3/7/14`:
+    - `2/7/14` at `2026-03-30T09:34:18.732554528Z`:
+      - backtest `-0.7110 edge bps`
+      - forward `-1.8313 edge bps`
+    - `3/8/14` at `2026-03-30T09:36:22.784716920Z`:
+      - backtest `0.1857 edge bps`
+      - forward `-0.0092 edge bps`
+      - `market_trend=flat = -1.3890 edge bps`
+    - `3/7/16` at `2026-03-30T09:38:59.939945949Z`:
+      - backtest `-0.2399 edge bps`
+      - forward `-1.3383 edge bps`
+      - `market_trend=flat = 3.7197 edge bps`
+    - interpretation:
+      - all nearby one-knob horizon perturbations fail acceptance
+      - the current `3/7/14` geometry is a real local plateau, not an arbitrary tuple
+
+- remaining risk
+  - the surviving daily control is still only search-acceptable, not promotable
+  - `market_trend=flat` remains negative on the live control
+  - the next failure mode is spending more time on local horizon tuning after the plateau is already mapped
+
+- next step
+  - stop spending immediate cycles on nearby `fast/medium/slow` or `regressionDays/slopeWeight` tuning
+  - move the next daily cycle to different alpha-definition ingredients:
+    - regression-strength formulation
+    - trend-strength feature mix
+    - stabilizing filter construction
+  - keep the current daily survivor as the control anchor until a different ingredient class beats it honestly

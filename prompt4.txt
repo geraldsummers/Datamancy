@@ -71,21 +71,21 @@ Validated current alpha-system reality:
 - trading policy is centralized and authoritative; notebooks and prompts are clients, not the source of truth
 
 Validated current live readiness sample:
-- timestamp: `2026-03-30T07:10:11.540947082Z`
+- timestamp: `2026-03-30T09:39:15.413768510Z`
 - exchange: `hyperliquid_mainnet`
-- `eligibleSymbols=147`
+- `eligibleSymbols=146`
 - `criticalSymbols=0`
 - `coverageFailSymbols=0`
 - `finalizedFailSymbols=0`
 - `executionFailSymbols=0`
-- `liveSparseSymbols=29`
+- `liveSparseSymbols=28`
 - verdict: `READY`
 - latest frontiers at that check:
-  - `market_data candle_1m = 2026-03-30 07:10:00+00`
-  - `market_data trade = 2026-03-30 07:10:06.871+00`
-  - `orderbook_data = 2026-03-30 07:10:00.99+00`
-  - `market_data funding = 2026-03-30 07:10:04+00`
-  - `research_features_1m = 2026-03-30 07:08:00+00`
+  - `market_data candle_1m = 2026-03-30 09:39:00+00`
+  - `market_data trade = 2026-03-30 09:39:14.974+00`
+  - `orderbook_data = 2026-03-30 09:39:01.288+00`
+  - `market_data funding = 2026-03-30 09:39:10+00`
+  - `research_features_1m = 2026-03-30 09:37:00+00`
 
 Important rule about status:
 - any hardcoded status in this prompt can be stale
@@ -108,7 +108,7 @@ Current empirically measured alpha findings to build on:
   - `tailWeightingMode=VOLATILITY_SCALED`
   - `fundingOverlayMode=LINEAR_FACTOR`
   - `selectionQuantile=0.025` is currently leading
-  - `fundingWeight in [0.15,0.30]`
+  - `fundingWeight=0.15` is the current control
 - the current core trend-shape survivor is:
   - `fastTrendDays=3`
   - `mediumTrendDays=7`
@@ -116,6 +116,13 @@ Current empirically measured alpha findings to build on:
   - `regressionDays=14`
   - `volatilityDays=10`
   - `slopeWeight=0.25`
+  - direct local challengers failed on `2026-03-30`:
+    - `regressionDays in {10,18}` with `slopeWeight in {0.15,0.25,0.35}` all failed acceptance
+    - bundled slower geometry `4/8/16` and `5/10/20` both failed
+    - one-knob neighbors `2/7/14`, `3/8/14`, and `3/7/16` all failed
+  - interpretation:
+    - the current `3/7/14` geometry and `14 / 0.25` regression-strength setting are a real local plateau
+    - local horizon tuning is not the next high-value lever
 - simple flat-regime control tuning around the current winner did not repair `market_trend=flat`:
   - best control micro-pass timestamp: `2026-03-30T03:29:29.212161370Z`
   - best control variant: `regimeNetBiasScale=0.5`
