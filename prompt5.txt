@@ -135,16 +135,17 @@ Current challenger branch:
 Promotion status:
 - the control branch is stronger than the old `1.5940` survivor and supersedes that earlier baseline
 - do not use pre-control-branch flat-remedy notes as the current truth for the control branch
-- first multiplicity-aware control-plateau run on the locked branch reproduced the raw survivor:
+- multiplicity-aware control-plateau reruns on the locked branch reproduced the raw survivor:
   - backtest `3.4514 edge bps`
   - forward `1.4014 edge bps`
   - neighborhood pass ratio `0.75` on `{2/7/16, 2/9/16, 2/8/14, 2/8/18}`
 - the control branch is still not promotable yet because:
   - forward sample is still thin
-  - the first purged / multiplicity gate failed:
-    - purged fold pass ratio `0.40`
-    - deflatedSharpeRatio `-0.7578`
-    - White's Reality Check `p=0.4132`
+  - the stricter purged / multiplicity rerun still failed after widening the validation sample to `4 x 10` bars:
+    - purged fold pass ratio `0.50`
+    - validation sample count `40`
+    - deflatedSharpeRatio `-1.0370`
+    - White's Reality Check `p=0.9381`
   - promotion should require purged / embargoed validation plus a multiplicity-aware gate, not raw headline edge alone
 
 Dead or hold surfaces:
@@ -203,7 +204,7 @@ Default validation gatekeepers:
 Current cycle objective:
 - improve the prompt and decision process first, not the breadth of search
 - keep the operational control branch fixed unless a new verified result clearly displaces it
-- focus the next alpha cycle on promotion calibration after the failed first multiplicity gate on the control branch
+- stop treating the control branch as near-promotion; focus the next alpha cycle on either honest sample accumulation / validation design for this branch or kill discipline
 - only after that, test one new mechanism at a time from the research briefs
 
 Cycle budget:
@@ -235,8 +236,8 @@ Required operating loop:
 10. rewrite this prompt when the champion, challenger, or dead-surface list changes
 
 Research priorities:
-1. decide whether the current daily control branch can survive a stricter multiplicity / purged gate with more honest sample, or should be killed
-2. calibrate promotion thresholds using verified live-vs-backtest drift and the failed first multiplicity read, not arbitrary tightening or loosening
+1. decide whether the current daily control branch deserves more forward accumulation time after failing the stricter multiplicity / purged rerun, or should be killed
+2. calibrate promotion thresholds using verified live-vs-backtest drift and the repeated multiplicity failures, not arbitrary tightening or loosening
 3. improve the daily trend definition only with research-supported mechanisms
 4. keep execution and risk models separate from the price-prediction model
 5. only after the above, revisit regime conditioning on the current control branch if a current branch rerun shows it is still needed

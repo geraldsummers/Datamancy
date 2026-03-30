@@ -151,7 +151,7 @@ data class AlphaDatasetPolicy(
     val executionExchange: String = "hyperliquid_mainnet",
     val canonicalBarMinutes: Int = 240,
     val supportedSignalBarMinutes: List<Int> = listOf(240, 1_440),
-    val defaultSignalBarMinutes: Int = 240,
+    val defaultSignalBarMinutes: Int = 1_440,
     val dailyBoundary: String = "UTC",
     val defaultLookbackHours: Int = 1_080,
     val defaultForwardHours: Int = 72,
@@ -252,7 +252,7 @@ data class AlphaDiscoveryPolicy(
     val defaultStrategyFamily: String = "interday_relative_strength_trend_v1",
     val rebalanceCadenceHours: List<Int> = listOf(24, 72, 168),
     val executionWindowMinutes: List<Int> = listOf(60, 120),
-    val selectionQuantiles: List<Double> = listOf(0.05, 0.10, 0.15),
+    val selectionQuantiles: List<Double> = listOf(0.020, 0.021),
     val useRegressionSlope: Boolean = true,
     val useAdxFilter: Boolean = true,
     val useMovingAverageFilter: Boolean = true,
@@ -636,7 +636,7 @@ class AlphaDatasetPolicyBuilder {
     var executionExchange: String = "hyperliquid_mainnet"
     var canonicalBarMinutes: Int = 240
     var supportedSignalBarMinutes: List<Int> = listOf(240, 1_440)
-    var defaultSignalBarMinutes: Int = 240
+    var defaultSignalBarMinutes: Int = 1_440
     var dailyBoundary: String = "UTC"
     var defaultLookbackHours: Int = 1_080
     var defaultForwardHours: Int = 72
@@ -852,7 +852,7 @@ class AlphaDiscoveryPolicyBuilder {
     var defaultStrategyFamily: String = "interday_relative_strength_trend_v1"
     var rebalanceCadenceHours: List<Int> = listOf(24, 72, 168)
     var executionWindowMinutes: List<Int> = listOf(60, 120)
-    var selectionQuantiles: List<Double> = listOf(0.05, 0.10, 0.15)
+    var selectionQuantiles: List<Double> = listOf(0.020, 0.021)
     var useRegressionSlope: Boolean = true
     var useAdxFilter: Boolean = true
     var useMovingAverageFilter: Boolean = true
@@ -1151,7 +1151,7 @@ object DatamancyTradingPolicy {
                 executionExchange = "hyperliquid_mainnet"
                 canonicalBarMinutes = 240
                 supportedSignalBarMinutes = listOf(240, 1_440)
-                defaultSignalBarMinutes = 240
+                defaultSignalBarMinutes = 1_440
                 dailyBoundary = "UTC"
                 defaultLookbackHours = 1_080
                 defaultForwardHours = 72
@@ -1182,7 +1182,7 @@ object DatamancyTradingPolicy {
                 defaultStrategyFamily = "interday_relative_strength_trend_v1"
                 rebalanceCadenceHours = listOf(24, 72, 168)
                 executionWindowMinutes = listOf(60, 120, 240)
-                selectionQuantiles = listOf(0.05, 0.10, 0.15)
+                selectionQuantiles = listOf(0.020, 0.021)
                 useRegressionSlope = true
                 useAdxFilter = true
                 useMovingAverageFilter = true

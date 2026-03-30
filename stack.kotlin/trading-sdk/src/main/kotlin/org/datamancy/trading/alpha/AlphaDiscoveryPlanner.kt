@@ -32,7 +32,7 @@ class AlphaDiscoveryPlanner(
                                 append("m-")
                                 append(cadence)
                                 append("h-q")
-                                append((quantile * 100.0).toInt())
+                                append(formatQuantileId(quantile))
                             },
                             strategyFamily = strategyFamily,
                             signalBarMinutes = bar,
@@ -52,9 +52,12 @@ class AlphaDiscoveryPlanner(
                 compareBy<AlphaDiscoveryCandidate> {
                     abs(it.signalBarMinutes - defaults.defaultSignalBarMinutes)
                 }
-                    .thenBy { abs(it.rebalanceCadenceHours - 72) }
-                    .thenBy { abs(it.selectionQuantile - 0.10) }
+                    .thenBy { abs(it.rebalanceCadenceHours - defaults.defaultConfig.rebalanceCadenceHours) }
+                    .thenBy { abs(it.selectionQuantile - defaults.defaultConfig.selectionQuantile) }
             )
             .take(request.maxCandidates.coerceIn(1, 256))
     }
+
+    private fun formatQuantileId(value: Double): String =
+        "%1.4f".format(java.util.Locale.US, value).replace(".", "p").trimEnd('0').trimEnd('p')
 }

@@ -77,6 +77,8 @@ class InterdaySearchEngineTest {
         assertNotNull(multiplicity)
         assertTrue(multiplicity.enabled)
         assertEquals(3, multiplicity.candidateCount)
+        assertTrue(multiplicity.validationSampleCount >= 24)
+        assertTrue(multiplicity.folds.size < 5)
         assertTrue(multiplicity.purgedFoldPassRatio in 0.0..1.0)
         assertTrue(multiplicity.probabilisticSharpeRatio in 0.0..1.0)
         assertTrue(multiplicity.whiteRealityCheckPValue == null || multiplicity.whiteRealityCheckPValue in 0.0..1.0)

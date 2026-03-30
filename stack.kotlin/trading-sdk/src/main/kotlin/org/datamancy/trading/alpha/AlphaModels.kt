@@ -182,6 +182,7 @@ data class AlphaDiscoveryDefaults(
     val rebalanceCadenceHours: List<Int>,
     val executionWindowMinutes: List<Int>,
     val selectionQuantiles: List<Double>,
+    val defaultConfig: InterdayAlphaConfig,
     val enabledFeatures: List<String>,
     val universeBounds: UniverseBoundsSpec,
     val validation: AlphaValidationDefaults

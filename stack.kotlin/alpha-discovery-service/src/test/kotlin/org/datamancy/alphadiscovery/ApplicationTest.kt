@@ -8,6 +8,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
+import org.datamancy.trading.alpha.http.AlphaServiceJson
 import org.datamancy.trading.alpha.AlphaDiscoveryPlanner
 import org.datamancy.trading.alpha.InterdayBar
 import org.datamancy.trading.alpha.InterdayPanel
@@ -26,6 +27,31 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ApplicationTest {
+    @Test
+    fun `defaults endpoint exposes locked daily control config`() = testApplication {
+        application {
+            configureAlphaDiscoveryApp(
+                planner = AlphaDiscoveryPlanner { DatamancyTradingPolicy.default() },
+                engine = InterdaySearchEngine(
+                    panelSource = object : InterdayPanelSource {
+                        override suspend fun load(request: InterdayPanelRequest): InterdayPanel = syntheticPanelForServiceTest()
+                    },
+                    policyProvider = { DatamancyTradingPolicy.default() }
+                ),
+                latestSearch = AtomicReference(null)
+            )
+        }
+
+        val response = client.get("/api/v1/discovery/defaults")
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.bodyAsText()
+        val defaults = AlphaServiceJson.gson.fromJson(body, org.datamancy.trading.alpha.AlphaDiscoveryDefaults::class.java)
+        assertEquals(1_440, defaults.defaultSignalBarMinutes)
+        assertEquals(listOf(0.02, 0.021), defaults.selectionQuantiles)
+        assertEquals(1_440, defaults.defaultConfig.signalBarMinutes)
+        assertEquals(org.datamancy.trading.alpha.InterdayTrendScoreMode.EMA_RETURN_STACK, defaults.defaultConfig.trendScoreMode)
+    }
+
     @Test
     fun `search endpoint updates leaderboard cache`() = testApplication {
         val panel = syntheticPanelForServiceTest()

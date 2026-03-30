@@ -3,6 +3,34 @@ package org.datamancy.trading.alpha
 import org.datamancy.trading.policy.TradingPolicy
 
 object AlphaDefaultsFactory {
+    fun activeInterdayControlConfig(policy: TradingPolicy): InterdayAlphaConfig {
+        val datasets = policy.research.datasets
+        return InterdayAlphaConfig(
+            strategyFamily = policy.research.discovery.defaultStrategyFamily,
+            exchange = datasets.marketExchange,
+            signalBarMinutes = datasets.defaultSignalBarMinutes,
+            lookbackHours = datasets.defaultLookbackHours,
+            forwardHours = datasets.defaultForwardHours,
+            rebalanceCadenceHours = 24,
+            factorLookbackDays = 18,
+            selectionQuantile = policy.research.discovery.selectionQuantiles.firstOrNull() ?: 0.020,
+            trendScoreMode = InterdayTrendScoreMode.EMA_RETURN_STACK,
+            residualizationMode = InterdayResidualizationMode.MARKET,
+            residualizationBetaMode = InterdayResidualizationBetaMode.SIMPLE,
+            residualizationMarketProxyMode = InterdayResidualizationMarketProxyMode.LIQUIDITY_WEIGHTED,
+            tailWeightingMode = InterdayTailWeightingMode.VOLATILITY_SCALED,
+            fastTrendDays = 2,
+            mediumTrendDays = 8,
+            slowTrendDays = 16,
+            volatilityDays = 14,
+            fundingOverlayMode = InterdayFundingOverlayMode.LINEAR_FACTOR,
+            fundingWeight = 0.15,
+            openInterestWeight = 0.0,
+            exitOverlayMode = InterdayExitOverlayMode.TRAILING_AND_TAKE_PROFIT,
+            executionWindowMinutes = 120
+        )
+    }
+
     fun datasetDefaults(policy: TradingPolicy): AlphaDatasetDefaults {
         val datasets = policy.research.datasets
         val featureFamilies = buildList {
@@ -35,15 +63,17 @@ object AlphaDefaultsFactory {
 
     fun discoveryDefaults(policy: TradingPolicy): AlphaDiscoveryDefaults {
         val discovery = policy.research.discovery
+        val defaultConfig = activeInterdayControlConfig(policy)
         return AlphaDiscoveryDefaults(
             strategyFamily = discovery.defaultStrategyFamily,
             supportedSignalBarMinutes = policy.research.datasets.supportedSignalBarMinutes,
-            defaultSignalBarMinutes = policy.research.datasets.defaultSignalBarMinutes,
-            defaultLookbackHours = policy.research.datasets.defaultLookbackHours,
-            defaultForwardHours = policy.research.datasets.defaultForwardHours,
+            defaultSignalBarMinutes = defaultConfig.signalBarMinutes,
+            defaultLookbackHours = defaultConfig.lookbackHours,
+            defaultForwardHours = defaultConfig.forwardHours,
             rebalanceCadenceHours = discovery.rebalanceCadenceHours,
             executionWindowMinutes = discovery.executionWindowMinutes,
             selectionQuantiles = discovery.selectionQuantiles,
+            defaultConfig = defaultConfig,
             enabledFeatures = buildList {
                 add("multi_horizon_returns")
                 if (discovery.useRegressionSlope) add("regression_slope")

@@ -204,13 +204,7 @@ class InterdaySearchEngine(
         PanelCacheKey(config.exchange, config.signalBarMinutes, requiredHistoryHours(config), config.maxSymbols)
 
     private fun defaultConfig(defaults: AlphaDiscoveryDefaults): InterdayAlphaConfig =
-        InterdayAlphaConfig(
-            exchange = policyProvider().research.datasets.marketExchange,
-            signalBarMinutes = defaults.defaultSignalBarMinutes,
-            lookbackHours = defaults.defaultLookbackHours,
-            forwardHours = defaults.defaultForwardHours,
-            rebalanceCadenceHours = defaults.rebalanceCadenceHours.firstOrNull() ?: 72
-        )
+        defaults.defaultConfig
 
     private fun candidateEvaluation(rank: Int, bundle: EvaluationBundle): InterdayCandidateEvaluation =
         InterdayCandidateEvaluation(
@@ -1840,7 +1834,7 @@ class InterdaySearchEngine(
             notes += "Purged validation could not allocate any non-overlapping test folds."
         }
 
-        val foldResults = buildPurgedFoldResults(primary, folds, config.signalBarMinutes)
+        val foldResults = buildPurgedFoldResults(primary, folds, config)
         val purgedFoldPassRatio = if (foldResults.isEmpty()) 0.0 else foldResults.count { it.accepted }.toDouble() / foldResults.size.toDouble()
         val purgedAccepted = foldResults.isNotEmpty() && purgedFoldPassRatio >= promotionPolicy.minRegimeSlicePassRatio
 
@@ -1849,7 +1843,8 @@ class InterdaySearchEngine(
         }
         val primaryValidationReturns = validationReturnSeries.firstOrNull().orEmpty()
         val validationSampleCount = primaryValidationReturns.size
-        if (validationSampleCount < 8) {
+        val minimumValidationSampleCount = minimumMultiplicitySampleCount(config)
+        if (validationSampleCount < minimumValidationSampleCount) {
             notes += "Purged validation sample count is only $validationSampleCount bars; multiplicity statistics are informational rather than promotion-grade."
         }
 
@@ -1862,7 +1857,7 @@ class InterdaySearchEngine(
         val psrPValue = (1.0 - psr).coerceIn(0.0, 1.0)
         val dsrZ = probabilisticSharpeZ(primaryValidationReturns, observedSharpe, benchmarkSharpe)
         val dsrPValue = (1.0 - normalCdf(dsrZ)).coerceIn(0.0, 1.0)
-        val deflatedAccepted = validationSampleCount >= 8 && dsrZ >= 0.0
+        val deflatedAccepted = validationSampleCount >= minimumValidationSampleCount && dsrZ >= 0.0
 
         val whiteRealityCheckPValue = whiteRealityCheckPValue(
             candidateSeries = validationReturnSeries,
@@ -1964,7 +1959,16 @@ class InterdaySearchEngine(
     }
 
     private fun minPurgedFoldBars(config: InterdayAlphaConfig): Int =
-        max(4, ceil(config.forwardHours.toDouble() * 60.0 / config.signalBarMinutes.toDouble().coerceAtLeast(1.0)).toInt())
+        max(
+            10,
+            ceil(config.forwardHours.toDouble() * 60.0 / config.signalBarMinutes.toDouble().coerceAtLeast(1.0)).toInt() * 2
+        )
+
+    private fun minimumMultiplicitySampleCount(config: InterdayAlphaConfig): Int =
+        max(24, minPurgedFoldBars(config) * 2)
+
+    private fun minimumPurgedFoldTrades(config: InterdayAlphaConfig): Int =
+        max(1, ceil(config.forwardHours.toDouble() / 72.0).toInt())
 
     private fun buildPurgedFoldWindows(
         totalReturns: Int,
@@ -2001,7 +2005,7 @@ class InterdaySearchEngine(
     private fun buildPurgedFoldResults(
         bundle: EvaluationBundle,
         folds: List<PurgedFoldWindow>,
-        signalBarMinutes: Int
+        config: InterdayAlphaConfig
     ): List<InterdayPurgedFoldValidation> =
         folds.map { fold ->
             val slice = bundle.portfolioReturns.subList(fold.startIndex, fold.endExclusive)
@@ -2027,7 +2031,10 @@ class InterdaySearchEngine(
                 netReturnPct = netReturnPct,
                 sharpe = sharpe,
                 edgeAfterCostBps = edgeAfterCostBps,
-                accepted = returns.isNotEmpty() && netReturnPct > 0.0 && sharpe >= 0.0
+                accepted = returns.isNotEmpty() &&
+                    tradeCount >= minimumPurgedFoldTrades(config) &&
+                    netReturnPct > 0.0 &&
+                    sharpe >= 0.0
             )
         }
 
