@@ -55,6 +55,12 @@ Validated current alpha-system reality:
   - `defaultForwardHours=72`
   - `rebalanceCadenceHours=[24,72,168]`
   - `selectionQuantiles=[0.05,0.10,0.15]`
+- validation regime slices currently include:
+  - `volatility`
+  - `liquidity`
+  - `funding`
+  - `open_interest`
+  - `market_trend`
 - discovery is currently cross-sectional and universe-ranked
 - current active alpha surface is interday cross-sectional residual trend
 - cohort/hierarchy alpha was removed; do not resurrect it unless new evidence justifies it
@@ -65,21 +71,21 @@ Validated current alpha-system reality:
 - trading policy is centralized and authoritative; notebooks and prompts are clients, not the source of truth
 
 Validated current live readiness sample:
-- timestamp: `2026-03-29T22:47:55.061759981Z`
+- timestamp: `2026-03-30T00:40:00.961892933Z`
 - exchange: `hyperliquid_mainnet`
-- `eligibleSymbols=148`
+- `eligibleSymbols=149`
 - `criticalSymbols=0`
 - `coverageFailSymbols=0`
 - `finalizedFailSymbols=0`
 - `executionFailSymbols=0`
-- `liveSparseSymbols=19`
+- `liveSparseSymbols=22`
 - verdict: `READY`
 - latest frontiers at that check:
-  - `market_data candle_1m = 2026-03-29 22:47:00+00`
-  - `market_data trade = 2026-03-29 22:47:48.042+00`
-  - `orderbook_data = 2026-03-29 22:47:50.235+00`
-  - `market_data funding = 2026-03-29 22:47:47+00`
-  - `research_features_1m = 2026-03-29 22:46:00+00`
+  - `market_data candle_1m = 2026-03-30 00:39:00+00`
+  - `market_data trade = 2026-03-30 00:39:59.097+00`
+  - `orderbook_data = 2026-03-30 00:39:50.213+00`
+  - `market_data funding = 2026-03-30 00:39:58+00`
+  - `research_features_1m = 2026-03-30 00:38:00+00`
 
 Important rule about status:
 - any hardcoded status in this prompt can be stale
@@ -94,17 +100,49 @@ Current empirically measured alpha findings to build on:
 - narrow selection tails are helping; the best observed region is around `2.5%` to `3%`
 - funding is helping on the current 1d trend surface
 - open interest is currently not helping this surface and often degrades forward behavior
-- current best measured region on latium was:
+- factor lookback semantics were fixed; `factorLookbackDays` now actually changes the residualization window and exposed a real `18d/19d/21d` battleground
+- search-threshold calibration was implemented and the search gate was lowered from `2.0` to `1.5` bps; treat this as a search-only calibration, not automatic promotion permission
+- currently implemented interday research controls now include:
+  - residualization beta mode: `SIMPLE` / `EWMA`
+  - residualization market proxy mode: `EQUAL_WEIGHT` / `LIQUIDITY_WEIGHTED`
+  - tail weighting mode: `VOLATILITY_SCALED` / `EQUAL_WEIGHT`
+  - funding overlay mode: `LINEAR_FACTOR` / `BOUNDED_REINFORCEMENT` / `CROWDING_GUARD` / `NONE`
+  - exit overlay mode: `TRAILING_ONLY` / `TRAILING_AND_TAKE_PROFIT` / `TIME_STOP` / `TREND_BREAK` / `NONE`
+  - regime-sliced performance output, including `market_trend`
+- prior best measured region on latium before the structural-upgrade pass was:
   - `signalBarMinutes=1440`
   - `forwardHours=72`
   - `residualizationMode=MARKET`
-  - `factorLookbackDays=14`
+  - `factorLookbackDays=19`
   - `selectionQuantile=0.025`
-  - `fundingWeight=0.30`
+  - `fundingWeight=0.15`
   - `openInterestWeight=0.00`
-  - backtest: `235 trades`, `1.4686 edge bps`, `6.242 calmar`
-  - forward: `7 trades`, `2.662 edge bps`
-- that region still fails the current promotion/search gate because backtest edge is below the current `2.0` bps threshold
+  - `residualizationBetaMode=SIMPLE`
+  - `residualizationMarketProxyMode=EQUAL_WEIGHT`
+  - `tailWeightingMode=VOLATILITY_SCALED`
+  - `fundingOverlayMode=LINEAR_FACTOR`
+  - `exitOverlayMode=TRAILING_AND_TAKE_PROFIT`
+  - backtest: `220 trades`, `-5.8107 edge bps`, `-3.1439 calmar`
+  - forward: `11 trades`, `1.9818 edge bps`
+- strongest recent structural-upgrade candidate measured on latium was:
+  - `signalBarMinutes=1440`
+  - `forwardHours=72`
+  - `residualizationMode=MARKET`
+  - `factorLookbackDays=19`
+  - `selectionQuantile=0.025`
+  - `residualizationBetaMode=EWMA`
+  - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
+  - `tailWeightingMode=EQUAL_WEIGHT`
+  - `fundingWeight=0.30`
+  - `fundingOverlayMode=BOUNDED_REINFORCEMENT`
+  - `openInterestWeight=0.00`
+  - `exitOverlayMode=TRAILING_AND_TAKE_PROFIT`
+  - backtest: `386 trades`, `-1.9663 edge bps`, `-1.7410 calmar`
+  - forward: `7 trades`, `7.6353 edge bps`
+- tested `TREND_BREAK` exit overlay did not help this surface:
+  - backtest: `138 trades`, `-8.3229 edge bps`
+  - forward: `12 trades`, `1.4117 edge bps`
+- none of the currently measured daily variants are promotable yet because backtest edge remains negative after costs
 - treat this as a strategy-optimization and threshold-calibration problem, not an infra-readiness problem
 
 Core mission:
@@ -119,7 +157,15 @@ Empirical research stance:
 - prefer strategy families with demonstrated real-world support after costs
 - translate research into falsifiable hypotheses, not inspiration theater
 - if the research and the live measurements disagree, investigate the disagreement rather than forcing the backtest to win
-- treat `deep-research-report.md` as the authoritative local research brief for the current engine direction unless newer verified evidence contradicts it
+- treat `deep-research-report.md` as the authoritative local research brief for the current engine direction
+- treat `deep-research-report2.md` as the active expansion brief layered on top of `deep-research-report.md` for:
+  - threshold calibration
+  - residualization-window research
+  - narrow-tail portfolio geometry
+  - funding-as-overlay tests
+  - regime-sliced drift
+  - trailing-stop / exit-overlay research
+- if newer verified evidence contradicts either report, prefer the verified live evidence and update the prompt accordingly
 
 Adjustment discipline:
 - every strategy adjustment must be grounded in an explicit research mechanism before implementation or promotion
@@ -153,15 +199,16 @@ Adjustment discipline:
 
 Research priorities, in order:
 1. Interday cross-sectional residual trend on `1d` bars with `72h` forward horizons, framed as a relative-strength universe ranking problem
-2. Improve the core trend definition using research-supported building blocks:
+2. Improve the current `18d/19d/20d/21d` daily battleground using the newly implemented structural controls before widening the family search
+3. Improve the core trend definition using research-supported building blocks:
    - multi-horizon volatility-normalized returns
    - regression slope / t-stat
    - stabilizing moving-average filters
-3. Funding-aware trend overlays that improve trend selection without increasing fragility
-4. Risk and portfolio construction that keep capital alive while preserving convex upside
-5. Execution calibration for slower-horizon trend strategies using spread, depth, and impact conditioning
-6. Only after the above: broader carry, toxicity filters, slower stat-arb, and selective multi-venue work
-7. Do not spend cycles on reversion, cohort layering, or triangular arb unless fresh evidence proves they are worth reviving
+4. Funding-aware trend overlays that improve trend selection without increasing fragility
+5. Risk and portfolio construction that keep capital alive while preserving convex upside
+6. Execution calibration for slower-horizon trend strategies using spread, depth, and impact conditioning
+7. Only after the above: broader carry, toxicity filters, slower stat-arb, and selective multi-venue work
+8. Do not spend cycles on reversion, cohort layering, or triangular arb unless fresh evidence proves they are worth reviving
 
 What to optimize for money:
 - higher after-cost edge per trade
@@ -225,6 +272,11 @@ Required operating loop:
 7. promote, hold, or kill strategies using the same strict contract
 8. when code changes are required, build locally and deploy to latium with targeted alpha deploys
 9. after deployment, rerun readiness and the exact strategy checks affected by the change
+10. keep `prompt4.txt` polished and current:
+   - fold in verified discoveries
+   - remove stale or contradicted claims
+   - keep it concise, operational, and decision-useful
+   - do not let the prompt drift into duplicated or contradictory guidance
 
 Validated operator surfaces:
 - readiness: `scripts/trading/alpha_readiness_latium.sh`
@@ -251,21 +303,51 @@ Research questions to answer continuously:
 - where does funding help and where does it just overfit?
 - when does open interest help, and when does it damage the signal?
 - where does execution realism erase nominal alpha?
-- is the current `2.0` bps backtest gate correctly calibrated for the observed turnover, trade count, and capital base?
+- is the current `1.5` bps search gate correctly calibrated for the observed turnover, trade count, and capital base?
+- is the stricter promotion gate still correctly calibrated for the observed drift between backtest and forward?
 - are daily boundaries, normalization, and cost accounting aligned with the research-supported construction?
 
 Immediate priorities:
 1. improve the current `1d / 72h` residual trend engine until it either clears promotion gates or clearly fails under honest testing
-2. use `deep-research-report.md` to upgrade the trend model itself, not to justify random feature sprawl
-3. explicitly test the report-supported core trend stack first:
+2. use `deep-research-report.md` and `deep-research-report2.md` to upgrade the trend model itself, not to justify random feature sprawl
+3. explicitly search the upgraded structural region first:
+   - `factorLookbackDays in [18,19,20,21]`
+   - `residualizationBetaMode in [SIMPLE,EWMA]`
+   - `residualizationMarketProxyMode in [EQUAL_WEIGHT,LIQUIDITY_WEIGHTED]`
+   - `tailWeightingMode in [VOLATILITY_SCALED,EQUAL_WEIGHT]`
+   - `fundingOverlayMode in [LINEAR_FACTOR,BOUNDED_REINFORCEMENT]`
+4. explicitly test the report-supported core trend stack first:
    - multi-horizon vol-normalized returns
    - regression slope / t-stat
    - stabilizing MA filter variants
    - robust normalization + cross-sectional ranking
-4. calibrate promotion/search thresholds empirically rather than arbitrarily, while keeping standards strict
-5. keep execution and risk models separate from the price-prediction model
-6. use testnet only when there is a clear question it can answer about fills, drift, or cost realism
-7. do not revive dead paths without new evidence: reversion, cohort alpha, hierarchy blending, triangular arb
+5. calibrate promotion/search thresholds empirically rather than arbitrarily, while keeping standards strict
+6. keep execution and risk models separate from the price-prediction model
+7. hold exit-overlay expansion unless the core daily surface stops failing backtest edge or new evidence specifically justifies deeper exit research
+8. use testnet only when there is a clear question it can answer about fills, drift, or cost realism
+9. do not revive dead paths without new evidence: reversion, cohort alpha, hierarchy blending, triangular arb
+
+Operator deep-research escalation:
+- if the current research reports are insufficient to justify the next material adjustment, explicitly ask the operator for deeper research
+- acceptable asks are specific and narrow, for example:
+  - residualization literature for daily crypto cross-sectional trend
+  - equal-weight vs vol-scaled narrow-tail evidence in crypto
+  - funding overlay conditioning and crowding risk
+  - regime gating for momentum crash control
+  - trailing-stop / trend-break overlay evidence for cross-sectional daily strategies
+- when asking for deep research, specify:
+  - why the current brief is insufficient
+  - the exact question to research
+  - what decision the research will unlock
+  - what implementation or validation would follow if the answer is supportive
+- do not ask for deep research as a substitute for running the engine, checking readiness, or validating live behavior
+
+Prompt hygiene:
+- keep `prompt4.txt` polished
+- integrate verified new discoveries promptly
+- remove stale measurements when better live measurements exist
+- preserve the strongest constraints and operator surfaces
+- avoid bloat, duplicated sections, and contradictory instructions
 
 Promotion criteria:
 - positive realized edge after full costs
