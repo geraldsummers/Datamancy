@@ -63,6 +63,10 @@ class InterdaySearchEngineTest {
                     minConfidence = 0.15
                 ),
                 searchSpace = InterdaySearchSpace(
+                    trendScoreModes = listOf(
+                        InterdayTrendScoreMode.LEGACY,
+                        InterdayTrendScoreMode.VOL_NORM_RETURN_STACK
+                    ),
                     slopeWeight = listOf(0.15, 0.25),
                     pullbackWeight = listOf(0.10, 0.20)
                 ),
@@ -74,6 +78,37 @@ class InterdaySearchEngineTest {
         assertEquals(2, response.evaluatedConfigs)
         assertEquals(2, response.leaderboard.size)
         assertTrue(response.leaderboard.all { it.selectedSignals.isNotEmpty() })
+    }
+
+    @Test
+    fun `run supports explicit trend score modes`() = kotlinx.coroutines.runBlocking {
+        val modes = listOf(
+            InterdayTrendScoreMode.LEGACY,
+            InterdayTrendScoreMode.VOL_NORM_RETURN_STACK,
+            InterdayTrendScoreMode.REGRESSION_TSTAT,
+            InterdayTrendScoreMode.EMA_RETURN_STACK,
+            InterdayTrendScoreMode.VOL_NORM_PLUS_TSTAT
+        )
+
+        modes.forEach { mode ->
+            val response = engine.run(
+                InterdayAlphaRunRequest(
+                    config = InterdayAlphaConfig(
+                        exchange = "hyperliquid_mainnet",
+                        signalBarMinutes = 240,
+                        lookbackHours = 480,
+                        forwardHours = 72,
+                        rebalanceCadenceHours = 24,
+                        selectionQuantile = 0.34,
+                        minConfidence = 0.15,
+                        trendScoreMode = mode
+                    )
+                )
+            )
+
+            assertTrue(response.selectedSignals.isNotEmpty(), "mode=$mode")
+            assertTrue(response.selectedSignals.all { it.trendScore.isFinite() }, "mode=$mode")
+        }
     }
 
     @Test

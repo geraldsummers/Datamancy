@@ -42,6 +42,14 @@ enum class InterdayResidualizationMarketProxyMode {
     LIQUIDITY_WEIGHTED
 }
 
+enum class InterdayTrendScoreMode {
+    LEGACY,
+    VOL_NORM_RETURN_STACK,
+    REGRESSION_TSTAT,
+    EMA_RETURN_STACK,
+    VOL_NORM_PLUS_TSTAT
+}
+
 enum class InterdayFundingOverlayMode {
     NONE,
     LINEAR_FACTOR,

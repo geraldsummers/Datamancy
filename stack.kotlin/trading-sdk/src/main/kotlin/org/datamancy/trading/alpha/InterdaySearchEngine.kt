@@ -194,6 +194,10 @@ class InterdaySearchEngine(
             searchSpace.residualizationMarketProxyModes.ifEmpty { listOf(base.residualizationMarketProxyMode) },
             base.residualizationMarketProxyMode
         )
+        val trendScoreModes = prioritizeAnchored(
+            searchSpace.trendScoreModes.ifEmpty { listOf(base.trendScoreMode) },
+            base.trendScoreMode
+        )
         val signalBars = prioritizeValues(searchSpace.signalBarMinutes.ifEmpty { listOf(base.signalBarMinutes) }, base.signalBarMinutes)
         val lookbacks = prioritizeValues(searchSpace.lookbackHours.ifEmpty { listOf(base.lookbackHours) }, base.lookbackHours)
         val forwards = prioritizeValues(searchSpace.forwardHours.ifEmpty { listOf(base.forwardHours) }, base.forwardHours)
@@ -296,6 +300,7 @@ class InterdaySearchEngine(
             for (residualizationMode in residualizationModes) {
                 for (residualizationBetaMode in residualizationBetaModes) {
                     for (residualizationMarketProxyMode in residualizationMarketProxyModes) {
+                        for (trendScoreMode in trendScoreModes) {
                         for (signalBar in signalBars) {
                             for (lookback in lookbacks) {
                                 for (forward in forwards) {
@@ -347,6 +352,7 @@ class InterdaySearchEngine(
                                                                                                                                         residualizationMode = residualizationMode,
                                                                                                                                         residualizationBetaMode = residualizationBetaMode,
                                                                                                                                         residualizationMarketProxyMode = residualizationMarketProxyMode,
+                                                                                                                                        trendScoreMode = trendScoreMode,
                                                                                                                                         signalBarMinutes = signalBar,
                                                                                                                                         lookbackHours = lookback,
                                                                                                                                         forwardHours = forward,
@@ -438,6 +444,7 @@ class InterdaySearchEngine(
                                     }
                                 }
                             }
+                        }
                         }
                     }
                 }
@@ -1060,6 +1067,9 @@ class InterdaySearchEngine(
         val volatility = rollingVolatility(series.bars, index, indicators.volatilityBars) ?: return@mapNotNull null
         val slope = regressionTStat(series.bars, index, indicators.regressionBars) ?: return@mapNotNull null
         val movingAverageSpread = movingAverageSpread(series.bars, index, indicators.fastBars, indicators.slowBars) ?: return@mapNotNull null
+        val emaFastDistance = normalizedEmaDistance(series.bars, index, indicators.fastBars, volatility) ?: return@mapNotNull null
+        val emaMediumDistance = normalizedEmaDistance(series.bars, index, indicators.mediumBars, volatility) ?: return@mapNotNull null
+        val emaSlowDistance = normalizedEmaDistance(series.bars, index, indicators.slowBars, volatility) ?: return@mapNotNull null
         val adx = computeAdx(series.bars, index, indicators.adxBars) ?: return@mapNotNull null
         val perturbation = perturbationZ(series.bars, index, config.perturbationLookbackBars, volatility) ?: return@mapNotNull null
         val openInterestMomentum = openInterestMomentum(series.bars, index, indicators.mediumBars)
@@ -1073,6 +1083,9 @@ class InterdaySearchEngine(
             slowReturn = slowReturn,
             slope = slope,
             maSpread = movingAverageSpread,
+            emaFastDistance = emaFastDistance,
+            emaMediumDistance = emaMediumDistance,
+            emaSlowDistance = emaSlowDistance,
             adx = adx,
             perturbation = perturbation,
             fundingRate = current.fundingRate ?: 0.0,
@@ -1095,6 +1108,9 @@ class InterdaySearchEngine(
         val slowRanks = centeredRanks(raw.associate { it.symbol to it.slowReturn })
         val slopeRanks = centeredRanks(raw.associate { it.symbol to it.slope })
         val maRanks = centeredRanks(raw.associate { it.symbol to it.maSpread })
+        val emaFastRanks = centeredRanks(raw.associate { it.symbol to it.emaFastDistance })
+        val emaMediumRanks = centeredRanks(raw.associate { it.symbol to it.emaMediumDistance })
+        val emaSlowRanks = centeredRanks(raw.associate { it.symbol to it.emaSlowDistance })
         val adxRanks = centeredRanks(raw.associate { it.symbol to it.adx })
         val fundingRanks = centeredRanks(raw.associate { it.symbol to it.fundingRate })
         val oiRanks = centeredRanks(raw.associate { it.symbol to it.openInterestMomentum })
@@ -1102,29 +1118,76 @@ class InterdaySearchEngine(
 
         return raw.associate { candidate ->
             val slopeWeight = config.slopeWeight.coerceIn(0.0, 1.0)
-            val trendCore = listOf(
+            val returnStack = listOf(
                 fastRanks.getValue(candidate.symbol),
                 mediumRanks.getValue(candidate.symbol),
-                slowRanks.getValue(candidate.symbol),
+                slowRanks.getValue(candidate.symbol)
+            ).average()
+            val emaStack = listOf(
+                emaFastRanks.getValue(candidate.symbol),
+                emaMediumRanks.getValue(candidate.symbol),
+                emaSlowRanks.getValue(candidate.symbol)
+            ).average()
+            val legacyCore = listOf(
+                returnStack,
                 maRanks.getValue(candidate.symbol)
             ).average()
             val adxThreshold = config.adxThreshold.coerceAtLeast(1.0)
             val adxSupport = ((candidate.adx - adxThreshold) / adxThreshold).coerceIn(-1.0, 1.0)
-            val trend = (
-                trendCore * (1.0 - slopeWeight) +
-                    slopeRanks.getValue(candidate.symbol) * slopeWeight +
-                    adxSupport * 0.15 +
-                    adxRanks.getValue(candidate.symbol) * 0.10
-                ).coerceIn(-1.0, 1.0)
+            val trend = when (config.trendScoreMode) {
+                InterdayTrendScoreMode.LEGACY -> (
+                    legacyCore * (1.0 - slopeWeight) +
+                        slopeRanks.getValue(candidate.symbol) * slopeWeight +
+                        adxSupport * 0.15 +
+                        adxRanks.getValue(candidate.symbol) * 0.10
+                    ).coerceIn(-1.0, 1.0)
+                InterdayTrendScoreMode.VOL_NORM_RETURN_STACK ->
+                    returnStack.coerceIn(-1.0, 1.0)
+                InterdayTrendScoreMode.REGRESSION_TSTAT ->
+                    slopeRanks.getValue(candidate.symbol).coerceIn(-1.0, 1.0)
+                InterdayTrendScoreMode.EMA_RETURN_STACK ->
+                    emaStack.coerceIn(-1.0, 1.0)
+                InterdayTrendScoreMode.VOL_NORM_PLUS_TSTAT -> (
+                    returnStack * (1.0 - slopeWeight) +
+                        slopeRanks.getValue(candidate.symbol) * slopeWeight
+                    ).coerceIn(-1.0, 1.0)
+            }
             val trendDirection = if (trend >= 0.0) 1.0 else -1.0
-            val trendAgreement = listOf(
-                trendDirection * fastRanks.getValue(candidate.symbol),
-                trendDirection * mediumRanks.getValue(candidate.symbol),
-                trendDirection * slowRanks.getValue(candidate.symbol),
-                trendDirection * slopeRanks.getValue(candidate.symbol),
-                trendDirection * maRanks.getValue(candidate.symbol),
-                trendDirection * adxSupport
-            ).average().coerceIn(-1.0, 1.0)
+            val trendAgreementInputs = when (config.trendScoreMode) {
+                InterdayTrendScoreMode.LEGACY -> listOf(
+                    fastRanks.getValue(candidate.symbol),
+                    mediumRanks.getValue(candidate.symbol),
+                    slowRanks.getValue(candidate.symbol),
+                    slopeRanks.getValue(candidate.symbol),
+                    maRanks.getValue(candidate.symbol),
+                    adxSupport
+                )
+                InterdayTrendScoreMode.VOL_NORM_RETURN_STACK -> listOf(
+                    fastRanks.getValue(candidate.symbol),
+                    mediumRanks.getValue(candidate.symbol),
+                    slowRanks.getValue(candidate.symbol)
+                )
+                InterdayTrendScoreMode.REGRESSION_TSTAT -> listOf(
+                    slopeRanks.getValue(candidate.symbol),
+                    fastRanks.getValue(candidate.symbol),
+                    mediumRanks.getValue(candidate.symbol),
+                    slowRanks.getValue(candidate.symbol)
+                )
+                InterdayTrendScoreMode.EMA_RETURN_STACK -> listOf(
+                    emaFastRanks.getValue(candidate.symbol),
+                    emaMediumRanks.getValue(candidate.symbol),
+                    emaSlowRanks.getValue(candidate.symbol)
+                )
+                InterdayTrendScoreMode.VOL_NORM_PLUS_TSTAT -> listOf(
+                    fastRanks.getValue(candidate.symbol),
+                    mediumRanks.getValue(candidate.symbol),
+                    slowRanks.getValue(candidate.symbol),
+                    slopeRanks.getValue(candidate.symbol)
+                )
+            }
+            val trendAgreement = trendAgreementInputs.map { trendDirection * it }
+                .average()
+                .coerceIn(-1.0, 1.0)
             val pullbackSupport = (-trendDirection * candidate.perturbation).coerceAtLeast(0.0)
             val fundingCarry = (-trendDirection * fundingRanks.getValue(candidate.symbol)).coerceIn(-1.0, 1.0)
             val fundingAlignment = (trendDirection * fundingRanks.getValue(candidate.symbol)).coerceIn(-1.0, 1.0)
@@ -2361,6 +2424,9 @@ class InterdaySearchEngine(
         val slowReturn: Double,
         val slope: Double,
         val maSpread: Double,
+        val emaFastDistance: Double,
+        val emaMediumDistance: Double,
+        val emaSlowDistance: Double,
         val adx: Double,
         val perturbation: Double,
         val fundingRate: Double,
@@ -2491,6 +2557,9 @@ class InterdaySearchEngine(
         val slowReturn: Double,
         val slope: Double,
         val maSpread: Double,
+        val emaFastDistance: Double,
+        val emaMediumDistance: Double,
+        val emaSlowDistance: Double,
         val adx: Double,
         val perturbation: Double
     )
@@ -3203,6 +3272,9 @@ private fun deriveTrendSignal(
     val slowReturn = scaledReturn(returns, indicators.slowBars) ?: return null
     val slope = regressionTStat(closes, indicators.regressionBars) ?: return null
     val maSpread = movingAverageSpread(closes, indicators.fastBars, indicators.slowBars) ?: return null
+    val emaFastDistance = normalizedEmaDistance(closes, indicators.fastBars)?.div(volatility.coerceAtLeast(0.0001)) ?: return null
+    val emaMediumDistance = normalizedEmaDistance(closes, indicators.mediumBars)?.div(volatility.coerceAtLeast(0.0001)) ?: return null
+    val emaSlowDistance = normalizedEmaDistance(closes, indicators.slowBars)?.div(volatility.coerceAtLeast(0.0001)) ?: return null
     val adx = directionalPersistence(returns, indicators.adxBars) ?: return null
     val perturbation = perturbationZ(returns, perturbationLookbackBars, volatility) ?: return null
     return InterdaySearchEngine.DerivedTrendSignal(
@@ -3212,6 +3284,9 @@ private fun deriveTrendSignal(
         slowReturn = slowReturn,
         slope = slope,
         maSpread = maSpread,
+        emaFastDistance = emaFastDistance,
+        emaMediumDistance = emaMediumDistance,
+        emaSlowDistance = emaSlowDistance,
         adx = adx,
         perturbation = perturbation
     )
@@ -3224,19 +3299,39 @@ private fun factorTrendScore(
 ): Double {
     val derived = deriveTrendSignal(returns, indicators, config.perturbationLookbackBars) ?: return 0.0
     val slopeWeight = config.slopeWeight.coerceIn(0.0, 1.0)
-    val trendCore = listOf(
+    val returnStack = listOf(
         squash(derived.fastReturn, 2.0),
         squash(derived.mediumReturn, 2.0),
-        squash(derived.slowReturn, 2.0),
+        squash(derived.slowReturn, 2.0)
+    ).average()
+    val emaStack = listOf(
+        squash(derived.emaFastDistance, 2.0),
+        squash(derived.emaMediumDistance, 2.0),
+        squash(derived.emaSlowDistance, 2.0)
+    ).average()
+    val legacyCore = listOf(
+        returnStack,
         squash(derived.maSpread / derived.volatility.coerceAtLeast(0.0001), 2.0)
     ).average()
     val adxThreshold = config.adxThreshold.coerceAtLeast(1.0)
     val adxSupport = ((derived.adx - adxThreshold) / adxThreshold).coerceIn(-1.0, 1.0)
-    return (
-        trendCore * (1.0 - slopeWeight) +
-            squash(derived.slope, 3.0) * slopeWeight +
-            adxSupport * 0.15
-        ).coerceIn(-1.0, 1.0)
+    return when (config.trendScoreMode) {
+        InterdayTrendScoreMode.LEGACY -> (
+            legacyCore * (1.0 - slopeWeight) +
+                squash(derived.slope, 3.0) * slopeWeight +
+                adxSupport * 0.15
+            ).coerceIn(-1.0, 1.0)
+        InterdayTrendScoreMode.VOL_NORM_RETURN_STACK ->
+            returnStack.coerceIn(-1.0, 1.0)
+        InterdayTrendScoreMode.REGRESSION_TSTAT ->
+            squash(derived.slope, 3.0).coerceIn(-1.0, 1.0)
+        InterdayTrendScoreMode.EMA_RETURN_STACK ->
+            emaStack.coerceIn(-1.0, 1.0)
+        InterdayTrendScoreMode.VOL_NORM_PLUS_TSTAT -> (
+            returnStack * (1.0 - slopeWeight) +
+                squash(derived.slope, 3.0) * slopeWeight
+            ).coerceIn(-1.0, 1.0)
+    }
 }
 
 private fun barsForDays(days: Int, signalBarMinutes: Int): Int =
@@ -3281,6 +3376,31 @@ private fun movingAverageSpread(
     val slow = averageClose(bars, index, slowBars) ?: return null
     if (slow <= 0.0) return null
     return (fast / slow) - 1.0
+}
+
+private fun normalizedEmaDistance(
+    bars: List<InterdayBar?>,
+    index: Int,
+    lookbackBars: Int,
+    volatility: Double
+): Double? {
+    if (index - lookbackBars + 1 < 0) return null
+    val closes = (0..index).map { cursor -> bars[cursor]?.close ?: return null }
+    return normalizedEmaDistance(closes, lookbackBars)?.div(volatility.coerceAtLeast(0.0001))
+}
+
+private fun normalizedEmaDistance(closes: List<Double>, lookbackBars: Int): Double? {
+    if (closes.size < lookbackBars || lookbackBars <= 1) return null
+    val recent = closes.takeLast(lookbackBars)
+    val seed = recent.average()
+    val alpha = 2.0 / (lookbackBars + 1.0)
+    var ema = seed
+    for (close in closes.drop(closes.size - lookbackBars + 1)) {
+        ema = (alpha * close) + ((1.0 - alpha) * ema)
+    }
+    val current = closes.lastOrNull() ?: return null
+    if (current <= 0.0 || ema <= 0.0) return null
+    return ln(current / ema)
 }
 
 private fun averageClose(bars: List<InterdayBar?>, index: Int, lookbackBars: Int): Double? {

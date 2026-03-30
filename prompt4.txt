@@ -71,21 +71,21 @@ Validated current alpha-system reality:
 - trading policy is centralized and authoritative; notebooks and prompts are clients, not the source of truth
 
 Validated current live readiness sample:
-- timestamp: `2026-03-30T09:39:15.413768510Z`
+- timestamp: `2026-03-30T11:21:00.579898843Z`
 - exchange: `hyperliquid_mainnet`
-- `eligibleSymbols=146`
+- `eligibleSymbols=147`
 - `criticalSymbols=0`
 - `coverageFailSymbols=0`
 - `finalizedFailSymbols=0`
 - `executionFailSymbols=0`
-- `liveSparseSymbols=28`
+- `liveSparseSymbols=31`
 - verdict: `READY`
 - latest frontiers at that check:
-  - `market_data candle_1m = 2026-03-30 09:39:00+00`
-  - `market_data trade = 2026-03-30 09:39:14.974+00`
-  - `orderbook_data = 2026-03-30 09:39:01.288+00`
-  - `market_data funding = 2026-03-30 09:39:10+00`
-  - `research_features_1m = 2026-03-30 09:37:00+00`
+  - `market_data candle_1m = 2026-03-30 11:20:00+00`
+  - `market_data trade = 2026-03-30 11:20:58.291+00`
+  - `orderbook_data = 2026-03-30 11:20:50.423+00`
+  - `market_data funding = 2026-03-30 11:20:59+00`
+  - `research_features_1m = 2026-03-30 11:19:00+00`
 
 Important rule about status:
 - any hardcoded status in this prompt can be stale
@@ -102,6 +102,15 @@ Current empirically measured alpha findings to build on:
 - open interest is currently not helping this surface and often degrades forward behavior
 - factor lookback semantics were fixed; `factorLookbackDays` now actually changes the residualization window and the current live battleground has tightened to `18d/19d`, with `18d` leading
 - search-threshold calibration was implemented and the search gate was lowered from `2.0` to `1.5` bps; treat this as a search-only calibration, not automatic promotion permission
+- explicit trend-score-mode testing on `2026-03-30T11:10Z` to `2026-03-30T11:20Z` found:
+  - `LEGACY`: backtest `0.8605 edge bps`, forward `0.0419 edge bps`, rejected
+  - `VOL_NORM_RETURN_STACK`: backtest `1.1393 edge bps`, forward `-0.3389 edge bps`, rejected
+  - `REGRESSION_TSTAT`: backtest `-0.1593 edge bps`, forward `-1.4994 edge bps`, rejected
+  - `VOL_NORM_PLUS_TSTAT`: backtest `1.0295 edge bps`, forward `-2.9056 edge bps`, rejected
+  - `EMA_RETURN_STACK`: backtest `2.3660 edge bps`, forward `0.1317 edge bps`, accepted
+  - interpretation:
+    - pure return-stack and pure t-stat simplifications hurt forward transport
+    - the current live lead is an EMA-distance trend stack, not the old legacy blend
 - the current structural survivor cluster is:
   - `residualizationBetaMode=EWMA`
   - `residualizationMarketProxyMode=LIQUIDITY_WEIGHTED`
@@ -109,20 +118,42 @@ Current empirically measured alpha findings to build on:
   - `fundingOverlayMode=LINEAR_FACTOR`
   - `selectionQuantile=0.025` is currently leading
   - `fundingWeight=0.15` is the current control
-- the current core trend-shape survivor is:
-  - `fastTrendDays=3`
-  - `mediumTrendDays=7`
-  - `slowTrendDays=14`
-  - `regressionDays=14`
-  - `volatilityDays=10`
-  - `slopeWeight=0.25`
-  - direct local challengers failed on `2026-03-30`:
-    - `regressionDays in {10,18}` with `slopeWeight in {0.15,0.25,0.35}` all failed acceptance
-    - bundled slower geometry `4/8/16` and `5/10/20` both failed
-    - one-knob neighbors `2/7/14`, `3/8/14`, and `3/7/16` all failed
+- the current EMA trend-shape survivor pocket is:
+  - control accepted point at `2026-03-30T11:23:32.045553789Z`:
+    - `trendScoreMode=EMA_RETURN_STACK`
+    - `fastTrendDays=3`
+    - `mediumTrendDays=7`
+    - `slowTrendDays=14`
+    - `volatilityDays=10`
+    - backtest `2.3660 edge bps`, `254 trades`
+    - forward `0.1317 edge bps`, `15 trades`
+    - `market_trend=flat = -1.8303 edge bps`, `19 trades`
+  - nearest accepted and near-miss neighborhood on `2026-03-30T11:23Z` to `2026-03-30T11:36Z`:
+    - `fast=2, medium=7, slow=14, vol=10`: backtest `2.1273`, forward `0.2689`, accepted
+    - `fast=4, medium=7, slow=14, vol=10`: backtest `0.3031`, forward `0.4954`, rejected
+    - `fast=3, medium=8, slow=14, vol=10`: backtest `0.5805`, forward `0.6315`, `flat=4.7615`, rejected
+    - `fast=3, medium=7, slow=16, vol=10`: backtest `1.1751`, forward `0.2589`, `flat=7.2615`, rejected
+    - `fast=3, medium=7, slow=14, vol=14`: backtest `2.1709`, forward `0.5879`, accepted
+    - `fast=4, medium=8, slow=16, vol=14`: backtest `0.0971`, forward `0.6088`, `flat=1.0639`, rejected
+  - plateau follow-up on `2026-03-30T11:39Z` to `2026-03-30T11:48Z` found a stronger accepted region:
+    - `fast=2, medium=7, slow=14, vol=14`: backtest `1.7777`, forward `0.5445`, accepted
+    - `fast=3, medium=7, slow=16, vol=14`: backtest `2.4545`, forward `0.5888`, `flat=6.1618`, accepted
+    - `fast=2, medium=8, slow=14, vol=14`: backtest `1.9458`, forward `1.1673`, accepted
+    - `fast=2, medium=8, slow=16, vol=14`: backtest `2.0662`, forward `1.4078`, `flat=3.1536`, accepted
   - interpretation:
-    - the current `3/7/14` geometry and `14 / 0.25` regression-strength setting are a real local plateau
-    - local horizon tuning is not the next high-value lever
+    - the live daily lead is now an EMA-distance stack with slower volatility normalization (`14d`)
+    - the current best-balanced region is around `fast=2`, `medium=8`, `slow=16`, `vol=14`
+    - there is initial neighborhood support, so this no longer looks like a one-point spike
+- funding overlay retest on the current best EMA geometry (`2/8/16`, `vol=14`) at `2026-03-30T11:51Z` to `2026-03-30T12:00Z` found:
+  - `LINEAR_FACTOR`, `fundingWeight=0.15`: backtest `2.0662`, forward `1.4078`, accepted
+  - `NONE`, `fundingWeight=0.0`: backtest `1.2283`, forward `0.2105`, rejected
+  - `LINEAR_FACTOR`, `fundingWeight=0.30`: backtest `2.1756`, forward `1.2673`, accepted
+  - `BOUNDED_REINFORCEMENT`, `fundingWeight=0.15`: backtest `0.8536`, forward `0.4360`, rejected
+  - `BOUNDED_REINFORCEMENT`, `fundingWeight=0.30`: backtest `0.5391`, forward `0.7292`, rejected
+  - interpretation:
+    - funding still materially helps on the new EMA geometry
+    - `LINEAR_FACTOR` remains the only overlay mode that survives the backtest gate here
+    - `fundingWeight=0.15` is still the best-balanced setting; `0.30` helps backtest slightly but gives back some forward
 - simple flat-regime control tuning around the current winner did not repair `market_trend=flat`:
   - best control micro-pass timestamp: `2026-03-30T03:29:29.212161370Z`
   - best control variant: `regimeNetBiasScale=0.5`
