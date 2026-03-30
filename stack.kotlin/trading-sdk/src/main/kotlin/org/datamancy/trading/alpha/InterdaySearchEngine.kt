@@ -3,6 +3,7 @@ package org.datamancy.trading.alpha
 import org.datamancy.trading.policy.TradingPolicy
 import java.time.Duration
 import java.time.Instant
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.exp
@@ -10,6 +11,7 @@ import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.math.sign
 import kotlin.math.sqrt
 import kotlin.random.Random
@@ -94,8 +96,52 @@ class InterdaySearchEngine(
     }
 
     suspend fun run(request: InterdayAlphaRunRequest): InterdayAlphaRunResponse {
-        val panel = loadPanel(request.config)
-        val evaluation = evaluate(config = request.config, panel = panel, mode = request.mode, includeInspection = request.includeInspection)
+        val policy = policyProvider()
+        val requestedComparisons = request.comparisonConfigs.orEmpty().filter { it != request.config }.distinct()
+        val evaluationByConfig = linkedMapOf<InterdayAlphaConfig, EvaluationBundle>()
+        var primaryPanel: InterdayPanel? = null
+
+        (listOf(request.config) + requestedComparisons)
+            .groupBy(::panelKeyFor)
+            .values
+            .forEach { groupedConfigs ->
+                val representative = groupedConfigs.first()
+                val panel = runCatching { loadPanel(representative) }.getOrElse { error ->
+                    groupedConfigs.forEach { config ->
+                        if (config == request.config) {
+                            throw error
+                        }
+                        evaluationByConfig[config] = failedEvaluation(config, error)
+                    }
+                    return@forEach
+                }
+                if (request.config in groupedConfigs) {
+                    primaryPanel = panel
+                }
+                groupedConfigs.forEach { config ->
+                    val includeInspection = request.includeInspection && config == request.config
+                    val bundle = runCatching {
+                        evaluate(config = config, panel = panel, mode = request.mode, includeInspection = includeInspection)
+                    }.getOrElse { error ->
+                        if (config == request.config) {
+                            throw error
+                        }
+                        failedEvaluation(config, error)
+                    }
+                    evaluationByConfig[config] = bundle
+                }
+            }
+
+        val evaluation = evaluationByConfig.getValue(request.config)
+        val comparisonBundles = requestedComparisons.mapNotNull(evaluationByConfig::get)
+        val multiplicity = buildMultiplicityValidation(
+            primary = evaluation,
+            comparisons = comparisonBundles,
+            config = request.config,
+            policy = policy
+        )
+        val validation = evaluation.validation.copy(multiplicity = multiplicity)
+        val panel = checkNotNull(primaryPanel) { "primary panel was not loaded for ${request.config.exchange}" }
         val latestBars = latestBars(panel)
         val spreadBps = evaluation.latestSignals.mapNotNull { latestBars[it.symbol]?.spreadBps }.ifEmpty { listOf(6.0) }.average()
         val impactBps = estimatePortfolioImpactBps(request.config, evaluation.latestSignals, latestBars)
@@ -116,7 +162,7 @@ class InterdaySearchEngine(
             config = request.config,
             backtest = evaluation.backtest,
             forward = evaluation.forward,
-            validation = evaluation.validation,
+            validation = validation,
             selectedSignals = evaluation.latestSignals.take(16),
             targets = evaluation.latestTargets,
             executionPreview = InterdayExecutionPreview(
@@ -129,10 +175,14 @@ class InterdaySearchEngine(
             ),
             trades = evaluation.trades.takeLast(200),
             inspection = evaluation.inspection,
+            comparisonEvaluations = comparisonBundles.mapIndexed { index, bundle ->
+                candidateEvaluation(index + 1, bundle)
+            },
             notes = listOf(
                 "Trend strength is built from multi-horizon relative returns, regression slope, moving-average separation, and ADX-style persistence.",
                 "Alpha is ranked on residualized symbol trend after removing common market structure, then penalized by expected execution cost.",
-                "Entries size on universe-edge names when they show either a local pullback into trend or a confirmed continuation regime."
+                "Entries size on universe-edge names when they show either a local pullback into trend or a confirmed continuation regime.",
+                "Purged and multiplicity-aware promotion evidence is attached under validation.multiplicity; raw search acceptance and promotion acceptance are separate."
             )
         )
     }
@@ -869,6 +919,12 @@ class InterdaySearchEngine(
             configuredRegimeSlices = normalizedRegimeSlices(policy.research.validation.regimeSlices)
         )
         val validation = validate(config, backtest, forward, searchPolicy)
+        val portfolioReturns = snapshots.zipWithNext { left, right ->
+            TimedLogReturn(
+                time = right.time,
+                logReturn = ln(right.equity / left.equity)
+            )
+        }
         val inspection = if (includeInspection) {
             buildInspection(
                 snapshots = snapshots,
@@ -892,6 +948,7 @@ class InterdaySearchEngine(
             latestTargets = latestTargets,
             trades = trades,
             inspection = inspection,
+            portfolioReturns = portfolioReturns,
             grossLogReturn = grossAccumulator
         )
     }
@@ -1662,6 +1719,7 @@ class InterdaySearchEngine(
             latestTargets = emptyList(),
             trades = emptyList(),
             inspection = null,
+            portfolioReturns = emptyList(),
             grossLogReturn = 0.0
         )
     }
@@ -1748,6 +1806,464 @@ class InterdaySearchEngine(
                 reasons
             }
         )
+    }
+
+    private fun buildMultiplicityValidation(
+        primary: EvaluationBundle,
+        comparisons: List<EvaluationBundle>,
+        config: InterdayAlphaConfig,
+        policy: TradingPolicy
+    ): InterdayMultiplicityValidation {
+        val validationPolicy = policy.research.validation
+        val promotionPolicy = policy.research.readiness.promotion
+        val notes = mutableListOf<String>()
+        val comparableBundles = (listOf(primary) + comparisons).filter { bundle ->
+            bundle.portfolioReturns.size == primary.portfolioReturns.size &&
+                bundle.config.signalBarMinutes == config.signalBarMinutes
+        }
+        val excludedBundleCount = comparisons.size + 1 - comparableBundles.size
+        if (excludedBundleCount > 0) {
+            notes += "$excludedBundleCount configs were excluded from multiplicity statistics because their return series could not be aligned with the primary control."
+        }
+
+        val embargoBars = effectiveEmbargoBars(policy, config)
+        val folds = buildPurgedFoldWindows(
+            totalReturns = primary.portfolioReturns.size,
+            requestedFolds = validationPolicy.purgedKFoldFolds,
+            embargoBars = embargoBars,
+            minBarsPerFold = minPurgedFoldBars(config)
+        )
+        if (folds.size < validationPolicy.purgedKFoldFolds) {
+            notes += "Purged validation reduced to ${folds.size} folds from the configured ${validationPolicy.purgedKFoldFolds} because the available history is short relative to the embargo."
+        }
+        if (folds.isEmpty()) {
+            notes += "Purged validation could not allocate any non-overlapping test folds."
+        }
+
+        val foldResults = buildPurgedFoldResults(primary, folds, config.signalBarMinutes)
+        val purgedFoldPassRatio = if (foldResults.isEmpty()) 0.0 else foldResults.count { it.accepted }.toDouble() / foldResults.size.toDouble()
+        val purgedAccepted = foldResults.isNotEmpty() && purgedFoldPassRatio >= promotionPolicy.minRegimeSlicePassRatio
+
+        val validationReturnSeries = comparableBundles.map { bundle ->
+            buildValidationReturnSeries(bundle.portfolioReturns, folds)
+        }
+        val primaryValidationReturns = validationReturnSeries.firstOrNull().orEmpty()
+        val validationSampleCount = primaryValidationReturns.size
+        if (validationSampleCount < 8) {
+            notes += "Purged validation sample count is only $validationSampleCount bars; multiplicity statistics are informational rather than promotion-grade."
+        }
+
+        val observedSharpe = sampleSharpe(primaryValidationReturns)
+        val candidateSharpes = validationReturnSeries.map(::sampleSharpe)
+        val effectiveTrialCount = max(1, comparableBundles.size * max(1, folds.size))
+        val benchmarkSharpe = deflatedSharpeBenchmark(candidateSharpes, effectiveTrialCount)
+        val psrZ = probabilisticSharpeZ(primaryValidationReturns, observedSharpe, 0.0)
+        val psr = normalCdf(psrZ)
+        val psrPValue = (1.0 - psr).coerceIn(0.0, 1.0)
+        val dsrZ = probabilisticSharpeZ(primaryValidationReturns, observedSharpe, benchmarkSharpe)
+        val dsrPValue = (1.0 - normalCdf(dsrZ)).coerceIn(0.0, 1.0)
+        val deflatedAccepted = validationSampleCount >= 8 && dsrZ >= 0.0
+
+        val whiteRealityCheckPValue = whiteRealityCheckPValue(
+            candidateSeries = validationReturnSeries,
+            replications = validationPolicy.bootstrapReplications,
+            useStationaryBootstrap = validationPolicy.useStationaryBootstrap
+        )
+        val whiteRealityAccepted = whiteRealityCheckPValue != null &&
+            whiteRealityCheckPValue <= 0.05 &&
+            primaryValidationReturns.averageOrZero() > 0.0
+
+        val psrPValues = validationReturnSeries.map { series ->
+            probabilisticSharpePValue(series, 0.0)
+        }
+        val byQValues = benjaminiYekutieliQValues(psrPValues)
+        val primaryByQValue = byQValues.firstOrNull()
+        val byAccepted = primaryByQValue != null && primaryByQValue <= 0.05
+
+        val neighborhoodPassRatio = comparisons.takeIf { it.isNotEmpty() }?.let { bundles ->
+            bundles.count { it.validation.accepted }.toDouble() / bundles.size.toDouble()
+        }
+        val neighborhoodAccepted = when {
+            !promotionPolicy.requireSamplingRobustness -> true
+            neighborhoodPassRatio == null -> false
+            else -> neighborhoodPassRatio >= promotionPolicy.minRegimeSlicePassRatio
+        }
+        if (neighborhoodPassRatio == null) {
+            notes += "No explicit comparison configs were supplied, so neighborhood stability is still unverified."
+        }
+
+        val multiplicityAccepted = if (!promotionPolicy.requireMultiplicityControls) {
+            true
+        } else {
+            val deflatedGate = !validationPolicy.requireDeflatedSharpe || deflatedAccepted
+            val multipleTestingGate = when {
+                validationPolicy.requireWhitesRealityCheck -> whiteRealityAccepted
+                else -> byAccepted
+            }
+            deflatedGate && multipleTestingGate
+        }
+        val samplingRobustnessAccepted = if (!promotionPolicy.requireSamplingRobustness) {
+            true
+        } else {
+            purgedAccepted && neighborhoodAccepted
+        }
+        val promotionAccepted = primary.validation.accepted && multiplicityAccepted && samplingRobustnessAccepted
+
+        if (!purgedAccepted) {
+            notes += "Purged fold pass ratio ${format(purgedFoldPassRatio)} is below the promotion threshold ${promotionPolicy.minRegimeSlicePassRatio}."
+        }
+        if (validationPolicy.requireDeflatedSharpe && !deflatedAccepted) {
+            notes += "Deflated Sharpe gate failed (ratio=${format(dsrZ)}, p=${format(dsrPValue)})."
+        }
+        if (validationPolicy.requireWhitesRealityCheck && !whiteRealityAccepted) {
+            notes += "White's Reality Check gate failed${whiteRealityCheckPValue?.let { " (p=${format(it)})" } ?: " because the purged validation sample was too short"}."
+        }
+        if (!neighborhoodAccepted) {
+            notes += neighborhoodPassRatio?.let {
+                "Neighborhood pass ratio ${format(it)} is below the promotion threshold ${promotionPolicy.minRegimeSlicePassRatio}."
+            } ?: "Neighborhood stability remains unverified because no comparison configs were provided."
+        }
+        if (promotionAccepted) {
+            notes += "Primary control satisfied raw acceptance, purged robustness, and multiplicity-aware promotion gates in this run."
+        }
+
+        return InterdayMultiplicityValidation(
+            enabled = true,
+            candidateCount = comparableBundles.size,
+            effectiveTrialCount = effectiveTrialCount,
+            validationSampleCount = validationSampleCount,
+            embargoBars = embargoBars,
+            benchmarkSharpe = benchmarkSharpe,
+            observedSharpe = observedSharpe,
+            probabilisticSharpeRatio = psr,
+            probabilisticSharpePValue = psrPValue,
+            deflatedSharpeRatio = dsrZ,
+            deflatedSharpePValue = dsrPValue,
+            deflatedAccepted = deflatedAccepted,
+            whiteRealityCheckPValue = whiteRealityCheckPValue,
+            whiteRealityAccepted = whiteRealityAccepted,
+            benjaminiYekutieliQValue = primaryByQValue,
+            benjaminiYekutieliAccepted = byAccepted,
+            purgedFoldPassRatio = purgedFoldPassRatio,
+            purgedAccepted = purgedAccepted,
+            neighborhoodPassRatio = neighborhoodPassRatio,
+            neighborhoodAccepted = neighborhoodAccepted,
+            promotionAccepted = promotionAccepted,
+            folds = foldResults,
+            notes = notes
+        )
+    }
+
+    private fun effectiveEmbargoBars(policy: TradingPolicy, config: InterdayAlphaConfig): Int {
+        val canonicalBarMinutes = policy.research.datasets.canonicalBarMinutes.coerceAtLeast(1)
+        val policyBars = ceil(
+            policy.research.validation.embargoBars.toDouble() * canonicalBarMinutes.toDouble() / config.signalBarMinutes.toDouble().coerceAtLeast(1.0)
+        ).toInt()
+        val horizonBars = ceil(config.forwardHours.toDouble() * 60.0 / config.signalBarMinutes.toDouble().coerceAtLeast(1.0)).toInt()
+        return max(1, max(policyBars, horizonBars))
+    }
+
+    private fun minPurgedFoldBars(config: InterdayAlphaConfig): Int =
+        max(4, ceil(config.forwardHours.toDouble() * 60.0 / config.signalBarMinutes.toDouble().coerceAtLeast(1.0)).toInt())
+
+    private fun buildPurgedFoldWindows(
+        totalReturns: Int,
+        requestedFolds: Int,
+        embargoBars: Int,
+        minBarsPerFold: Int
+    ): List<PurgedFoldWindow> {
+        if (totalReturns < minBarsPerFold || requestedFolds < 1) {
+            return emptyList()
+        }
+        var folds = min(requestedFolds, totalReturns)
+        while (folds > 0) {
+            val available = totalReturns - (folds - 1) * embargoBars
+            if (available >= folds * minBarsPerFold) {
+                val barsPerFold = available / folds
+                val remainder = totalReturns - (barsPerFold * folds + (folds - 1) * embargoBars)
+                var cursor = max(0, remainder / 2)
+                return buildList {
+                    repeat(folds) { index ->
+                        val start = cursor
+                        val endExclusive = min(totalReturns, start + barsPerFold)
+                        if (endExclusive - start >= minBarsPerFold) {
+                            add(PurgedFoldWindow(index + 1, start, endExclusive))
+                        }
+                        cursor = endExclusive + embargoBars
+                    }
+                }
+            }
+            folds -= 1
+        }
+        return emptyList()
+    }
+
+    private fun buildPurgedFoldResults(
+        bundle: EvaluationBundle,
+        folds: List<PurgedFoldWindow>,
+        signalBarMinutes: Int
+    ): List<InterdayPurgedFoldValidation> =
+        folds.map { fold ->
+            val slice = bundle.portfolioReturns.subList(fold.startIndex, fold.endExclusive)
+            val returns = slice.map { it.logReturn }
+            val startTime = slice.firstOrNull()?.time
+            val endTime = slice.lastOrNull()?.time
+            val tradeCount = if (startTime == null || endTime == null) {
+                0
+            } else {
+                bundle.trades.count { trade ->
+                    !trade.exitTime.isBefore(startTime) && !trade.exitTime.isAfter(endTime)
+                }
+            }
+            val netReturnPct = if (returns.isEmpty()) 0.0 else (exp(returns.sum()) - 1.0) * 100.0
+            val sharpe = sampleSharpe(returns)
+            val edgeAfterCostBps = if (tradeCount == 0) 0.0 else (netReturnPct * 100.0) / tradeCount.toDouble()
+            InterdayPurgedFoldValidation(
+                fold = fold.fold,
+                startTime = startTime,
+                endTime = endTime,
+                sampleCount = returns.size,
+                tradeCount = tradeCount,
+                netReturnPct = netReturnPct,
+                sharpe = sharpe,
+                edgeAfterCostBps = edgeAfterCostBps,
+                accepted = returns.isNotEmpty() && netReturnPct > 0.0 && sharpe >= 0.0
+            )
+        }
+
+    private fun buildValidationReturnSeries(
+        portfolioReturns: List<TimedLogReturn>,
+        folds: List<PurgedFoldWindow>
+    ): List<Double> =
+        folds.flatMap { fold ->
+            portfolioReturns.subList(fold.startIndex, fold.endExclusive).map { it.logReturn }
+        }
+
+    private fun sampleSharpe(returns: List<Double>): Double {
+        if (returns.size < 2) return 0.0
+        val mean = returns.average()
+        val stdDev = sampleStdDev(returns)
+        if (stdDev <= 1e-12) return 0.0
+        return mean / stdDev
+    }
+
+    private fun probabilisticSharpePValue(
+        returns: List<Double>,
+        benchmarkSharpe: Double
+    ): Double = (1.0 - normalCdf(probabilisticSharpeZ(returns, sampleSharpe(returns), benchmarkSharpe))).coerceIn(0.0, 1.0)
+
+    private fun probabilisticSharpeZ(
+        returns: List<Double>,
+        observedSharpe: Double,
+        benchmarkSharpe: Double
+    ): Double {
+        if (returns.size < 2) return 0.0
+        val skew = skewness(returns)
+        val kurtosis = kurtosis(returns)
+        val denominator = sqrt(
+            (
+                1.0 -
+                    skew * observedSharpe +
+                    ((kurtosis - 1.0) * observedSharpe * observedSharpe) / 4.0
+                ).coerceAtLeast(1e-9)
+        )
+        return (observedSharpe - benchmarkSharpe) * sqrt((returns.size - 1).toDouble()) / denominator
+    }
+
+    private fun deflatedSharpeBenchmark(candidateSharpes: List<Double>, effectiveTrialCount: Int): Double {
+        if (candidateSharpes.isEmpty()) return 0.0
+        val mean = candidateSharpes.average()
+        val stdDev = sampleStdDev(candidateSharpes)
+        if (stdDev <= 1e-12) return mean
+        val safeTrialCount = max(2, effectiveTrialCount)
+        val eulerGamma = 0.5772156649015329
+        val z1 = inverseNormalCdf((1.0 - (1.0 / safeTrialCount.toDouble())).coerceIn(1e-9, 1.0 - 1e-9))
+        val z2 = inverseNormalCdf((1.0 - (1.0 / (safeTrialCount.toDouble() * kotlin.math.E))).coerceIn(1e-9, 1.0 - 1e-9))
+        val expectedMaxZ = (1.0 - eulerGamma) * z1 + eulerGamma * z2
+        return mean + stdDev * expectedMaxZ
+    }
+
+    private fun whiteRealityCheckPValue(
+        candidateSeries: List<List<Double>>,
+        replications: Int,
+        useStationaryBootstrap: Boolean
+    ): Double? {
+        val cleanSeries = candidateSeries.filter { it.isNotEmpty() }
+        if (cleanSeries.isEmpty()) return null
+        val expectedSize = cleanSeries.first().size
+        if (expectedSize < 8 || cleanSeries.any { it.size != expectedSize }) return null
+        val observed = cleanSeries.maxOf { series ->
+            sqrt(series.size.toDouble()) * series.average()
+        }
+        val centered = cleanSeries.map { series ->
+            val mean = series.average()
+            DoubleArray(series.size) { index -> series[index] - mean }
+        }
+        val blockSize = max(1, sqrt(expectedSize.toDouble()).roundToInt())
+        val random = Random(17)
+        var exceedances = 1
+        val draws = max(1, replications)
+        repeat(draws) {
+            val bootstrapStat = centered.maxOf { series ->
+                val sampledMean = if (useStationaryBootstrap) {
+                    stationaryBootstrapMean(series, blockSize, random)
+                } else {
+                    circularBlockBootstrapMean(series, blockSize, random)
+                }
+                sqrt(series.size.toDouble()) * sampledMean
+            }
+            if (bootstrapStat >= observed) {
+                exceedances += 1
+            }
+        }
+        return exceedances.toDouble() / (draws + 1).toDouble()
+    }
+
+    private fun stationaryBootstrapMean(
+        series: DoubleArray,
+        averageBlockSize: Int,
+        random: Random
+    ): Double {
+        if (series.isEmpty()) return 0.0
+        val restartProbability = 1.0 / averageBlockSize.coerceAtLeast(1).toDouble()
+        var sum = 0.0
+        var index = random.nextInt(series.size)
+        repeat(series.size) { offset ->
+            if (offset == 0 || random.nextDouble() < restartProbability) {
+                index = random.nextInt(series.size)
+            } else {
+                index = (index + 1) % series.size
+            }
+            sum += series[index]
+        }
+        return sum / series.size.toDouble()
+    }
+
+    private fun circularBlockBootstrapMean(
+        series: DoubleArray,
+        blockSize: Int,
+        random: Random
+    ): Double {
+        if (series.isEmpty()) return 0.0
+        var sampled = 0
+        var sum = 0.0
+        while (sampled < series.size) {
+            val start = random.nextInt(series.size)
+            repeat(blockSize.coerceAtLeast(1)) { offset ->
+                if (sampled >= series.size) return@repeat
+                sum += series[(start + offset) % series.size]
+                sampled += 1
+            }
+        }
+        return sum / series.size.toDouble()
+    }
+
+    private fun benjaminiYekutieliQValues(pValues: List<Double>): List<Double> {
+        if (pValues.isEmpty()) return emptyList()
+        val harmonic = (1..pValues.size).sumOf { 1.0 / it.toDouble() }
+        val ranked = pValues
+            .mapIndexed { index, value -> index to value.coerceIn(0.0, 1.0) }
+            .sortedBy { it.second }
+        val adjusted = DoubleArray(pValues.size)
+        var runningMin = 1.0
+        for (rank in ranked.indices.reversed()) {
+            val (originalIndex, pValue) = ranked[rank]
+            val adjustedValue = (pValue * pValues.size.toDouble() * harmonic / (rank + 1).toDouble()).coerceAtMost(1.0)
+            runningMin = min(runningMin, adjustedValue)
+            adjusted[originalIndex] = runningMin
+        }
+        return adjusted.toList()
+    }
+
+    private fun sampleStdDev(values: List<Double>): Double {
+        if (values.size < 2) return 0.0
+        val mean = values.average()
+        val variance = values.sumOf { (it - mean).pow(2) } / (values.size - 1).toDouble()
+        return sqrt(variance.coerceAtLeast(0.0))
+    }
+
+    private fun skewness(values: List<Double>): Double {
+        if (values.size < 3) return 0.0
+        val mean = values.average()
+        val stdDev = sampleStdDev(values)
+        if (stdDev <= 1e-12) return 0.0
+        return values.sumOf { ((it - mean) / stdDev).pow(3) } / values.size.toDouble()
+    }
+
+    private fun kurtosis(values: List<Double>): Double {
+        if (values.size < 4) return 3.0
+        val mean = values.average()
+        val stdDev = sampleStdDev(values)
+        if (stdDev <= 1e-12) return 3.0
+        return values.sumOf { ((it - mean) / stdDev).pow(4) } / values.size.toDouble()
+    }
+
+    private fun List<Double>.averageOrZero(): Double = if (isEmpty()) 0.0 else average()
+
+    private fun normalCdf(value: Double): Double = 0.5 * (1.0 + erf(value / sqrt(2.0)))
+
+    private fun erf(value: Double): Double {
+        val sign = if (value < 0.0) -1.0 else 1.0
+        val x = abs(value)
+        val t = 1.0 / (1.0 + 0.3275911 * x)
+        val polynomial = (((((1.061405429 * t) - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592
+        val approximation = 1.0 - polynomial * t * exp(-x * x)
+        return sign * approximation
+    }
+
+    private fun inverseNormalCdf(probability: Double): Double {
+        val p = probability.coerceIn(1e-12, 1.0 - 1e-12)
+        val a = doubleArrayOf(
+            -3.969683028665376e+01,
+            2.209460984245205e+02,
+            -2.759285104469687e+02,
+            1.383577518672690e+02,
+            -3.066479806614716e+01,
+            2.506628277459239e+00
+        )
+        val b = doubleArrayOf(
+            -5.447609879822406e+01,
+            1.615858368580409e+02,
+            -1.556989798598866e+02,
+            6.680131188771972e+01,
+            -1.328068155288572e+01
+        )
+        val c = doubleArrayOf(
+            -7.784894002430293e-03,
+            -3.223964580411365e-01,
+            -2.400758277161838e+00,
+            -2.549732539343734e+00,
+            4.374664141464968e+00,
+            2.938163982698783e+00
+        )
+        val d = doubleArrayOf(
+            7.784695709041462e-03,
+            3.224671290700398e-01,
+            2.445134137142996e+00,
+            3.754408661907416e+00
+        )
+        val plow = 0.02425
+        val phigh = 1.0 - plow
+        return when {
+            p < plow -> {
+                val q = sqrt(-2.0 * ln(p))
+                (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+                    ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0)
+            }
+
+            p > phigh -> {
+                val q = sqrt(-2.0 * ln(1.0 - p))
+                -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+                    ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0)
+            }
+
+            else -> {
+                val q = p - 0.5
+                val r = q * q
+                (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q /
+                    (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1.0)
+            }
+        }
     }
 
     private fun buildInspection(
@@ -2647,6 +3163,17 @@ class InterdaySearchEngine(
         val reason: String
     )
 
+    private data class TimedLogReturn(
+        val time: Instant,
+        val logReturn: Double
+    )
+
+    private data class PurgedFoldWindow(
+        val fold: Int,
+        val startIndex: Int,
+        val endExclusive: Int
+    )
+
     private data class EvaluationBundle(
         val config: InterdayAlphaConfig,
         val backtest: InterdayPerformance,
@@ -2656,6 +3183,7 @@ class InterdaySearchEngine(
         val latestTargets: List<AlphaPortfolioTarget>,
         val trades: List<InterdayTradeRecord>,
         val inspection: InterdayInspection?,
+        val portfolioReturns: List<TimedLogReturn>,
         val grossLogReturn: Double
     )
 

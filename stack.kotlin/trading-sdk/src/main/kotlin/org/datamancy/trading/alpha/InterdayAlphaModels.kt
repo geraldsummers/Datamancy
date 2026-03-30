@@ -155,6 +155,7 @@ data class InterdayAlphaSearchRequest(
 data class InterdayAlphaRunRequest(
     val config: InterdayAlphaConfig,
     val mode: AlphaRunMode = AlphaRunMode.OFFLINE_BACKTEST,
+    val comparisonConfigs: List<InterdayAlphaConfig>? = null,
     val includeInspection: Boolean = true,
     val submitOrders: Boolean = false,
     val submitTopTargets: Int = 0
@@ -202,11 +203,50 @@ data class InterdayRegimeSlicePerformance(
     val positiveReturnRate: Double
 )
 
+data class InterdayPurgedFoldValidation(
+    val fold: Int,
+    val startTime: Instant?,
+    val endTime: Instant?,
+    val sampleCount: Int,
+    val tradeCount: Int,
+    val netReturnPct: Double,
+    val sharpe: Double,
+    val edgeAfterCostBps: Double,
+    val accepted: Boolean
+)
+
+data class InterdayMultiplicityValidation(
+    val enabled: Boolean,
+    val candidateCount: Int,
+    val effectiveTrialCount: Int,
+    val validationSampleCount: Int,
+    val embargoBars: Int,
+    val benchmarkSharpe: Double,
+    val observedSharpe: Double,
+    val probabilisticSharpeRatio: Double,
+    val probabilisticSharpePValue: Double,
+    val deflatedSharpeRatio: Double,
+    val deflatedSharpePValue: Double,
+    val deflatedAccepted: Boolean,
+    val whiteRealityCheckPValue: Double?,
+    val whiteRealityAccepted: Boolean,
+    val benjaminiYekutieliQValue: Double?,
+    val benjaminiYekutieliAccepted: Boolean,
+    val purgedFoldPassRatio: Double,
+    val purgedAccepted: Boolean,
+    val neighborhoodPassRatio: Double?,
+    val neighborhoodAccepted: Boolean,
+    val promotionAccepted: Boolean,
+    val folds: List<InterdayPurgedFoldValidation>,
+    val notes: List<String>
+)
+
 data class InterdayValidation(
     val accepted: Boolean,
     val backtestAccepted: Boolean,
     val forwardAccepted: Boolean,
-    val reasons: List<String>
+    val reasons: List<String>,
+    val multiplicity: InterdayMultiplicityValidation? = null
 )
 
 data class InterdaySignalSnapshot(
@@ -406,6 +446,7 @@ data class InterdayAlphaRunResponse(
     val executionPreview: InterdayExecutionPreview,
     val trades: List<InterdayTradeRecord>,
     val inspection: InterdayInspection?,
+    val comparisonEvaluations: List<InterdayCandidateEvaluation> = emptyList(),
     val notes: List<String>,
     val runId: String? = null,
     val grafanaPath: String? = null

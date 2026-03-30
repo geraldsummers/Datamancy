@@ -50,6 +50,40 @@ class InterdaySearchEngineTest {
     }
 
     @Test
+    fun `run attaches multiplicity evidence when comparison configs are supplied`() = kotlinx.coroutines.runBlocking {
+        val primary = InterdayAlphaConfig(
+            exchange = "hyperliquid_mainnet",
+            signalBarMinutes = 240,
+            lookbackHours = 480,
+            forwardHours = 72,
+            rebalanceCadenceHours = 24,
+            selectionQuantile = 0.34,
+            minConfidence = 0.15,
+            trendScoreMode = InterdayTrendScoreMode.EMA_RETURN_STACK,
+            executionWindowMinutes = 120
+        )
+
+        val response = engine.run(
+            InterdayAlphaRunRequest(
+                config = primary,
+                comparisonConfigs = listOf(
+                    primary.copy(fastTrendDays = 2, mediumTrendDays = 8, slowTrendDays = 16),
+                    primary.copy(selectionQuantile = 0.30)
+                )
+            )
+        )
+
+        val multiplicity = response.validation.multiplicity
+        assertNotNull(multiplicity)
+        assertTrue(multiplicity.enabled)
+        assertEquals(3, multiplicity.candidateCount)
+        assertTrue(multiplicity.purgedFoldPassRatio in 0.0..1.0)
+        assertTrue(multiplicity.probabilisticSharpeRatio in 0.0..1.0)
+        assertTrue(multiplicity.whiteRealityCheckPValue == null || multiplicity.whiteRealityCheckPValue in 0.0..1.0)
+        assertEquals(2, response.comparisonEvaluations.size)
+    }
+
+    @Test
     fun `search evaluates configured space and returns leaderboard`() = kotlinx.coroutines.runBlocking {
         val response = engine.search(
             InterdayAlphaSearchRequest(

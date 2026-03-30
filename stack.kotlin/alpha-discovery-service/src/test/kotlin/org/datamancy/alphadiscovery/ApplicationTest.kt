@@ -114,6 +114,17 @@ class ApplicationTest {
                     "selectionQuantile": 0.34,
                     "minConfidence": 0.15
                   },
+                  "comparisonConfigs": [
+                    {
+                      "exchange": "hyperliquid_mainnet",
+                      "signalBarMinutes": 240,
+                      "lookbackHours": 480,
+                      "forwardHours": 72,
+                      "rebalanceCadenceHours": 24,
+                      "selectionQuantile": 0.30,
+                      "minConfidence": 0.15
+                    }
+                  ],
                   "mode": "OFFLINE_BACKTEST",
                   "includeInspection": true
                 }
@@ -131,6 +142,8 @@ class ApplicationTest {
         assertTrue(body.contains("\"grafanaPath\""))
         assertTrue(body.contains("alpha-run-explorer"))
         assertTrue(body.contains("var-alpha_run_id"))
+        assertTrue(body.contains("\"multiplicity\""))
+        assertTrue(body.contains("\"comparisonEvaluations\""))
     }
 
     @Test
