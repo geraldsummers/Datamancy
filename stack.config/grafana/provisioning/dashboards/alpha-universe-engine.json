@@ -25,8 +25,8 @@
           "type": "postgres",
           "uid": "timescaledb"
         },
-        "query": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM research_features_1m UNION SELECT DISTINCT exchange FROM strategy_universe_profiles) exchanges ORDER BY 1",
-        "definition": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM research_features_1m UNION SELECT DISTINCT exchange FROM strategy_universe_profiles) exchanges ORDER BY 1",
+        "query": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM alpha_signal_panel_1d UNION SELECT DISTINCT exchange FROM execution_context_1m UNION SELECT DISTINCT exchange FROM strategy_universe_profiles) exchanges ORDER BY 1",
+        "definition": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM alpha_signal_panel_1d UNION SELECT DISTINCT exchange FROM execution_context_1m UNION SELECT DISTINCT exchange FROM strategy_universe_profiles) exchanges ORDER BY 1",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -88,7 +88,7 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Universe Symbols 24h",
+      "title": "Universe Symbols 30d",
       "datasource": {
         "type": "postgres",
         "uid": "timescaledb"
@@ -97,7 +97,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT symbol) AS value FROM research_features_1m WHERE time >= NOW() - INTERVAL '24 hours' AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}')"
+          "rawSql": "SELECT COUNT(DISTINCT symbol) AS value FROM alpha_signal_panel_1d WHERE time >= NOW() - INTERVAL '30 days' AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}')"
         }
       ],
       "fieldConfig": {
@@ -133,7 +133,7 @@
     },
     {
       "type": "stat",
-      "title": "Feature Freshness",
+      "title": "Daily Signal Freshness",
       "datasource": {
         "type": "postgres",
         "uid": "timescaledb"
@@ -142,7 +142,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(EXTRACT(EPOCH FROM (NOW() - MAX(time))), 0) AS value FROM research_features_1m WHERE ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}')"
+          "rawSql": "SELECT COALESCE(EXTRACT(EPOCH FROM (NOW() - MAX(time))), 0) AS value FROM alpha_signal_panel_1d WHERE ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}')"
         }
       ],
       "fieldConfig": {
@@ -155,8 +155,8 @@
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 120 },
-              { "color": "red", "value": 600 }
+              { "color": "yellow", "value": 86400 },
+              { "color": "red", "value": 172800 }
             ]
           }
         },
@@ -178,7 +178,7 @@
     },
     {
       "type": "stat",
-      "title": "Orderbook Coverage 24h",
+      "title": "Orderbook Conditioning 30d",
       "datasource": {
         "type": "postgres",
         "uid": "timescaledb"
@@ -187,7 +187,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT ROUND(COALESCE(AVG(CASE WHEN orderbook_observed THEN 1 ELSE 0 END) * 100, 0), 2) AS value FROM research_features_1m WHERE time >= NOW() - INTERVAL '24 hours' AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}')"
+          "rawSql": "SELECT ROUND(COALESCE(AVG(orderbook_observed_ratio) * 100, 0), 2) AS value FROM alpha_signal_panel_1d WHERE time >= NOW() - INTERVAL '30 days' AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}')"
         }
       ],
       "fieldConfig": {
@@ -269,7 +269,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Minute Feature Rows",
+      "title": "Daily Signal Rows",
       "datasource": {
         "type": "postgres",
         "uid": "timescaledb"
@@ -278,7 +278,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT time_bucket('1 hour', time) AS \"time\", COUNT(*) AS \"Minute Feature Rows\" FROM research_features_1m WHERE $__timeFilter(time) AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') GROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT time_bucket('1 day', time) AS \"time\", COUNT(*) AS \"Daily Signal Rows\" FROM alpha_signal_panel_1d WHERE $__timeFilter(time) AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') GROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -312,12 +312,12 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT time_bucket('1 hour', time) AS \"time\", COUNT(DISTINCT symbol) AS \"Symbols With Features\" FROM research_features_1m WHERE $__timeFilter(time) AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') GROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT time_bucket('1 day', time) AS \"time\", COUNT(DISTINCT symbol) AS \"Symbols With Signals\" FROM alpha_signal_panel_1d WHERE $__timeFilter(time) AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') GROUP BY 1 ORDER BY 1"
         },
         {
           "refId": "B",
           "format": "time_series",
-          "rawSql": "SELECT time_bucket('1 hour', time) AS \"time\", AVG(CASE WHEN orderbook_observed THEN 100 ELSE 0 END) AS \"Orderbook Coverage %\" FROM research_features_1m WHERE $__timeFilter(time) AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') GROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT time_bucket('1 day', time) AS \"time\", AVG(orderbook_observed_ratio) * 100 AS \"Orderbook Conditioning %\" FROM alpha_signal_panel_1d WHERE $__timeFilter(time) AND ('${engine_exchange}' = '__all' OR exchange = '${engine_exchange}') GROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -333,7 +333,7 @@
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Orderbook Coverage %" },
+            "matcher": { "id": "byName", "options": "Orderbook Conditioning %" },
             "properties": [
               { "id": "unit", "value": "percent" }
             ]

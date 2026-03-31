@@ -593,8 +593,19 @@ internal class RawSyncStateStore(
 internal class FeatureStateStore(
     private val dataSource: DataSource,
     private val exchangeId: String,
-    private val barSizeMinutes: Int = 1
+    private val barSizeMinutes: Int = 1,
+    private val featureTableName: String = "execution_context_1m",
+    private val rawCoverageChannel: String = "candle_1m"
 ) {
+    init {
+        require(featureTableName.matches(Regex("[a-z0-9_]+"))) {
+            "featureTableName must be a simple public identifier: $featureTableName"
+        }
+        require(rawCoverageChannel.matches(Regex("[a-z0-9_]+"))) {
+            "rawCoverageChannel must be a simple identifier: $rawCoverageChannel"
+        }
+    }
+
     private enum class RefreshLockPurpose(val discriminator: Int) {
         MATERIALIZATION(1),
         COVERAGE(2)
@@ -671,7 +682,7 @@ internal class FeatureStateStore(
         val sql = """
             WITH affected_symbols AS (
                 SELECT DISTINCT symbol
-                FROM research_features_1m
+                FROM $featureTableName
                 WHERE exchange = ?
                 $windowFilter
             ),
@@ -682,7 +693,7 @@ internal class FeatureStateStore(
                     MAX(feature.time) AS latest_feature_time,
                     MAX(CASE WHEN feature.is_finalized THEN feature.time END) AS finalized_through,
                     COUNT(*)::BIGINT AS feature_rows
-                FROM research_features_1m feature
+                FROM $featureTableName feature
                 JOIN affected_symbols affected ON affected.symbol = feature.symbol
                 WHERE feature.exchange = ?
                 GROUP BY feature.symbol
@@ -735,7 +746,7 @@ internal class FeatureStateStore(
                     MAX(time) AS latest_feature_time,
                     MAX(CASE WHEN is_finalized THEN time END) AS finalized_through,
                     COUNT(*)::BIGINT AS feature_rows
-                FROM research_features_1m
+                FROM $featureTableName
                 WHERE exchange = ?
                   AND time >= ?
                   AND time < ?
@@ -801,7 +812,7 @@ internal class FeatureStateStore(
         val sql = """
             WITH affected_symbols AS (
                 SELECT DISTINCT symbol
-                FROM research_features_1m
+                FROM $featureTableName
                 WHERE exchange = ?
                 $windowFilter
             ),
@@ -812,7 +823,7 @@ internal class FeatureStateStore(
                     latest_raw_time
                 FROM raw_sync_state
                 WHERE exchange = ?
-                  AND channel = 'candle_1m'
+                  AND channel = '$rawCoverageChannel'
                   AND symbol IN (SELECT symbol FROM affected_symbols)
             ),
             feature_summary AS (
@@ -823,7 +834,7 @@ internal class FeatureStateStore(
                     MAX(CASE WHEN feature.is_finalized THEN feature.time END) AS finalized_through,
                     COUNT(*)::INTEGER AS observed_bars,
                     COUNT(*) FILTER (WHERE feature.is_finalized)::INTEGER AS finalized_bars
-                FROM research_features_1m feature
+                FROM $featureTableName feature
                 JOIN affected_symbols affected ON affected.symbol = feature.symbol
                 WHERE feature.exchange = ?
                 GROUP BY feature.symbol
@@ -838,7 +849,16 @@ internal class FeatureStateStore(
                     feature.finalized_through,
                     CASE
                         WHEN raw.earliest_raw_time IS NULL OR raw.latest_raw_time IS NULL THEN feature.observed_bars
-                        ELSE ((EXTRACT(EPOCH FROM (date_trunc('minute', raw.latest_raw_time) - date_trunc('minute', raw.earliest_raw_time))) / 60)::INTEGER + 1)
+                        ELSE (
+                            (
+                                EXTRACT(
+                                    EPOCH FROM (
+                                        time_bucket(INTERVAL '$barSizeMinutes minutes', raw.latest_raw_time) -
+                                        time_bucket(INTERVAL '$barSizeMinutes minutes', raw.earliest_raw_time)
+                                    )
+                                ) / (${barSizeMinutes.toDouble()} * 60.0)
+                            )::INTEGER + 1
+                        )
                     END AS expected_bars,
                     feature.observed_bars,
                     feature.finalized_bars

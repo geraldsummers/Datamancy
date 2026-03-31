@@ -26,7 +26,7 @@ class TradingPolicyTest {
         val policy = DatamancyTradingPolicy.default()
 
         assertFalse(policy.research.allowRawFallback)
-        assertEquals("research_features_1m", policy.research.canonicalFeatureTable)
+        assertEquals("alpha_signal_panel_1d", policy.research.canonicalFeatureTable)
         assertEquals(0, policy.research.datasets.maxSymbols)
         assertEquals(0, policy.research.datasets.discoveryMaxSymbols)
         assertEquals(72, policy.research.datasets.defaultForwardHours)

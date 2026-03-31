@@ -25,8 +25,8 @@
           "type": "postgres",
           "uid": "timescaledb"
         },
-        "query": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM raw_sync_state UNION SELECT DISTINCT exchange FROM feature_materialization_state UNION SELECT DISTINCT exchange FROM feature_coverage_state UNION SELECT DISTINCT exchange FROM research_features_1m) exchanges ORDER BY 1",
-        "definition": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM raw_sync_state UNION SELECT DISTINCT exchange FROM feature_materialization_state UNION SELECT DISTINCT exchange FROM feature_coverage_state UNION SELECT DISTINCT exchange FROM research_features_1m) exchanges ORDER BY 1",
+        "query": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM raw_sync_state UNION SELECT DISTINCT exchange FROM feature_materialization_state UNION SELECT DISTINCT exchange FROM feature_coverage_state UNION SELECT DISTINCT exchange FROM execution_context_1m UNION SELECT DISTINCT exchange FROM alpha_signal_panel_1d) exchanges ORDER BY 1",
+        "definition": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM raw_sync_state UNION SELECT DISTINCT exchange FROM feature_materialization_state UNION SELECT DISTINCT exchange FROM feature_coverage_state UNION SELECT DISTINCT exchange FROM execution_context_1m UNION SELECT DISTINCT exchange FROM alpha_signal_panel_1d) exchanges ORDER BY 1",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -135,7 +135,7 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Materialized Symbols",
+      "title": "Daily Signal Symbols",
       "datasource": {
         "type": "postgres",
         "uid": "timescaledb"
@@ -144,7 +144,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(*) AS value FROM feature_materialization_state WHERE bar_size_minutes = 1 AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}')"
+          "rawSql": "SELECT COUNT(*) AS value FROM feature_materialization_state WHERE bar_size_minutes = 1440 AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}')"
         }
       ],
       "fieldConfig": {
@@ -181,7 +181,7 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Finalized Freshness",
+      "title": "Daily Finalized Freshness",
       "datasource": {
         "type": "postgres",
         "uid": "timescaledb"
@@ -190,7 +190,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(EXTRACT(EPOCH FROM (NOW() - MAX(finalized_through))), 0) AS value FROM feature_materialization_state WHERE bar_size_minutes = 1 AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}')"
+          "rawSql": "SELECT COALESCE(EXTRACT(EPOCH FROM (NOW() - MAX(finalized_through))), 0) AS value FROM feature_materialization_state WHERE bar_size_minutes = 1440 AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}')"
         }
       ],
       "fieldConfig": {
@@ -200,8 +200,8 @@
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 300 },
-              { "color": "red", "value": 1800 }
+              { "color": "yellow", "value": 86400 },
+              { "color": "red", "value": 172800 }
             ]
           },
           "color": {
@@ -236,7 +236,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(AVG(coverage_ratio), 0) AS value FROM feature_coverage_state WHERE bar_size_minutes = 1 AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}')"
+          "rawSql": "SELECT COALESCE(AVG(coverage_ratio), 0) AS value FROM feature_coverage_state WHERE bar_size_minutes = 1440 AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}')"
         }
       ],
       "fieldConfig": {
@@ -283,7 +283,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(AVG(finalized_ratio), 0) AS value FROM feature_coverage_state WHERE bar_size_minutes = 1 AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}')"
+          "rawSql": "SELECT COALESCE(AVG(finalized_ratio), 0) AS value FROM feature_coverage_state WHERE bar_size_minutes = 1440 AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}')"
         }
       ],
       "fieldConfig": {
@@ -321,7 +321,7 @@
     {
       "id": 7,
       "type": "table",
-      "title": "Weakest Coverage",
+      "title": "Weakest Daily Signal Coverage",
       "datasource": {
         "type": "postgres",
         "uid": "timescaledb"
@@ -330,7 +330,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT symbol, ROUND((coverage_ratio * 100)::numeric, 2) AS coverage_pct, ROUND((finalized_ratio * 100)::numeric, 2) AS finalized_pct, observed_bars, expected_bars, latest_feature_time, finalized_through, last_computed_at FROM feature_coverage_state WHERE bar_size_minutes = 1 AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}') ORDER BY coverage_ratio ASC, finalized_ratio ASC, symbol ASC LIMIT 25"
+          "rawSql": "SELECT symbol, ROUND((coverage_ratio * 100)::numeric, 2) AS coverage_pct, ROUND((finalized_ratio * 100)::numeric, 2) AS finalized_pct, observed_bars, expected_bars, latest_feature_time, finalized_through, last_computed_at FROM feature_coverage_state WHERE bar_size_minutes = 1440 AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}') ORDER BY coverage_ratio ASC, finalized_ratio ASC, symbol ASC LIMIT 25"
         }
       ],
       "options": {
@@ -369,7 +369,7 @@
     {
       "id": 9,
       "type": "table",
-      "title": "Materialization State",
+      "title": "Daily Signal Materialization State",
       "datasource": {
         "type": "postgres",
         "uid": "timescaledb"
@@ -378,7 +378,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT symbol, feature_rows, latest_feature_time, finalized_through, ROUND(EXTRACT(EPOCH FROM (NOW() - last_materialized_at))::numeric, 0) AS materializer_lag_s, last_materialized_at FROM feature_materialization_state WHERE bar_size_minutes = 1 AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}') ORDER BY latest_feature_time DESC NULLS LAST, symbol ASC LIMIT 30"
+          "rawSql": "SELECT symbol, feature_rows, latest_feature_time, finalized_through, ROUND(EXTRACT(EPOCH FROM (NOW() - last_materialized_at))::numeric, 0) AS materializer_lag_s, last_materialized_at FROM feature_materialization_state WHERE bar_size_minutes = 1440 AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}') ORDER BY latest_feature_time DESC NULLS LAST, symbol ASC LIMIT 30"
         }
       ],
       "options": {
@@ -426,7 +426,7 @@
     {
       "id": 11,
       "type": "timeseries",
-      "title": "Provisional Vs Finalized Writes",
+      "title": "Daily Signal Writes",
       "datasource": {
         "type": "postgres",
         "uid": "timescaledb"
@@ -435,7 +435,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT time_bucket('30 minutes', source_updated_at) AS \"time\", COUNT(*) FILTER (WHERE is_provisional) AS \"Provisional\", COUNT(*) FILTER (WHERE is_finalized) AS \"Finalized\" FROM research_features_1m WHERE $__timeFilter(source_updated_at) AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}') GROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT time_bucket('1 day', source_updated_at) AS \"time\", COUNT(*) FILTER (WHERE is_provisional) AS \"Provisional\", COUNT(*) FILTER (WHERE is_finalized) AS \"Finalized\" FROM alpha_signal_panel_1d WHERE $__timeFilter(source_updated_at) AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}') GROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {

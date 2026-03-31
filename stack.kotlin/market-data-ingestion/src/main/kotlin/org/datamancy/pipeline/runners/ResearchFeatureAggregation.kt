@@ -39,6 +39,7 @@ internal const val MIN_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS = 5_000L
 internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOW_MINUTES = 15L
 internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOWS_PER_CYCLE = 8
 internal const val DEFAULT_RESEARCH_FEATURES_OBSERVED_CANDLE_REPAIR_WINDOWS_PER_CYCLE = 120
+internal const val CANONICAL_SIGNAL_BAR_MINUTES = 1_440
 
 internal fun resolveResearchFeaturesBootstrapHours(explicitHours: Long?): Long {
     val hours = explicitHours ?: DEFAULT_RESEARCH_FEATURES_BOOTSTRAP_HOURS
@@ -445,6 +446,24 @@ internal fun mergeAggregationWindows(
         )
     } ?: primaryWindow
 
+internal fun expandAggregationWindowToUtcDays(
+    window: AggregationWindow,
+    barMinutes: Int = CANONICAL_SIGNAL_BAR_MINUTES
+): AggregationWindow {
+    val dayMinutes = barMinutes.toLong().coerceAtLeast(1L)
+    val startInclusive = window.startInclusive
+        .truncatedTo(ChronoUnit.MINUTES)
+        .minus((window.startInclusive.epochSecond / 60L).mod(dayMinutes), ChronoUnit.MINUTES)
+    val inclusiveEnd = window.endExclusive
+        .minusMillis(1)
+        .truncatedTo(ChronoUnit.MINUTES)
+    val endStart = inclusiveEnd.minus((inclusiveEnd.epochSecond / 60L).mod(dayMinutes), ChronoUnit.MINUTES)
+    return AggregationWindow(
+        startInclusive = startInclusive,
+        endExclusive = endStart.plus(dayMinutes, ChronoUnit.MINUTES)
+    )
+}
+
 internal class ResearchFeatureAggregator(
     private val dataSource: DataSource,
     private val exchangeId: String,
@@ -479,6 +498,12 @@ internal class ResearchFeatureAggregator(
     private val effectiveBackgroundPhaseBudgetMs = resolveResearchFeaturesBackgroundPhaseBudgetMs(
         explicitBudgetMs = backgroundPhaseBudgetMs,
         refreshIntervalMs = refreshIntervalMs
+    )
+    private val signalStateStore = FeatureStateStore(
+        dataSource = dataSource,
+        exchangeId = exchangeId,
+        barSizeMinutes = CANONICAL_SIGNAL_BAR_MINUTES,
+        featureTableName = "alpha_signal_panel_1d"
     )
     private val effectiveRecentGapRepairWindowsPerCycle =
         resolveResearchFeaturesRecentGapRepairWindowsPerCycle(recentGapRepairWindowsPerCycle)
@@ -518,15 +543,47 @@ internal class ResearchFeatureAggregator(
         "finalization_due_at",
         "finalized_at"
     )
+    private val requiredSignalColumns = listOf(
+        "time",
+        "symbol",
+        "exchange",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "num_trades",
+        "trade_volume",
+        "buy_volume",
+        "sell_volume",
+        "trade_count",
+        "trade_vwap",
+        "spread_bps",
+        "depth_usd",
+        "funding_rate",
+        "open_interest",
+        "trade_observed_ratio",
+        "orderbook_observed_ratio",
+        "asset_context_observed_ratio",
+        "candle_minutes",
+        "trade_minutes",
+        "orderbook_minutes",
+        "asset_context_minutes",
+        "source_updated_at",
+        "is_provisional",
+        "is_finalized",
+        "finalization_due_at",
+        "finalized_at"
+    )
 
     suspend fun runLoop() {
         if (!enabled) {
-            researchFeatureLogger.info { "research_features_1m aggregation disabled" }
+            researchFeatureLogger.info { "execution_context_1m aggregation disabled" }
             return
         }
 
         researchFeatureLogger.info {
-            "Starting research_features_1m aggregation for $exchangeId " +
+            "Starting execution_context_1m aggregation for $exchangeId " +
                 "(bootstrap=${bootstrapHours}h refreshEvery=${refreshIntervalMs}ms overlap=${refreshOverlapMinutes}m " +
                 "chunk=${backfillChunkHours}h finalizeLag=${finalizationLagMinutes}m " +
                 "recentGapWindows=${effectiveRecentGapRepairWindowsPerCycle})"
@@ -540,7 +597,7 @@ internal class ResearchFeatureAggregator(
                 throw e
             } catch (e: Exception) {
                 researchFeatureLogger.error(e) {
-                    "research_features_1m maintenance loop failed for $exchangeId: ${e.message}"
+                    "execution_context_1m maintenance loop failed for $exchangeId: ${e.message}"
                 }
             }
             val cycleElapsedMs = System.currentTimeMillis() - cycleStartedAtMs
@@ -593,7 +650,7 @@ internal class ResearchFeatureAggregator(
                 """.trimIndent()
             ) ?: run {
                 researchFeatureLogger.info {
-                    "research_features_1m bootstrap waiting for raw candle data exchange=$exchangeId"
+                    "execution_context_1m bootstrap waiting for raw candle data exchange=$exchangeId"
                 }
                 return@withContext false
             }
@@ -614,7 +671,7 @@ internal class ResearchFeatureAggregator(
                 ?: requestedStart
             if (!start.isBefore(now)) {
                 researchFeatureLogger.info {
-                    "research_features_1m bootstrap already current for $exchangeId up to ${latestFeature ?: now}"
+                    "execution_context_1m bootstrap already current for $exchangeId up to ${latestFeature ?: now}"
                 }
                 return@withContext true
             }
@@ -633,7 +690,7 @@ internal class ResearchFeatureAggregator(
                 windows = windows
             )
             researchFeatureLogger.info {
-                "research_features_1m bootstrap complete exchange=$exchangeId windows=${windows.size} " +
+                "execution_context_1m bootstrap complete exchange=$exchangeId windows=${windows.size} " +
                     "totalRows=${result.totalRows} completed=${result.completed}"
             }
             return@withContext true
@@ -677,7 +734,7 @@ internal class ResearchFeatureAggregator(
                 conn = conn,
                 sql = """
                     SELECT MAX(time)
-                    FROM research_features_1m
+                    FROM execution_context_1m
                     WHERE exchange = ?
                       AND is_finalized = TRUE
                 """.trimIndent()
@@ -705,7 +762,7 @@ internal class ResearchFeatureAggregator(
                 maxRuntimeMs = backgroundPhaseBudgetMs()
             )
             researchFeatureLogger.info {
-                "research_features_1m frontier_recovery exchange=$exchangeId latestFinalized=$latestFinalizedTime " +
+                "execution_context_1m frontier_recovery exchange=$exchangeId latestFinalized=$latestFinalizedTime " +
                     "windows=${windows.size} totalRows=${result.totalRows} finalized=${result.totalFinalizedRows} " +
                     "completed=${result.completed} blockingDebt=$blockingDebt"
             }
@@ -762,7 +819,7 @@ internal class ResearchFeatureAggregator(
             )
 
             researchFeatureLogger.info {
-                "research_features_1m historical_catchup complete exchange=$exchangeId " +
+                "execution_context_1m historical_catchup complete exchange=$exchangeId " +
                     "windows=${windows.size} totalRows=${result.totalRows} completed=${result.completed}"
             }
         }
@@ -825,7 +882,7 @@ internal class ResearchFeatureAggregator(
             recentGapRepairPendingWindows = nextState.pendingWindows
             recentGapRepairPendingNextCursorExclusive = nextState.pendingNextCursorExclusive
             researchFeatureLogger.info {
-                "research_features_1m gap_repair complete exchange=$exchangeId windows=${windows.size} " +
+                "execution_context_1m gap_repair complete exchange=$exchangeId windows=${windows.size} " +
                 "totalRows=${result.totalRows} finalized=${result.totalFinalizedRows} " +
                     "completed=${result.completed} reusedPending=${batch.reusedPendingWindows} " +
                     "priorityCandleRepair=$usingPriorityCandleRepair " +
@@ -854,14 +911,14 @@ internal class ResearchFeatureAggregator(
               AND (
                     NOT EXISTS (
                         SELECT 1
-                        FROM research_features_1m f
+                        FROM execution_context_1m f
                         WHERE f.exchange = c.exchange
                           AND f.symbol = c.symbol
                           AND f.time = c.time
                     )
                     OR EXISTS (
                     SELECT 1
-                    FROM research_features_1m f
+                    FROM execution_context_1m f
                     WHERE f.exchange = c.exchange
                       AND f.symbol = c.symbol
                       AND f.time = c.time
@@ -923,7 +980,7 @@ internal class ResearchFeatureAggregator(
         while (queue.isNotEmpty()) {
             if (budgetExceeded()) {
                 researchFeatureLogger.info {
-                    "research_features_1m $phase exchange=$exchangeId paused after ${maxRuntimeMs}ms budget " +
+                    "execution_context_1m $phase exchange=$exchangeId paused after ${maxRuntimeMs}ms budget " +
                         "rows=$totalRows finalized=$totalFinalizedRows remaining=${queue.size}"
                 }
                 return WindowMaterializationResult(
@@ -950,26 +1007,35 @@ internal class ResearchFeatureAggregator(
                 }
                 val refreshWindow = mergeAggregationWindows(window, finalizationResult.affectedWindow)
                 featureStateStore.refreshMaterialization(conn, refreshWindow.startInclusive, refreshWindow.endExclusive)
+                val signalWindow = expandAggregationWindowToUtcDays(refreshWindow)
+                val signalRows = upsertDailySignalWindow(
+                    conn = conn,
+                    startInclusive = signalWindow.startInclusive,
+                    endExclusive = signalWindow.endExclusive,
+                    timeoutSeconds = timeoutSeconds
+                )
+                signalStateStore.refresh(conn, signalWindow.startInclusive, signalWindow.endExclusive)
                 conn.commit()
                 totalRows += rows
                 totalFinalizedRows += finalizationResult.rowCount
                 researchFeatureLogger.info {
-                    "research_features_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
-                        "minutes=${aggregationWindowMinutes(window)} rows=$rows finalized=${finalizationResult.rowCount}"
+                    "execution_context_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
+                        "minutes=${aggregationWindowMinutes(window)} rows=$rows finalized=${finalizationResult.rowCount} " +
+                        "signalRows=$signalRows signalWindow=${signalWindow.startInclusive}..${signalWindow.endExclusive}"
                 }
             } catch (e: Exception) {
                 conn.rollback(savepoint)
                 if (isAggregationQueryTimeout(e) && canSubdivideAggregationWindow(window)) {
                     val splitWindows = splitAggregationWindow(window)
                     researchFeatureLogger.warn(e) {
-                        "research_features_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
+                        "execution_context_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
                             "timed out after ${windowTimeoutSecondsForPhase(phase)}s; subdividing into " +
                             splitWindows.joinToString { "${it.startInclusive}..${it.endExclusive}" }
                     }
                     splitWindows.asReversed().forEach(queue::addFirst)
                     if (budgetExceeded()) {
                         researchFeatureLogger.info {
-                            "research_features_1m $phase exchange=$exchangeId budget exhausted after timeout while " +
+                            "execution_context_1m $phase exchange=$exchangeId budget exhausted after timeout while " +
                                 "splitting ${window.startInclusive}..${window.endExclusive}"
                         }
                         return WindowMaterializationResult(
@@ -984,14 +1050,14 @@ internal class ResearchFeatureAggregator(
                 if (isAggregationQueryTimeout(e)) {
                     if (phase == "gap_repair") {
                         researchFeatureLogger.warn(e) {
-                            "research_features_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
+                            "execution_context_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
                                 "timed out after ${windowTimeoutSecondsForPhase(phase)}s at minimum granularity; " +
                                 "skipping until the rolling scan wraps instead of pinning recent-gap repair"
                         }
                         continue
                     }
                     researchFeatureLogger.error(e) {
-                        "research_features_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
+                        "execution_context_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
                             "timed out after ${windowTimeoutSecondsForPhase(phase)}s at minimum granularity; retaining window"
                     }
                     queue.addFirst(window)
@@ -1027,11 +1093,20 @@ internal class ResearchFeatureAggregator(
             if (schemaValidated) {
                 return true
             }
-            val columns = loadTableColumns(conn, "research_features_1m")
+            val columns = loadTableColumns(conn, "execution_context_1m")
             val missing = requiredColumns.filterNot(columns::contains)
             if (missing.isNotEmpty()) {
                 researchFeatureLogger.error {
-                    "research_features_1m schema missing columns ${missing.joinToString(",")}. " +
+                    "execution_context_1m schema missing columns ${missing.joinToString(",")}. " +
+                        "Apply stack.config/postgres/init-market-data-schema.sql via datamancy-schema-reconcile."
+                }
+                return false
+            }
+            val signalColumns = loadTableColumns(conn, "alpha_signal_panel_1d")
+            val missingSignal = requiredSignalColumns.filterNot(signalColumns::contains)
+            if (missingSignal.isNotEmpty()) {
+                researchFeatureLogger.error {
+                    "alpha_signal_panel_1d schema missing columns ${missingSignal.joinToString(",")}. " +
                         "Apply stack.config/postgres/init-market-data-schema.sql via datamancy-schema-reconcile."
                 }
                 return false
@@ -1141,7 +1216,7 @@ internal class ResearchFeatureAggregator(
                 UNION
                 SELECT bucket_time, symbol, exchange FROM minute_orderbooks
             )
-            INSERT INTO research_features_1m (
+            INSERT INTO execution_context_1m (
                 time,
                 symbol,
                 exchange,
@@ -1259,12 +1334,12 @@ internal class ResearchFeatureAggregator(
                 asset_context_observed = EXCLUDED.asset_context_observed,
                 source_updated_at = EXCLUDED.source_updated_at,
                 is_provisional = CASE
-                    WHEN research_features_1m.is_finalized OR EXCLUDED.is_finalized THEN FALSE
+                    WHEN execution_context_1m.is_finalized OR EXCLUDED.is_finalized THEN FALSE
                     ELSE EXCLUDED.is_provisional
                 END,
-                is_finalized = research_features_1m.is_finalized OR EXCLUDED.is_finalized,
+                is_finalized = execution_context_1m.is_finalized OR EXCLUDED.is_finalized,
                 finalization_due_at = EXCLUDED.finalization_due_at,
-                finalized_at = COALESCE(research_features_1m.finalized_at, EXCLUDED.finalized_at)
+                finalized_at = COALESCE(execution_context_1m.finalized_at, EXCLUDED.finalized_at)
         """.trimIndent()
 
         conn.prepareStatement(sql).use { stmt ->
@@ -1293,7 +1368,7 @@ internal class ResearchFeatureAggregator(
         val finalizationCutoff = finalizedAt.minus(finalizationLagMinutes, ChronoUnit.MINUTES)
         val sql = """
             WITH finalized AS (
-                UPDATE research_features_1m
+                UPDATE execution_context_1m
                 SET
                     is_provisional = FALSE,
                     is_finalized = TRUE,
@@ -1340,6 +1415,186 @@ internal class ResearchFeatureAggregator(
                 }
                 return FinalizationResult(rowCount = rowCount, affectedWindow = affectedWindow)
             }
+        }
+    }
+
+    private fun upsertDailySignalWindow(
+        conn: Connection,
+        startInclusive: Instant,
+        endExclusive: Instant,
+        timeoutSeconds: Int = effectiveWindowTimeoutSeconds
+    ): Int {
+        val updatedAt = Instant.now()
+        val sql = """
+            WITH aggregated AS (
+                SELECT
+                    time_bucket(INTERVAL '1 day', time) AS bucket_time,
+                    symbol,
+                    exchange,
+                    first(open, time) FILTER (WHERE open IS NOT NULL) AS open,
+                    MAX(high) FILTER (WHERE high IS NOT NULL) AS high,
+                    MIN(low) FILTER (WHERE low IS NOT NULL) AS low,
+                    last(close, time) FILTER (WHERE close IS NOT NULL) AS close,
+                    SUM(COALESCE(volume, 0)) AS volume,
+                    SUM(COALESCE(num_trades, 0))::INTEGER AS num_trades,
+                    SUM(COALESCE(trade_volume, 0)) AS trade_volume,
+                    SUM(COALESCE(buy_volume, 0)) AS buy_volume,
+                    SUM(COALESCE(sell_volume, 0)) AS sell_volume,
+                    SUM(COALESCE(trade_count, 0))::INTEGER AS trade_count,
+                    CASE
+                        WHEN SUM(COALESCE(trade_volume, 0)) > 0 THEN
+                            SUM(COALESCE(trade_vwap, 0) * COALESCE(trade_volume, 0)) /
+                            SUM(COALESCE(trade_volume, 0))
+                    END AS trade_vwap,
+                    AVG(
+                        CASE
+                            WHEN spread_pct IS NOT NULL AND spread_pct > 0 THEN spread_pct * 10000.0
+                            ELSE NULL
+                        END
+                    ) AS spread_bps,
+                    AVG(
+                        CASE
+                            WHEN mid_price IS NOT NULL THEN
+                                ((COALESCE(bid_depth_10, 0) + COALESCE(ask_depth_10, 0)) / 2.0) * mid_price
+                            ELSE NULL
+                        END
+                    ) AS depth_usd,
+                    AVG(funding_rate) AS funding_rate,
+                    AVG(open_interest) AS open_interest,
+                    AVG(CASE WHEN trade_observed THEN 1.0 ELSE 0.0 END) AS trade_observed_ratio,
+                    AVG(CASE WHEN orderbook_observed THEN 1.0 ELSE 0.0 END) AS orderbook_observed_ratio,
+                    AVG(CASE WHEN asset_context_observed THEN 1.0 ELSE 0.0 END) AS asset_context_observed_ratio,
+                    COUNT(*) FILTER (WHERE candle_observed)::INTEGER AS candle_minutes,
+                    COUNT(*) FILTER (WHERE trade_observed)::INTEGER AS trade_minutes,
+                    COUNT(*) FILTER (WHERE orderbook_observed)::INTEGER AS orderbook_minutes,
+                    COUNT(*) FILTER (WHERE asset_context_observed)::INTEGER AS asset_context_minutes,
+                    MAX(source_updated_at) AS source_updated_at
+                FROM execution_context_1m
+                WHERE exchange = ?
+                  AND time >= ?
+                  AND time < ?
+                GROUP BY 1, 2, 3
+            )
+            INSERT INTO alpha_signal_panel_1d (
+                time,
+                symbol,
+                exchange,
+                open,
+                high,
+                low,
+                close,
+                volume,
+                num_trades,
+                trade_volume,
+                buy_volume,
+                sell_volume,
+                trade_count,
+                trade_vwap,
+                spread_bps,
+                depth_usd,
+                funding_rate,
+                open_interest,
+                trade_observed_ratio,
+                orderbook_observed_ratio,
+                asset_context_observed_ratio,
+                candle_minutes,
+                trade_minutes,
+                orderbook_minutes,
+                asset_context_minutes,
+                source_updated_at,
+                is_provisional,
+                is_finalized,
+                finalization_due_at,
+                finalized_at
+            )
+            SELECT
+                bucket_time,
+                symbol,
+                exchange,
+                open,
+                high,
+                low,
+                close,
+                volume,
+                num_trades,
+                trade_volume,
+                buy_volume,
+                sell_volume,
+                trade_count,
+                trade_vwap,
+                spread_bps,
+                depth_usd,
+                funding_rate,
+                open_interest,
+                trade_observed_ratio,
+                orderbook_observed_ratio,
+                asset_context_observed_ratio,
+                candle_minutes,
+                trade_minutes,
+                orderbook_minutes,
+                asset_context_minutes,
+                ?,
+                CASE
+                    WHEN bucket_time + INTERVAL '1 day' + INTERVAL '${finalizationLagMinutes} minutes' <= CAST(? AS TIMESTAMPTZ)
+                        THEN FALSE
+                    ELSE TRUE
+                END,
+                CASE
+                    WHEN bucket_time + INTERVAL '1 day' + INTERVAL '${finalizationLagMinutes} minutes' <= CAST(? AS TIMESTAMPTZ)
+                        THEN TRUE
+                    ELSE FALSE
+                END,
+                bucket_time + INTERVAL '1 day' + INTERVAL '${finalizationLagMinutes} minutes',
+                CASE
+                    WHEN bucket_time + INTERVAL '1 day' + INTERVAL '${finalizationLagMinutes} minutes' <= CAST(? AS TIMESTAMPTZ)
+                        THEN CAST(? AS TIMESTAMPTZ)
+                    ELSE NULL::TIMESTAMPTZ
+                END
+            FROM aggregated
+            ON CONFLICT (time, symbol, exchange) DO UPDATE SET
+                open = EXCLUDED.open,
+                high = EXCLUDED.high,
+                low = EXCLUDED.low,
+                close = EXCLUDED.close,
+                volume = EXCLUDED.volume,
+                num_trades = EXCLUDED.num_trades,
+                trade_volume = EXCLUDED.trade_volume,
+                buy_volume = EXCLUDED.buy_volume,
+                sell_volume = EXCLUDED.sell_volume,
+                trade_count = EXCLUDED.trade_count,
+                trade_vwap = EXCLUDED.trade_vwap,
+                spread_bps = EXCLUDED.spread_bps,
+                depth_usd = EXCLUDED.depth_usd,
+                funding_rate = EXCLUDED.funding_rate,
+                open_interest = EXCLUDED.open_interest,
+                trade_observed_ratio = EXCLUDED.trade_observed_ratio,
+                orderbook_observed_ratio = EXCLUDED.orderbook_observed_ratio,
+                asset_context_observed_ratio = EXCLUDED.asset_context_observed_ratio,
+                candle_minutes = EXCLUDED.candle_minutes,
+                trade_minutes = EXCLUDED.trade_minutes,
+                orderbook_minutes = EXCLUDED.orderbook_minutes,
+                asset_context_minutes = EXCLUDED.asset_context_minutes,
+                source_updated_at = EXCLUDED.source_updated_at,
+                is_provisional = CASE
+                    WHEN alpha_signal_panel_1d.is_finalized OR EXCLUDED.is_finalized THEN FALSE
+                    ELSE EXCLUDED.is_provisional
+                END,
+                is_finalized = alpha_signal_panel_1d.is_finalized OR EXCLUDED.is_finalized,
+                finalization_due_at = EXCLUDED.finalization_due_at,
+                finalized_at = COALESCE(alpha_signal_panel_1d.finalized_at, EXCLUDED.finalized_at)
+        """.trimIndent()
+
+        conn.prepareStatement(sql).use { stmt ->
+            stmt.queryTimeout = timeoutSeconds
+            stmt.setString(1, exchangeId)
+            stmt.setTimestamp(2, Timestamp.from(startInclusive))
+            stmt.setTimestamp(3, Timestamp.from(endExclusive))
+            stmt.setTimestamp(4, Timestamp.from(updatedAt))
+            stmt.setTimestamp(5, Timestamp.from(updatedAt))
+            stmt.setTimestamp(6, Timestamp.from(updatedAt))
+            stmt.setTimestamp(7, Timestamp.from(updatedAt))
+            stmt.setTimestamp(8, Timestamp.from(updatedAt))
+            return stmt.executeUpdate()
         }
     }
 

@@ -57,7 +57,7 @@ class ApplicationTest {
         val response = client.get("/api/v1/policy/trading")
         assertEquals(HttpStatusCode.OK, response.status)
         val body = response.bodyAsText()
-        assertTrue(body.contains("\"canonicalFeatureTable\": \"research_features_1m\""), body)
+        assertTrue(body.contains("\"canonicalFeatureTable\": \"alpha_signal_panel_1d\""), body)
         assertTrue(body.contains("\"exchangeId\": \"hyperliquid_mainnet\""), body)
         assertTrue(body.contains("\"allowRawFallback\": false"), body)
     }

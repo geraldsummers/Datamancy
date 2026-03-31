@@ -11,7 +11,8 @@ private val canonicalMarketTables = listOf(
     "raw_sync_state",
     "feature_materialization_state",
     "feature_coverage_state",
-    "research_features_1m"
+    "execution_context_1m",
+    "alpha_signal_panel_1d"
 )
 private val verifiedMarketDatabaseKeys = ConcurrentHashMap.newKeySet<String>()
 private val verifiedPrimaryDatabaseKeys = ConcurrentHashMap.newKeySet<String>()
@@ -20,7 +21,7 @@ fun verifyCanonicalMarketDataDatabase(
     connection: Connection,
     verificationKey: String,
     descriptor: String,
-    canonicalFeatureTable: String = "research_features_1m"
+    canonicalFeatureTable: String = "alpha_signal_panel_1d"
 ) {
     if (!verifiedMarketDatabaseKeys.add(verificationKey)) return
     try {
@@ -80,7 +81,7 @@ fun verifyPrimaryDatabaseDoesNotContainCanonicalMarketData(
         val existingTables = connection.existingCanonicalMarketTables()
         require(existingTables.isEmpty()) {
             "$descriptor unexpectedly contains canonical market-data tables ${existingTables.joinToString(",")}. " +
-                "Primary app databases must not host market_data/research_features_1m state."
+                "Primary app databases must not host market_data/execution_context_1m/alpha_signal_panel_1d state."
         }
         require(!connection.publicTableExists(MARKET_DATA_IDENTITY_TABLE)) {
             "$descriptor unexpectedly exposes $MARKET_DATA_IDENTITY_TABLE. " +

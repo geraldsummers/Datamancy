@@ -97,7 +97,7 @@ data class RawSyncPolicy(
 @Serializable
 data class FeatureMaterializationPolicy(
     val enabled: Boolean = true,
-    val canonicalTable: String = "research_features_1m",
+    val canonicalTable: String = "alpha_signal_panel_1d",
     val bootstrapHours: Long = 336L,
     val refreshIntervalMs: Long = 60_000L,
     val refreshOverlapMinutes: Long = 5L,
@@ -115,7 +115,7 @@ data class FeatureFreshnessPolicy(
 
 @Serializable
 data class ResearchPolicy(
-    val canonicalFeatureTable: String = "research_features_1m",
+    val canonicalFeatureTable: String = "alpha_signal_panel_1d",
     val computeCoverageBeforeRun: Boolean = true,
     val abortOnInsufficientCoverage: Boolean = true,
     val allowRawFallback: Boolean = false,
@@ -149,8 +149,8 @@ data class StrategyFamilyPolicy(
 data class AlphaDatasetPolicy(
     val marketExchange: String = "hyperliquid_mainnet",
     val executionExchange: String = "hyperliquid_mainnet",
-    val canonicalBarMinutes: Int = 240,
-    val supportedSignalBarMinutes: List<Int> = listOf(240, 1_440),
+    val canonicalBarMinutes: Int = 1_440,
+    val supportedSignalBarMinutes: List<Int> = listOf(1_440),
     val defaultSignalBarMinutes: Int = 1_440,
     val dailyBoundary: String = "UTC",
     val defaultLookbackHours: Int = 1_080,
@@ -546,7 +546,7 @@ class RawSyncPolicyBuilder {
 @TradingPolicyDsl
 class FeatureMaterializationPolicyBuilder {
     var enabled: Boolean = true
-    var canonicalTable: String = "research_features_1m"
+    var canonicalTable: String = "alpha_signal_panel_1d"
     var bootstrapHours: Long = 336L
     var refreshIntervalMs: Long = 60_000L
     var refreshOverlapMinutes: Long = 180L
@@ -585,7 +585,7 @@ class FeatureFreshnessPolicyBuilder {
 
 @TradingPolicyDsl
 class ResearchPolicyBuilder {
-    var canonicalFeatureTable: String = "research_features_1m"
+    var canonicalFeatureTable: String = "alpha_signal_panel_1d"
     var computeCoverageBeforeRun: Boolean = true
     var abortOnInsufficientCoverage: Boolean = true
     var allowRawFallback: Boolean = false
@@ -1109,7 +1109,7 @@ object DatamancyTradingPolicy {
 
             features {
                 enabled = true
-                canonicalTable = "research_features_1m"
+                canonicalTable = "alpha_signal_panel_1d"
                 bootstrapHours = 2_160L
                 refreshIntervalMs = 60_000L
                 refreshOverlapMinutes = 5L
@@ -1124,7 +1124,7 @@ object DatamancyTradingPolicy {
         }
 
         research {
-            canonicalFeatureTable = "research_features_1m"
+            canonicalFeatureTable = "alpha_signal_panel_1d"
             computeCoverageBeforeRun = true
             abortOnInsufficientCoverage = true
             allowRawFallback = false
@@ -1149,8 +1149,8 @@ object DatamancyTradingPolicy {
             datasets {
                 marketExchange = "hyperliquid_mainnet"
                 executionExchange = "hyperliquid_mainnet"
-                canonicalBarMinutes = 240
-                supportedSignalBarMinutes = listOf(240, 1_440)
+                canonicalBarMinutes = 1_440
+                supportedSignalBarMinutes = listOf(1_440)
                 defaultSignalBarMinutes = 1_440
                 dailyBoundary = "UTC"
                 defaultLookbackHours = 1_080

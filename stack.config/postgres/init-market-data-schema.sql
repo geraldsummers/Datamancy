@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS market_data_database_identity (
 );
 
 INSERT INTO market_data_database_identity (singleton, database_role, canonical_feature_table)
-VALUES (TRUE, 'market_data', 'research_features_1m')
+VALUES (TRUE, 'market_data', 'alpha_signal_panel_1d')
 ON CONFLICT (singleton) DO UPDATE
 SET database_role = EXCLUDED.database_role,
     canonical_feature_table = EXCLUDED.canonical_feature_table,
@@ -194,7 +194,7 @@ ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS source_updated_at TIME
 
 -- Minute-granularity research feature store used by alpha discovery, walk-forward,
 -- and execution realism queries. This is populated from raw candles/trades/orderbooks.
-CREATE TABLE IF NOT EXISTS research_features_1m (
+CREATE TABLE IF NOT EXISTS execution_context_1m (
     time TIMESTAMPTZ NOT NULL,
     symbol TEXT NOT NULL,
     exchange TEXT NOT NULL,
@@ -237,38 +237,110 @@ CREATE TABLE IF NOT EXISTS research_features_1m (
     PRIMARY KEY (time, symbol, exchange)
 );
 
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS open DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS high DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS low DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS close DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS volume DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS num_trades INTEGER;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS trade_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS buy_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS sell_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS trade_count INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS trade_vwap DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS best_bid DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS best_ask DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS spread DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS spread_pct DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS mid_price DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS bid_depth_10 DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS ask_depth_10 DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS orderbook_samples INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS funding_rate DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS open_interest DOUBLE PRECISION;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS candle_observed BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS trade_observed BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS orderbook_observed BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS asset_context_observed BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS is_provisional BOOLEAN NOT NULL DEFAULT TRUE;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS is_finalized BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS finalization_due_at TIMESTAMPTZ;
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS finalized_at TIMESTAMPTZ;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS open DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS high DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS low DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS close DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS volume DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS num_trades INTEGER;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS trade_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS buy_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS sell_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS trade_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS trade_vwap DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS best_bid DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS best_ask DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS spread DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS spread_pct DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS mid_price DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS bid_depth_10 DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS ask_depth_10 DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS orderbook_samples INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS funding_rate DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS open_interest DOUBLE PRECISION;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS candle_observed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS trade_observed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS orderbook_observed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS asset_context_observed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS is_provisional BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS is_finalized BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS finalization_due_at TIMESTAMPTZ;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS finalized_at TIMESTAMPTZ;
 -- Avoid non-constant defaults on repeated ALTER runs against a compressed hypertable.
 -- Fresh rows still populate this column from the aggregation pipeline.
-ALTER TABLE research_features_1m ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
+ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
+
+-- Daily signal contract for interday discovery. This is aggregated from
+-- execution_context_1m and is the canonical 1d alpha read path.
+CREATE TABLE IF NOT EXISTS alpha_signal_panel_1d (
+    time TIMESTAMPTZ NOT NULL,
+    symbol TEXT NOT NULL,
+    exchange TEXT NOT NULL,
+
+    open DOUBLE PRECISION,
+    high DOUBLE PRECISION,
+    low DOUBLE PRECISION,
+    close DOUBLE PRECISION,
+    volume DOUBLE PRECISION,
+    num_trades INTEGER,
+
+    trade_volume DOUBLE PRECISION NOT NULL DEFAULT 0,
+    buy_volume DOUBLE PRECISION NOT NULL DEFAULT 0,
+    sell_volume DOUBLE PRECISION NOT NULL DEFAULT 0,
+    trade_count INTEGER NOT NULL DEFAULT 0,
+    trade_vwap DOUBLE PRECISION,
+
+    spread_bps DOUBLE PRECISION,
+    depth_usd DOUBLE PRECISION,
+    funding_rate DOUBLE PRECISION,
+    open_interest DOUBLE PRECISION,
+
+    trade_observed_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+    orderbook_observed_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+    asset_context_observed_ratio DOUBLE PRECISION NOT NULL DEFAULT 0,
+    candle_minutes INTEGER NOT NULL DEFAULT 0,
+    trade_minutes INTEGER NOT NULL DEFAULT 0,
+    orderbook_minutes INTEGER NOT NULL DEFAULT 0,
+    asset_context_minutes INTEGER NOT NULL DEFAULT 0,
+
+    is_provisional BOOLEAN NOT NULL DEFAULT TRUE,
+    is_finalized BOOLEAN NOT NULL DEFAULT FALSE,
+    finalization_due_at TIMESTAMPTZ,
+    finalized_at TIMESTAMPTZ,
+    source_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (time, symbol, exchange)
+);
+
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS open DOUBLE PRECISION;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS high DOUBLE PRECISION;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS low DOUBLE PRECISION;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS close DOUBLE PRECISION;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS volume DOUBLE PRECISION;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS num_trades INTEGER;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS trade_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS buy_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS sell_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS trade_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS trade_vwap DOUBLE PRECISION;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS spread_bps DOUBLE PRECISION;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS depth_usd DOUBLE PRECISION;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS funding_rate DOUBLE PRECISION;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS open_interest DOUBLE PRECISION;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS trade_observed_ratio DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS orderbook_observed_ratio DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS asset_context_observed_ratio DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS candle_minutes INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS trade_minutes INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS orderbook_minutes INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS asset_context_minutes INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS is_provisional BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS is_finalized BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS finalization_due_at TIMESTAMPTZ;
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS finalized_at TIMESTAMPTZ;
+-- Avoid non-constant defaults on repeated ALTER runs against a compressed hypertable.
+-- Fresh rows still populate this column from the aggregation pipeline.
+ALTER TABLE alpha_signal_panel_1d ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
 
 -- Persistent raw sync checkpoints per exchange/symbol/channel.
 CREATE TABLE IF NOT EXISTS raw_sync_state (
@@ -805,7 +877,7 @@ WITH symbol_universe AS (
     UNION
     SELECT DISTINCT exchange, symbol FROM feature_coverage_state WHERE bar_size_minutes = 1
     UNION
-    SELECT DISTINCT exchange, symbol FROM research_features_1m
+    SELECT DISTINCT exchange, symbol FROM execution_context_1m
 ),
 raw_pivot AS (
     SELECT
@@ -849,7 +921,7 @@ recent_features AS (
               AND (COALESCE(bid_depth_10, 0) > 0 OR COALESCE(ask_depth_10, 0) > 0)
         ) AS recent_execution_observed_rows_24h,
         COUNT(*) FILTER (WHERE time >= NOW() - INTERVAL '24 hours' AND is_finalized) AS recent_finalized_rows_24h
-    FROM research_features_1m
+    FROM execution_context_1m
     GROUP BY exchange, symbol
 ),
 base AS (
@@ -1055,7 +1127,8 @@ BEGIN
         ALTER TABLE IF EXISTS minute_trade_stats OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS minute_orderbook_state OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS minute_asset_context OWNER TO pipeline_user;
-        ALTER TABLE IF EXISTS research_features_1m OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS execution_context_1m OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS alpha_signal_panel_1d OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS raw_sync_state OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS feature_materialization_state OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS feature_coverage_state OWNER TO pipeline_user;
@@ -1111,7 +1184,8 @@ BEGIN
         GRANT SELECT, INSERT ON minute_trade_stats TO test_runner_user;
         GRANT SELECT, INSERT ON minute_orderbook_state TO test_runner_user;
         GRANT SELECT, INSERT ON minute_asset_context TO test_runner_user;
-        GRANT SELECT, INSERT ON research_features_1m TO test_runner_user;
+        GRANT SELECT, INSERT ON execution_context_1m TO test_runner_user;
+        GRANT SELECT, INSERT ON alpha_signal_panel_1d TO test_runner_user;
         GRANT SELECT, INSERT ON raw_sync_state TO test_runner_user;
         GRANT SELECT, INSERT ON feature_materialization_state TO test_runner_user;
         GRANT SELECT, INSERT ON feature_coverage_state TO test_runner_user;
@@ -1143,7 +1217,8 @@ BEGIN
         GRANT SELECT, INSERT, UPDATE ON minute_trade_stats TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON minute_orderbook_state TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON minute_asset_context TO pipeline_user;
-        GRANT SELECT, INSERT, UPDATE ON research_features_1m TO pipeline_user;
+        GRANT SELECT, INSERT, UPDATE ON execution_context_1m TO pipeline_user;
+        GRANT SELECT, INSERT, UPDATE ON alpha_signal_panel_1d TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON raw_sync_state TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON feature_materialization_state TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON feature_coverage_state TO pipeline_user;
@@ -1179,7 +1254,8 @@ SELECT create_hypertable('orderbook_data', 'time', if_not_exists => TRUE);
 SELECT create_hypertable('minute_trade_stats', 'time', if_not_exists => TRUE);
 SELECT create_hypertable('minute_orderbook_state', 'time', if_not_exists => TRUE);
 SELECT create_hypertable('minute_asset_context', 'time', if_not_exists => TRUE);
-SELECT create_hypertable('research_features_1m', 'time', if_not_exists => TRUE);
+SELECT create_hypertable('execution_context_1m', 'time', if_not_exists => TRUE);
+SELECT create_hypertable('alpha_signal_panel_1d', 'time', if_not_exists => TRUE);
 
 -- Create the candle-first discovery index after hypertable conversion.
 -- CONCURRENTLY is not supported on Timescale hypertables during reconcile runs,
@@ -1247,24 +1323,45 @@ CREATE INDEX IF NOT EXISTS idx_minute_asset_context_exchange_time_symbol
     INCLUDE (funding_rate, open_interest, mark_price, oracle_price, mid_price, day_notional_volume, previous_day_price, last_event_time)
     WITH (timescaledb.transaction_per_chunk);
 
--- research_features_1m is the primary research read path for universe scans and bar loading.
-CREATE INDEX IF NOT EXISTS idx_research_features_1m_exchange_time_symbol
-    ON research_features_1m (exchange, time DESC, symbol)
+-- execution_context_1m is the execution/readiness substrate for interday research.
+CREATE INDEX IF NOT EXISTS idx_execution_context_1m_exchange_time_symbol
+    ON execution_context_1m (exchange, time DESC, symbol)
     INCLUDE (close, volume, spread_pct, bid_depth_10, ask_depth_10, mid_price, candle_observed, orderbook_observed)
     WITH (timescaledb.transaction_per_chunk);
 
-CREATE INDEX IF NOT EXISTS idx_research_features_1m_symbol_exchange_time
-    ON research_features_1m (symbol, exchange, time DESC)
+CREATE INDEX IF NOT EXISTS idx_execution_context_1m_symbol_exchange_time
+    ON execution_context_1m (symbol, exchange, time DESC)
     INCLUDE (close, volume, spread_pct, bid_depth_10, ask_depth_10, mid_price, candle_observed, orderbook_observed)
     WITH (timescaledb.transaction_per_chunk);
 
-CREATE INDEX IF NOT EXISTS idx_research_features_1m_exchange_finalized_time_symbol
-    ON research_features_1m (exchange, is_finalized, time DESC, symbol)
+CREATE INDEX IF NOT EXISTS idx_execution_context_1m_exchange_finalized_time_symbol
+    ON execution_context_1m (exchange, is_finalized, time DESC, symbol)
     INCLUDE (candle_observed, orderbook_observed, source_updated_at)
     WITH (timescaledb.transaction_per_chunk);
 
-CREATE INDEX IF NOT EXISTS idx_research_features_1m_exchange_finalization_due
-    ON research_features_1m (exchange, finalization_due_at, symbol)
+CREATE INDEX IF NOT EXISTS idx_execution_context_1m_exchange_finalization_due
+    ON execution_context_1m (exchange, finalization_due_at, symbol)
+    INCLUDE (is_finalized, is_provisional, finalized_at)
+    WITH (timescaledb.transaction_per_chunk);
+
+-- alpha_signal_panel_1d is the canonical 1d discovery/readiness contract.
+CREATE INDEX IF NOT EXISTS idx_alpha_signal_panel_1d_exchange_time_symbol
+    ON alpha_signal_panel_1d (exchange, time DESC, symbol)
+    INCLUDE (close, volume, spread_bps, depth_usd, funding_rate, open_interest)
+    WITH (timescaledb.transaction_per_chunk);
+
+CREATE INDEX IF NOT EXISTS idx_alpha_signal_panel_1d_symbol_exchange_time
+    ON alpha_signal_panel_1d (symbol, exchange, time DESC)
+    INCLUDE (close, volume, spread_bps, depth_usd, funding_rate, open_interest)
+    WITH (timescaledb.transaction_per_chunk);
+
+CREATE INDEX IF NOT EXISTS idx_alpha_signal_panel_1d_exchange_finalized_time_symbol
+    ON alpha_signal_panel_1d (exchange, is_finalized, time DESC, symbol)
+    INCLUDE (trade_observed_ratio, orderbook_observed_ratio, source_updated_at)
+    WITH (timescaledb.transaction_per_chunk);
+
+CREATE INDEX IF NOT EXISTS idx_alpha_signal_panel_1d_exchange_finalization_due
+    ON alpha_signal_panel_1d (exchange, finalization_due_at, symbol)
     INCLUDE (is_finalized, is_provisional, finalized_at)
     WITH (timescaledb.transaction_per_chunk);
 
@@ -1317,7 +1414,13 @@ ALTER TABLE minute_asset_context SET (
   timescaledb.compress_orderby = 'time DESC'
 );
 
-ALTER TABLE research_features_1m SET (
+ALTER TABLE execution_context_1m SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'symbol, exchange',
+  timescaledb.compress_orderby = 'time DESC'
+);
+
+ALTER TABLE alpha_signal_panel_1d SET (
   timescaledb.compress,
   timescaledb.compress_segmentby = 'symbol, exchange',
   timescaledb.compress_orderby = 'time DESC'
@@ -1329,4 +1432,5 @@ SELECT add_compression_policy('orderbook_data', INTERVAL '7 days', if_not_exists
 SELECT add_compression_policy('minute_trade_stats', INTERVAL '7 days', if_not_exists => TRUE);
 SELECT add_compression_policy('minute_orderbook_state', INTERVAL '7 days', if_not_exists => TRUE);
 SELECT add_compression_policy('minute_asset_context', INTERVAL '7 days', if_not_exists => TRUE);
-SELECT add_compression_policy('research_features_1m', INTERVAL '7 days', if_not_exists => TRUE);
+SELECT add_compression_policy('execution_context_1m', INTERVAL '7 days', if_not_exists => TRUE);
+SELECT add_compression_policy('alpha_signal_panel_1d', INTERVAL '30 days', if_not_exists => TRUE);

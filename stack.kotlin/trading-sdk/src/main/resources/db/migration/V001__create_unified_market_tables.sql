@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS market_data_database_identity (
 );
 
 INSERT INTO market_data_database_identity (singleton, database_role, canonical_feature_table)
-VALUES (TRUE, 'market_data', 'research_features_1m')
+VALUES (TRUE, 'market_data', 'alpha_signal_panel_1d')
 ON CONFLICT (singleton) DO UPDATE
 SET database_role = EXCLUDED.database_role,
     canonical_feature_table = EXCLUDED.canonical_feature_table,
@@ -126,6 +126,46 @@ CREATE INDEX IF NOT EXISTS idx_orderbook_data_symbol_exchange_time_covering
     ON orderbook_data (symbol, exchange, time DESC)
     INCLUDE (spread_pct, bid_depth_10, ask_depth_10, mid_price);
 
+CREATE TABLE IF NOT EXISTS alpha_signal_panel_1d (
+    time TIMESTAMPTZ NOT NULL,
+    symbol TEXT NOT NULL,
+    exchange TEXT NOT NULL,
+    open NUMERIC(20, 8),
+    high NUMERIC(20, 8),
+    low NUMERIC(20, 8),
+    close NUMERIC(20, 8),
+    volume NUMERIC(20, 8),
+    num_trades INTEGER,
+    trade_volume NUMERIC(20, 8) NOT NULL DEFAULT 0,
+    buy_volume NUMERIC(20, 8) NOT NULL DEFAULT 0,
+    sell_volume NUMERIC(20, 8) NOT NULL DEFAULT 0,
+    trade_count INTEGER NOT NULL DEFAULT 0,
+    trade_vwap NUMERIC(20, 8),
+    spread_bps NUMERIC(20, 8),
+    depth_usd NUMERIC(20, 8),
+    funding_rate NUMERIC(20, 8),
+    open_interest NUMERIC(20, 8),
+    trade_observed_ratio NUMERIC(10, 6) NOT NULL DEFAULT 0,
+    orderbook_observed_ratio NUMERIC(10, 6) NOT NULL DEFAULT 0,
+    asset_context_observed_ratio NUMERIC(10, 6) NOT NULL DEFAULT 0,
+    candle_minutes INTEGER NOT NULL DEFAULT 0,
+    trade_minutes INTEGER NOT NULL DEFAULT 0,
+    orderbook_minutes INTEGER NOT NULL DEFAULT 0,
+    asset_context_minutes INTEGER NOT NULL DEFAULT 0,
+    is_provisional BOOLEAN NOT NULL DEFAULT TRUE,
+    is_finalized BOOLEAN NOT NULL DEFAULT FALSE,
+    finalization_due_at TIMESTAMPTZ,
+    finalized_at TIMESTAMPTZ,
+    source_updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (time, symbol, exchange)
+);
+
+CREATE INDEX IF NOT EXISTS idx_alpha_signal_panel_1d_exchange_time_symbol
+    ON alpha_signal_panel_1d (exchange, time DESC, symbol);
+
+CREATE INDEX IF NOT EXISTS idx_alpha_signal_panel_1d_exchange_finalized_time_symbol
+    ON alpha_signal_panel_1d (exchange, is_finalized, time DESC, symbol);
+
 -- =============================================================================
 -- STRATEGY & POSITION TRACKING TABLES
 -- =============================================================================
@@ -181,13 +221,16 @@ DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pipeline_user') THEN
         ALTER TABLE IF EXISTS market_data_database_identity OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS alpha_signal_panel_1d OWNER TO pipeline_user;
         GRANT SELECT ON market_data_database_identity TO pipeline_user;
+        GRANT SELECT, INSERT, UPDATE ON alpha_signal_panel_1d TO pipeline_user;
     END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'search_service_user') THEN
         GRANT SELECT ON market_data_database_identity TO search_service_user;
     END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'test_runner_user') THEN
         GRANT SELECT ON market_data_database_identity TO test_runner_user;
+        GRANT SELECT, INSERT ON alpha_signal_panel_1d TO test_runner_user;
     END IF;
 END $$;
 
@@ -197,6 +240,7 @@ END $$;
 
 COMMENT ON TABLE market_data IS 'Unified time-series table for all market data: trades, candles, funding rates, and open interest. Optimized for Grafana/Jupyter queries.';
 COMMENT ON TABLE orderbook_data IS 'Orderbook snapshots with pre-calculated metrics for analysis';
+COMMENT ON TABLE alpha_signal_panel_1d IS 'Canonical daily alpha signal contract aggregated from minute execution context.';
 COMMENT ON COLUMN market_data.data_type IS 'Type: trade, candle_1m, candle_5m, candle_1h, candle_1d, candle_1w, funding, open_interest';
 COMMENT ON COLUMN market_data.side IS 'Trade side: buy or sell';
 COMMENT ON COLUMN orderbook_data.bids IS 'Array of bid levels as JSONB: [{"price": "50000", "size": "1.5"}, ...]';

@@ -25,7 +25,7 @@ import org.datamancy.trading.alpha.InterdayAlphaRunRequest
 import org.datamancy.trading.alpha.InterdayAlphaSearchRequest
 import org.datamancy.trading.alpha.InterdayAlphaSearchResponse
 import org.datamancy.trading.alpha.InterdaySearchEngine
-import org.datamancy.trading.alpha.MarketDataInterdayPanelSource
+import org.datamancy.trading.alpha.AlphaSignalPanelSource
 import org.datamancy.trading.policy.ActiveTradingPolicy
 import org.datamancy.trading.storage.MarketDataDataSourceFactory
 import org.slf4j.LoggerFactory
@@ -55,7 +55,7 @@ fun Application.configureAlphaDiscoveryApp(
 ) {
     val resolvedDataSource by lazy { dataSource ?: MarketDataDataSourceFactory.fromEnvironment("alpha-discovery-service") }
     val resolvedEngine = engine ?: InterdaySearchEngine(
-        panelSource = MarketDataInterdayPanelSource(
+        panelSource = AlphaSignalPanelSource(
             dataSource = resolvedDataSource
         ),
         policyProvider = ActiveTradingPolicy::current
