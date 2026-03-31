@@ -1995,9 +1995,9 @@ class MarketDataStateUpdaterRunner internal constructor(
             }
         }
         if (fullFeatureBackfill && !featureStateStore.hasPersistedState()) {
-            logger.info { "Hydrating feature state tables from research_features_1m" }
+            logger.info { "Hydrating feature state tables from execution_context_1m" }
             featureStateStore.backfillAll()
-            logger.info { "Hydrated feature state tables from research_features_1m exchange=${config.exchangeId}" }
+            logger.info { "Hydrated feature state tables from execution_context_1m exchange=${config.exchangeId}" }
             return
         }
         val endExclusive = Instant.now().truncatedTo(ChronoUnit.MINUTES)
@@ -2399,7 +2399,7 @@ class MarketDataRepairRunner internal constructor(
             dataSource.connection.use { connection ->
                 val recentGapSql = """
                     SELECT time
-                    FROM research_features_1m
+                    FROM execution_context_1m
                     WHERE exchange = ?
                       AND symbol = ?
                       AND close IS NOT NULL

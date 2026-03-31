@@ -634,7 +634,7 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
         criticalReasons += "candle_1m lag ${row.candleRawLagSeconds}s exceeds ${thresholds.candleRawLagMaxSeconds}s"
     }
     if (row.latestFeatureTime == null) {
-        criticalReasons += "missing research_features_1m rows"
+        criticalReasons += "missing execution_context_1m rows"
     }
     if (row.featureLagSeconds == null || row.featureLagSeconds > thresholds.featureLagMaxSeconds) {
         criticalReasons += "feature lag ${row.featureLagSeconds ?: -1}s exceeds ${thresholds.featureLagMaxSeconds}s"

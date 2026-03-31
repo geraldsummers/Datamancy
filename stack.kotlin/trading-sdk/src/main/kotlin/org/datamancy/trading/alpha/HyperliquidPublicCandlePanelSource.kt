@@ -371,7 +371,7 @@ class HyperliquidPublicCandlePanelSource(
                 SELECT
                     symbol,
                     AVG(COALESCE(close, 0) * COALESCE(volume, 0)) AS avg_dollar_volume
-                FROM research_features_1m
+                FROM execution_context_1m
                 WHERE exchange = ?
                   AND is_finalized
                   AND time >= ?

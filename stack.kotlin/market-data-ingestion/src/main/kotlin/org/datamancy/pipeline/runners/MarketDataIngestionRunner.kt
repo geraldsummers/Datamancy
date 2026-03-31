@@ -435,7 +435,7 @@ class MarketDataIngestionRunner {
         }
         logger.info { "Hyperliquid Exchange ID: $hyperliquidExchangeId" }
         logger.info {
-            "research_features_1m: ${if (researchFeaturesEnabled) "ENABLED" else "DISABLED"} " +
+            "execution_context_1m: ${if (researchFeaturesEnabled) "ENABLED" else "DISABLED"} " +
                 "(bootstrap=${researchFeaturesBootstrapHours}h refreshEvery=${researchFeaturesRefreshIntervalMs}ms " +
                 "overlap=${researchFeaturesRefreshOverlapMinutes}m chunk=${researchFeaturesBackfillChunkHours}h " +
                 "finalizeLag=${researchFeaturesFinalizationLagMinutes}m)"
