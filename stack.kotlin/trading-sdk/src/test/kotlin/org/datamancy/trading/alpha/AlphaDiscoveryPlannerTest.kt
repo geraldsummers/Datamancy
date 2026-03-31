@@ -11,10 +11,11 @@ class AlphaDiscoveryPlannerTest {
     @Test
     fun `discovery planner prioritizes interday defaults`() {
         val candidates = planner.candidateTemplates(AlphaDiscoveryCandidateRequest(maxCandidates = 5))
+        val defaults = planner.defaults()
 
         assertEquals(5, candidates.size)
-        assertEquals(240, candidates.first().signalBarMinutes)
-        assertEquals(72, candidates.first().rebalanceCadenceHours)
+        assertEquals(defaults.defaultSignalBarMinutes, candidates.first().signalBarMinutes)
+        assertEquals(defaults.defaultConfig.rebalanceCadenceHours, candidates.first().rebalanceCadenceHours)
         assertTrue(candidates.all { it.forwardHours == 72 })
     }
 }

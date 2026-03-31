@@ -1,5 +1,11 @@
 package org.datamancy.trading.alpha
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.datamancy.trading.policy.TradingPolicy
 import java.time.Duration
 import java.time.Instant
@@ -99,6 +105,7 @@ class InterdaySearchEngine(
         val policy = policyProvider()
         val requestedComparisons = request.comparisonConfigs.orEmpty().filter { it != request.config }.distinct()
         val evaluationByConfig = linkedMapOf<InterdayAlphaConfig, EvaluationBundle>()
+        val validationCandidateByConfig = linkedMapOf<InterdayAlphaConfig, ValidationCandidate>()
         var primaryPanel: InterdayPanel? = null
 
         (listOf(request.config) + requestedComparisons)
@@ -129,15 +136,21 @@ class InterdaySearchEngine(
                         failedEvaluation(config, error)
                     }
                     evaluationByConfig[config] = bundle
+                    validationCandidateByConfig[config] = ValidationCandidate(
+                        config = config,
+                        panelKey = panelKeyFor(config),
+                        panel = panel,
+                        evaluation = bundle
+                    )
                 }
             }
 
-        val evaluation = evaluationByConfig.getValue(request.config)
-        val comparisonBundles = requestedComparisons.mapNotNull(evaluationByConfig::get)
+        val primaryCandidate = validationCandidateByConfig.getValue(request.config)
+        val evaluation = primaryCandidate.evaluation
+        val comparisonCandidates = requestedComparisons.mapNotNull(validationCandidateByConfig::get)
         val multiplicity = buildMultiplicityValidation(
-            primary = evaluation,
-            comparisons = comparisonBundles,
-            config = request.config,
+            primary = primaryCandidate,
+            comparisons = comparisonCandidates,
             policy = policy
         )
         val validation = evaluation.validation.copy(multiplicity = multiplicity)
@@ -175,8 +188,8 @@ class InterdaySearchEngine(
             ),
             trades = evaluation.trades.takeLast(200),
             inspection = evaluation.inspection,
-            comparisonEvaluations = comparisonBundles.mapIndexed { index, bundle ->
-                candidateEvaluation(index + 1, bundle)
+            comparisonEvaluations = comparisonCandidates.mapIndexed { index, candidate ->
+                candidateEvaluation(index + 1, candidate.evaluation)
             },
             notes = listOf(
                 "Trend strength is built from multi-horizon relative returns, regression slope, moving-average separation, and ADX-style persistence.",
@@ -958,7 +971,8 @@ class InterdaySearchEngine(
         currentWeights: Map<String, Double>,
         evaluationStartIndex: Int,
         rebalanceBars: Int,
-        targetHorizonBars: Int
+        targetHorizonBars: Int,
+        empiricalWeightsOverride: EmpiricalWeights? = null
     ): SignalComputationResult {
         val raw = collectRawSignals(panel, index, config, indicators, liquidityRanks)
         if (raw.isEmpty()) {
@@ -977,7 +991,7 @@ class InterdaySearchEngine(
         )
         val scoringRaw = structuralState.residualizedRaw
         val featureVectors = buildFeatureVectors(scoringRaw, config)
-        val empiricalWeights = fitEmpiricalWeights(
+        val empiricalWeights = empiricalWeightsOverride ?: fitEmpiricalWeights(
             panel = panel,
             currentIndex = index,
             evaluationStartIndex = evaluationStartIndex,
@@ -986,7 +1000,8 @@ class InterdaySearchEngine(
             config = config,
             indicators = indicators,
             liquidityRanks = liquidityRanks,
-            residualizationEnabled = structuralState.enabled
+            residualizationEnabled = structuralState.enabled,
+            fitPasses = policyProvider().research.validation.empiricalWeightFitPasses
         )
         val empiricalScores = scoringRaw.associate { candidate ->
             candidate.symbol to empiricalWeights.score(featureVectors.getValue(candidate.symbol), config)
@@ -1328,41 +1343,98 @@ class InterdaySearchEngine(
         config: InterdayAlphaConfig,
         indicators: IndicatorWindows,
         liquidityRanks: Map<String, Double>,
-        residualizationEnabled: Boolean
+        residualizationEnabled: Boolean,
+        fitPasses: Int
     ): EmpiricalWeights {
-        val observations = mutableListOf<FeatureObservation>()
         val upperTrainingIndex = currentIndex - targetHorizonBars
-        if (upperTrainingIndex >= evaluationStartIndex) {
-            var trainingIndex = evaluationStartIndex
-            while (trainingIndex <= upperTrainingIndex) {
-                val raw = collectRawSignals(panel, trainingIndex, config, indicators, liquidityRanks)
-                if (raw.isNotEmpty()) {
-                    val structuralState = buildStructuralState(
-                        panel = panel,
-                        index = trainingIndex,
-                        raw = raw,
-                        config = config,
-                        indicators = indicators,
-                        enabled = residualizationEnabled
-                    )
-                    val scoringRaw = structuralState.residualizedRaw
-                    val vectors = buildFeatureVectors(scoringRaw, config)
-                    val futureReturns = if (residualizationEnabled) {
-                        futureStructuralResidualReturns(panel, trainingIndex, targetHorizonBars, structuralState)
-                    } else {
-                        futureResidualReturns(panel, trainingIndex, targetHorizonBars)
-                    }
-                    vectors.forEach { (symbol, features) ->
-                        val target = futureReturns[symbol] ?: return@forEach
-                        observations += FeatureObservation(features = features, targetResidualReturn = target)
-                    }
-                }
-                trainingIndex += rebalanceBars
+        val observationIndexes = if (upperTrainingIndex < evaluationStartIndex) {
+            emptyList()
+        } else {
+            (evaluationStartIndex..upperTrainingIndex step rebalanceBars).toList()
+        }
+        val observations = collectFeatureObservations(
+            panel = panel,
+            observationIndexes = observationIndexes,
+            targetHorizonBars = targetHorizonBars,
+            config = config,
+            indicators = indicators,
+            liquidityRanks = liquidityRanks,
+            residualizationEnabled = residualizationEnabled
+        )
+        return fitEmpiricalWeightsFromObservations(observations, config, fitPasses)
+    }
+
+    private fun collectFeatureObservations(
+        panel: InterdayPanel,
+        observationIndexes: Iterable<Int>,
+        targetHorizonBars: Int,
+        config: InterdayAlphaConfig,
+        indicators: IndicatorWindows,
+        liquidityRanks: Map<String, Double>,
+        residualizationEnabled: Boolean
+    ): List<FeatureObservation> {
+        val observations = mutableListOf<FeatureObservation>()
+        observationIndexes.forEach { trainingIndex ->
+            if (trainingIndex < 0 || trainingIndex + targetHorizonBars >= panel.timeline.size) return@forEach
+            val raw = collectRawSignals(panel, trainingIndex, config, indicators, liquidityRanks)
+            if (raw.isEmpty()) return@forEach
+            val structuralState = buildStructuralState(
+                panel = panel,
+                index = trainingIndex,
+                raw = raw,
+                config = config,
+                indicators = indicators,
+                enabled = residualizationEnabled
+            )
+            val scoringRaw = structuralState.residualizedRaw
+            val vectors = buildFeatureVectors(scoringRaw, config)
+            val futureReturns = if (residualizationEnabled) {
+                futureStructuralResidualReturns(panel, trainingIndex, targetHorizonBars, structuralState)
+            } else {
+                futureResidualReturns(panel, trainingIndex, targetHorizonBars)
+            }
+            vectors.forEach { (symbol, features) ->
+                val target = futureReturns[symbol] ?: return@forEach
+                observations += FeatureObservation(features = features, targetResidualReturn = target)
             }
         }
+        return observations
+    }
+
+    private fun fitEmpiricalWeightsFromObservations(
+        observations: List<FeatureObservation>,
+        config: InterdayAlphaConfig,
+        fitPasses: Int
+    ): EmpiricalWeights {
         val prior = bootstrapWeights(config)
         if (observations.isEmpty()) return prior
-        val fitted = ridgeFit(observations, lambda = config.empiricalFitRegularization, config = config)
+        val passes = fitPasses.coerceAtLeast(1)
+        var fitted = EmpiricalWeights(
+            intercept = 0.0,
+            coefficients = DoubleArray(prior.coefficients.size),
+            observations = observations.size
+        )
+        repeat(passes) { pass ->
+            val residualObservations = observations.map { observation ->
+                FeatureObservation(
+                    features = observation.features,
+                    targetResidualReturn = observation.targetResidualReturn - fitted.score(observation.features, config)
+                )
+            }
+            val delta = ridgeFit(
+                observations = residualObservations,
+                lambda = config.empiricalFitRegularization * (1.0 + pass.toDouble() * 0.5),
+                config = config
+            )
+            val step = 1.0 / (pass + 1.0).toDouble()
+            fitted = EmpiricalWeights(
+                intercept = (fitted.intercept + delta.intercept * step).finiteOrZero(),
+                coefficients = DoubleArray(prior.coefficients.size) { index ->
+                    (fitted.coefficients[index] + delta.coefficients.getOrElse(index) { 0.0 } * step).finiteOrZero()
+                },
+                observations = observations.size
+            )
+        }
         val blend = (observations.size.toDouble() / config.empiricalMinTrainingObservations.toDouble()).coerceIn(0.0, 1.0)
         val coefficients = DoubleArray(prior.coefficients.size) { index ->
             prior.coefficients[index] * (1.0 - blend) + fitted.coefficients[index] * blend
@@ -1802,44 +1874,78 @@ class InterdaySearchEngine(
         )
     }
 
-    private fun buildMultiplicityValidation(
-        primary: EvaluationBundle,
-        comparisons: List<EvaluationBundle>,
-        config: InterdayAlphaConfig,
+    private suspend fun buildMultiplicityValidation(
+        primary: ValidationCandidate,
+        comparisons: List<ValidationCandidate>,
         policy: TradingPolicy
     ): InterdayMultiplicityValidation {
         val validationPolicy = policy.research.validation
         val promotionPolicy = policy.research.readiness.promotion
         val notes = mutableListOf<String>()
-        val comparableBundles = (listOf(primary) + comparisons).filter { bundle ->
-            bundle.portfolioReturns.size == primary.portfolioReturns.size &&
-                bundle.config.signalBarMinutes == config.signalBarMinutes
+        val primaryPanel = primary.panel
+        val config = primary.config
+        val comparableCandidates = (listOf(primary) + comparisons).filter { candidate ->
+            !candidate.evaluation.validation.reasons.any { it.startsWith("evaluation failed:") } &&
+                candidate.config.signalBarMinutes == config.signalBarMinutes &&
+                candidate.panelKey == primary.panelKey &&
+                candidate.panel.timeline == primaryPanel.timeline
         }
-        val excludedBundleCount = comparisons.size + 1 - comparableBundles.size
-        if (excludedBundleCount > 0) {
-            notes += "$excludedBundleCount configs were excluded from multiplicity statistics because their return series could not be aligned with the primary control."
+        val excludedCandidateCount = comparisons.size + 1 - comparableCandidates.size
+        if (excludedCandidateCount > 0) {
+            notes += "$excludedCandidateCount configs were excluded from multiplicity statistics because their panels could not be aligned with the primary control."
         }
 
-        val embargoBars = effectiveEmbargoBars(policy, config)
-        val folds = buildPurgedFoldWindows(
-            totalReturns = primary.portfolioReturns.size,
+        val candidateSeeds = comparableCandidates.map { candidate ->
+            val indicators = IndicatorWindows.fromConfig(candidate.config)
+            ValidationCandidateSeed(
+                candidate = candidate,
+                indicators = indicators,
+                liquidityRanks = precomputeLiquidityRanks(candidate.panel),
+                configuredEvaluationStartIndex = configuredEvaluationStartIndex(candidate.panel, candidate.config, indicators),
+                rebalanceBars = barsForHours(candidate.config.rebalanceCadenceHours, candidate.config.signalBarMinutes).coerceAtLeast(1),
+                targetHorizonBars = trainingTargetBars(candidate.config)
+            )
+        }
+        val commonEvaluationStartIndex = candidateSeeds.maxOfOrNull { it.configuredEvaluationStartIndex } ?: 1
+        val atomicBlockBars = effectiveAtomicBlockBars(validationPolicy, policy, config)
+        val embargoBars = atomicBlockBars * validationPolicy.purgeBlocksPerSide.coerceAtLeast(1)
+        val folds = buildPurgedFoldPlans(
+            timeline = primaryPanel.timeline,
+            evaluationStartIndex = commonEvaluationStartIndex,
             requestedFolds = validationPolicy.purgedKFoldFolds,
-            embargoBars = embargoBars,
-            minBarsPerFold = minPurgedFoldBars(config)
+            atomicBlockBars = atomicBlockBars,
+            activeBlocksPerFold = validationPolicy.activeBlocksPerFold,
+            purgeBlocksPerSide = validationPolicy.purgeBlocksPerSide
         )
         if (folds.size < validationPolicy.purgedKFoldFolds) {
-            notes += "Purged validation reduced to ${folds.size} folds from the configured ${validationPolicy.purgedKFoldFolds} because the available history is short relative to the embargo."
+            notes += "Purged validation reduced to ${folds.size} folds from the configured ${validationPolicy.purgedKFoldFolds} because the available history is short relative to the atomic block geometry."
         }
         if (folds.isEmpty()) {
-            notes += "Purged validation could not allocate any non-overlapping test folds."
+            notes += "Purged validation could not allocate any active folds after block planning."
         }
 
-        val foldResults = buildPurgedFoldResults(primary, folds, config)
+        val candidateContexts = candidateSeeds.map { seed ->
+            ValidationCandidateContext(
+                candidate = seed.candidate,
+                indicators = seed.indicators,
+                liquidityRanks = seed.liquidityRanks,
+                evaluationStartIndex = commonEvaluationStartIndex,
+                rebalanceBars = seed.rebalanceBars,
+                targetHorizonBars = seed.targetHorizonBars
+            )
+        }
+        val foldResultsByConfig = evaluatePurgedFoldPlans(
+            contexts = candidateContexts,
+            folds = folds,
+            fitPasses = validationPolicy.empiricalWeightFitPasses,
+            policy = policy
+        )
+        val foldResults = foldResultsByConfig[config].orEmpty().map { it.fold }
         val purgedFoldPassRatio = if (foldResults.isEmpty()) 0.0 else foldResults.count { it.accepted }.toDouble() / foldResults.size.toDouble()
         val purgedAccepted = foldResults.isNotEmpty() && purgedFoldPassRatio >= promotionPolicy.minRegimeSlicePassRatio
 
-        val validationReturnSeries = comparableBundles.map { bundle ->
-            buildValidationReturnSeries(bundle.portfolioReturns, folds)
+        val validationReturnSeries = comparableCandidates.map { candidate ->
+            foldResultsByConfig[candidate.config].orEmpty().flatMap { it.validationReturns }
         }
         val primaryValidationReturns = validationReturnSeries.firstOrNull().orEmpty()
         val validationSampleCount = primaryValidationReturns.size
@@ -1850,7 +1956,7 @@ class InterdaySearchEngine(
 
         val observedSharpe = sampleSharpe(primaryValidationReturns)
         val candidateSharpes = validationReturnSeries.map(::sampleSharpe)
-        val effectiveTrialCount = max(1, comparableBundles.size * max(1, folds.size))
+        val effectiveTrialCount = max(1, comparableCandidates.size * max(1, folds.size))
         val benchmarkSharpe = deflatedSharpeBenchmark(candidateSharpes, effectiveTrialCount)
         val psrZ = probabilisticSharpeZ(primaryValidationReturns, observedSharpe, 0.0)
         val psr = normalCdf(psrZ)
@@ -1868,15 +1974,13 @@ class InterdaySearchEngine(
             whiteRealityCheckPValue <= 0.05 &&
             primaryValidationReturns.averageOrZero() > 0.0
 
-        val psrPValues = validationReturnSeries.map { series ->
-            probabilisticSharpePValue(series, 0.0)
-        }
+        val psrPValues = validationReturnSeries.map { series -> probabilisticSharpePValue(series, 0.0) }
         val byQValues = benjaminiYekutieliQValues(psrPValues)
         val primaryByQValue = byQValues.firstOrNull()
         val byAccepted = primaryByQValue != null && primaryByQValue <= 0.05
 
         val neighborhoodPassRatio = comparisons.takeIf { it.isNotEmpty() }?.let { bundles ->
-            bundles.count { it.validation.accepted }.toDouble() / bundles.size.toDouble()
+            bundles.count { it.evaluation.validation.accepted }.toDouble() / bundles.size.toDouble()
         }
         val neighborhoodAccepted = when {
             !promotionPolicy.requireSamplingRobustness -> true
@@ -1902,7 +2006,7 @@ class InterdaySearchEngine(
         } else {
             purgedAccepted && neighborhoodAccepted
         }
-        val promotionAccepted = primary.validation.accepted && multiplicityAccepted && samplingRobustnessAccepted
+        val promotionAccepted = primary.evaluation.validation.accepted && multiplicityAccepted && samplingRobustnessAccepted
 
         if (!purgedAccepted) {
             notes += "Purged fold pass ratio ${format(purgedFoldPassRatio)} is below the promotion threshold ${promotionPolicy.minRegimeSlicePassRatio}."
@@ -1924,7 +2028,7 @@ class InterdaySearchEngine(
 
         return InterdayMultiplicityValidation(
             enabled = true,
-            candidateCount = comparableBundles.size,
+            candidateCount = comparableCandidates.size,
             effectiveTrialCount = effectiveTrialCount,
             validationSampleCount = validationSampleCount,
             embargoBars = embargoBars,
@@ -1970,81 +2074,576 @@ class InterdaySearchEngine(
     private fun minimumPurgedFoldTrades(config: InterdayAlphaConfig): Int =
         max(1, ceil(config.forwardHours.toDouble() / 72.0).toInt())
 
-    private fun buildPurgedFoldWindows(
-        totalReturns: Int,
+    private fun configuredEvaluationStartIndex(
+        panel: InterdayPanel,
+        config: InterdayAlphaConfig,
+        indicators: IndicatorWindows
+    ): Int {
+        val latestTime = panel.timeline.lastOrNull() ?: error("panel timeline is empty")
+        val lookbackStart = latestTime.minus(Duration.ofHours((config.lookbackHours + config.forwardHours).toLong()))
+        val configuredStartIndex = panel.timeline.indexOfFirst { it >= lookbackStart }.takeIf { it >= 0 } ?: 1
+        return max(indicators.requiredBars, configuredStartIndex)
+    }
+
+    private fun effectiveAtomicBlockBars(
+        validationPolicy: org.datamancy.trading.policy.AlphaValidationPolicy,
+        policy: TradingPolicy,
+        config: InterdayAlphaConfig
+    ): Int = validationPolicy.atomicBlockBars.takeIf { it > 0 } ?: trainingTargetBars(config)
+
+    private fun buildPurgedFoldPlans(
+        timeline: List<Instant>,
+        evaluationStartIndex: Int,
         requestedFolds: Int,
-        embargoBars: Int,
-        minBarsPerFold: Int
-    ): List<PurgedFoldWindow> {
-        if (totalReturns < minBarsPerFold || requestedFolds < 1) {
+        atomicBlockBars: Int,
+        activeBlocksPerFold: Int,
+        purgeBlocksPerSide: Int
+    ): List<PurgedBlockFoldPlan> {
+        if (requestedFolds < 1 || evaluationStartIndex >= timeline.size - 1) {
             return emptyList()
         }
-        var folds = min(requestedFolds, totalReturns)
-        while (folds > 0) {
-            val available = totalReturns - (folds - 1) * embargoBars
-            if (available >= folds * minBarsPerFold) {
-                val barsPerFold = available / folds
-                val remainder = totalReturns - (barsPerFold * folds + (folds - 1) * embargoBars)
-                var cursor = max(0, remainder / 2)
-                return buildList {
-                    repeat(folds) { index ->
-                        val start = cursor
-                        val endExclusive = min(totalReturns, start + barsPerFold)
-                        if (endExclusive - start >= minBarsPerFold) {
-                            add(PurgedFoldWindow(index + 1, start, endExclusive))
-                        }
-                        cursor = endExclusive + embargoBars
+        val normalizedAtomicBlockBars = atomicBlockBars.coerceAtLeast(1)
+        val normalizedActiveBlocks = activeBlocksPerFold.coerceAtLeast(1)
+        val normalizedPurgeBlocks = purgeBlocksPerSide.coerceAtLeast(0)
+        val blocks = buildAtomicValidationBlocks(
+            timeline = timeline,
+            evaluationStartIndex = evaluationStartIndex,
+            atomicBlockBars = normalizedAtomicBlockBars
+        )
+        if (blocks.size < normalizedActiveBlocks) {
+            return emptyList()
+        }
+        val candidateStarts = (0..(blocks.size - normalizedActiveBlocks)).toList()
+        val selectedStarts = selectEvenlySpacedIndices(candidateStarts.size, min(requestedFolds, candidateStarts.size))
+            .map { candidateStarts[it] }
+            .distinct()
+        return selectedStarts.mapIndexedNotNull { index, activeStart ->
+            val activeBlockIndexes = (activeStart until (activeStart + normalizedActiveBlocks)).toSet()
+            val purgeStart = max(0, activeStart - normalizedPurgeBlocks)
+            val purgeEndExclusive = min(blocks.size, activeStart + normalizedActiveBlocks + normalizedPurgeBlocks)
+            val purgeBlockIndexes = (purgeStart until purgeEndExclusive)
+                .filter { it !in activeBlockIndexes }
+                .toSet()
+            val trainBlockIndexes = blocks.indices
+                .filter { it !in activeBlockIndexes && it !in purgeBlockIndexes }
+                .toSet()
+            if (trainBlockIndexes.isEmpty()) {
+                null
+            } else {
+                PurgedBlockFoldPlan(
+                    fold = index + 1,
+                    atomicBlocks = blocks,
+                    atomicBlockBars = normalizedAtomicBlockBars,
+                    activeBlockIndexes = activeBlockIndexes,
+                    purgeBlockIndexes = purgeBlockIndexes,
+                    trainBlockIndexes = trainBlockIndexes
+                )
+            }
+        }
+    }
+
+    private fun buildAtomicValidationBlocks(
+        timeline: List<Instant>,
+        evaluationStartIndex: Int,
+        atomicBlockBars: Int
+    ): List<AtomicValidationBlock> {
+        val blocks = mutableListOf<AtomicValidationBlock>()
+        var cursor = evaluationStartIndex
+        var blockIndex = 1
+        while (cursor < timeline.size) {
+            val endExclusive = min(timeline.size, cursor + atomicBlockBars)
+            blocks += AtomicValidationBlock(
+                index = blockIndex,
+                startIndex = cursor,
+                endExclusive = endExclusive,
+                startTime = timeline.getOrNull(cursor),
+                endTime = timeline.getOrNull(endExclusive - 1)
+            )
+            cursor = endExclusive
+            blockIndex += 1
+        }
+        return blocks
+    }
+
+    private fun selectEvenlySpacedIndices(total: Int, requested: Int): List<Int> {
+        if (total <= 0 || requested <= 0) return emptyList()
+        if (requested >= total) return (0 until total).toList()
+        if (requested == 1) return listOf(total / 2)
+        val selected = buildList {
+            repeat(requested) { position ->
+                add(((position.toDouble() * (total - 1).toDouble()) / (requested - 1).toDouble()).roundToInt())
+            }
+        }
+        return selected.distinct().ifEmpty { listOf(total / 2) }
+    }
+
+    private suspend fun evaluatePurgedFoldPlans(
+        contexts: List<ValidationCandidateContext>,
+        folds: List<PurgedBlockFoldPlan>,
+        fitPasses: Int,
+        policy: TradingPolicy
+    ): Map<InterdayAlphaConfig, List<PurgedFoldEvaluationResult>> = coroutineScope {
+        if (contexts.isEmpty() || folds.isEmpty()) {
+            return@coroutineScope emptyMap()
+        }
+        val semaphore = Semaphore(policy.research.validation.maxConcurrentFoldEvaluations.coerceAtLeast(1))
+        val tasks = contexts.flatMap { context ->
+            folds.map { fold ->
+                async(Dispatchers.Default) {
+                    semaphore.withPermit {
+                        EvaluatedFoldCandidateResult(
+                            config = context.candidate.config,
+                            fold = fold.fold,
+                            result = evaluatePurgedFold(
+                                context = context,
+                                fold = fold,
+                                fitPasses = fitPasses,
+                                policy = policy
+                            )
+                        )
                     }
                 }
             }
-            folds -= 1
         }
-        return emptyList()
+        tasks.awaitAll()
+            .groupBy { it.config }
+            .mapValues { (_, results) ->
+                results.sortedBy { it.fold }.map { it.result }
+            }
     }
 
-    private fun buildPurgedFoldResults(
-        bundle: EvaluationBundle,
-        folds: List<PurgedFoldWindow>,
-        config: InterdayAlphaConfig
-    ): List<InterdayPurgedFoldValidation> =
-        folds.map { fold ->
-            val slice = bundle.portfolioReturns.subList(fold.startIndex, fold.endExclusive)
-            val returns = slice.map { it.logReturn }
-            val startTime = slice.firstOrNull()?.time
-            val endTime = slice.lastOrNull()?.time
-            val tradeCount = if (startTime == null || endTime == null) {
-                0
-            } else {
-                bundle.trades.count { trade ->
-                    !trade.exitTime.isBefore(startTime) && !trade.exitTime.isAfter(endTime)
+    private fun evaluatePurgedFold(
+        context: ValidationCandidateContext,
+        fold: PurgedBlockFoldPlan,
+        fitPasses: Int,
+        policy: TradingPolicy
+    ): PurgedFoldEvaluationResult {
+        val panel = context.candidate.panel
+        val config = context.candidate.config
+        val searchPolicy = policy.research.discovery.search
+        val portfolioDefaults = portfolioConstructor.defaults()
+        val roleByBarIndex = Array(panel.timeline.size) { BlockRole.OUTSIDE }
+        fold.atomicBlocks.forEachIndexed { blockIndex, block ->
+            val role = when (blockIndex) {
+                in fold.activeBlockIndexes -> BlockRole.ACTIVE
+                in fold.purgeBlockIndexes -> BlockRole.PURGE
+                in fold.trainBlockIndexes -> BlockRole.TRAIN
+                else -> BlockRole.OUTSIDE
+            }
+            for (barIndex in block.startIndex until block.endExclusive) {
+                roleByBarIndex[barIndex] = role
+            }
+        }
+        val trainObservationIndexes = buildList {
+            var index = context.evaluationStartIndex
+            while (index + context.targetHorizonBars < panel.timeline.size) {
+                if (observationWindowIsTrainOnly(index, context.targetHorizonBars, roleByBarIndex)) {
+                    add(index)
+                }
+                index += context.rebalanceBars
+            }
+        }
+        val residualizationEnabled = residualizationActive(config)
+        val trainingObservations = collectFeatureObservations(
+            panel = panel,
+            observationIndexes = trainObservationIndexes,
+            targetHorizonBars = context.targetHorizonBars,
+            config = config,
+            indicators = context.indicators,
+            liquidityRanks = context.liquidityRanks,
+            residualizationEnabled = residualizationEnabled
+        )
+        val empiricalWeights = fitEmpiricalWeightsFromObservations(
+            observations = trainingObservations,
+            config = config,
+            fitPasses = fitPasses
+        )
+        val activeBlocks = fold.activeBlocks()
+        if (activeBlocks.isEmpty()) {
+            return PurgedFoldEvaluationResult(
+                fold = InterdayPurgedFoldValidation(
+                    fold = fold.fold,
+                    startTime = null,
+                    endTime = null,
+                    sampleCount = 0,
+                    tradeCount = 0,
+                    atomicBlockBars = fold.atomicBlockBars,
+                    activeBlockCount = fold.activeBlockIndexes.size,
+                    purgeBlockCount = fold.purgeBlockIndexes.size,
+                    trainBlockCount = fold.trainBlockIndexes.size,
+                    trainingObservationCount = empiricalWeights.observations,
+                    empiricalWeightFitPasses = fitPasses.coerceAtLeast(1),
+                    netReturnPct = 0.0,
+                    sharpe = 0.0,
+                    edgeAfterCostBps = 0.0,
+                    accepted = false
+                ),
+                validationReturns = emptyList()
+            )
+        }
+        val seriesBySymbol = panel.seriesBySymbol()
+        val currentWeights = mutableMapOf<String, Double>()
+        val activePositions = mutableMapOf<String, ActivePosition>()
+        val trades = mutableListOf<InterdayTradeRecord>()
+        val portfolioReturns = mutableListOf<TimedLogReturn>()
+        val compressionPenaltyHistoryByKey = mutableMapOf<Pair<Int, Int>, MutableList<CompressionDiagnosticRawPoint>>()
+        val flatHazardHistoryByKey = mutableMapOf<Pair<Int, Int>, MutableList<CompressionDiagnosticRawPoint>>()
+        var latestDesiredWeights = emptyMap<String, Double>()
+        var latestSignalsBySymbol = emptyMap<String, InterdaySignalSnapshot>()
+        var latestRegime = RegimeState(
+            score = 0.0,
+            breadth = 0.0,
+            anchorTrend = 0.0,
+            dispersion = 0.0,
+            realizedVolatility = 0.0,
+            liquidityScore = 0.0,
+            fundingPressure = 0.0,
+            openInterestPressure = 0.0,
+            marketTrendScore = 0.0
+        )
+        val activeStartIndex = max(1, activeBlocks.first().startIndex)
+        val activeEndExclusive = activeBlocks.last().endExclusive
+        for (index in activeStartIndex until activeEndExclusive) {
+            val time = panel.timeline[index]
+            val equityBeforeBar = portfolioReturns.lastOrNull()
+            var equity = if (equityBeforeBar == null) 1.0 else exp(portfolioReturns.sumOf { it.logReturn })
+            var barLogReturn = 0.0
+            currentWeights.forEach { (symbol, signedWeight) ->
+                val series = seriesBySymbol[symbol] ?: return@forEach
+                val previous = series.bars[index - 1] ?: return@forEach
+                val current = series.bars[index] ?: return@forEach
+                if (previous.close <= 0.0 || current.close <= 0.0) return@forEach
+                barLogReturn += signedWeight * ln(current.close / previous.close)
+            }
+            equity *= exp(barLogReturn)
+            if (activePositions.isNotEmpty()) {
+                val adjustments = mutableListOf<PositionAdjustment>()
+                activePositions.values.forEach { position ->
+                    val bar = seriesBySymbol[position.symbol]?.bars?.get(index) ?: return@forEach
+                    position.refresh(bar)
+                    adjustments += position.overlayAdjustments(config, bar, time)
+                }
+                adjustments.forEach { adjustment ->
+                    val bar = seriesBySymbol[adjustment.symbol]?.bars?.get(index) ?: return@forEach
+                    val signedCurrent = currentWeights[adjustment.symbol] ?: return@forEach
+                    val signedReduction = sign(signedCurrent) * min(abs(signedCurrent), adjustment.deltaWeight)
+                    if (abs(signedReduction) <= 1e-9) return@forEach
+                    equity *= 1.0 - estimateTransactionCostFraction(
+                        weightDelta = abs(signedReduction),
+                        bar = bar,
+                        confidence = 0.65,
+                        config = config
+                    )
+                    realizeTrade(
+                        activePositions = activePositions,
+                        currentWeights = currentWeights,
+                        trades = trades,
+                        symbol = adjustment.symbol,
+                        signedDelta = -signedReduction,
+                        price = bar.close,
+                        time = time,
+                        reason = adjustment.reason,
+                        splitTime = time
+                    )
                 }
             }
-            val netReturnPct = if (returns.isEmpty()) 0.0 else (exp(returns.sum()) - 1.0) * 100.0
-            val sharpe = sampleSharpe(returns)
-            val edgeAfterCostBps = if (tradeCount == 0) 0.0 else (netReturnPct * 100.0) / tradeCount.toDouble()
-            InterdayPurgedFoldValidation(
-                fold = fold.fold,
-                startTime = startTime,
-                endTime = endTime,
-                sampleCount = returns.size,
-                tradeCount = tradeCount,
-                netReturnPct = netReturnPct,
-                sharpe = sharpe,
-                edgeAfterCostBps = edgeAfterCostBps,
-                accepted = returns.isNotEmpty() &&
-                    tradeCount >= minimumPurgedFoldTrades(config) &&
-                    netReturnPct > 0.0 &&
-                    sharpe >= 0.0
+
+            val rebalanceNow = (index - context.evaluationStartIndex) % context.rebalanceBars == 0
+            if (rebalanceNow) {
+                latestRegime = computeRegime(panel, index, config, context.indicators, context.liquidityRanks)
+                val signalResult = computeSignals(
+                    panel = panel,
+                    index = index,
+                    config = config,
+                    regime = latestRegime,
+                    indicators = context.indicators,
+                    liquidityRanks = context.liquidityRanks,
+                    portfolioDefaults = portfolioDefaults,
+                    currentWeights = currentWeights,
+                    evaluationStartIndex = context.evaluationStartIndex,
+                    rebalanceBars = context.rebalanceBars,
+                    targetHorizonBars = context.targetHorizonBars,
+                    empiricalWeightsOverride = empiricalWeights
+                )
+                val rawSignals = signalResult.signals
+                val compressionPenaltyState = currentCompressionPenaltyState(
+                    signals = rawSignals,
+                    structuralState = signalResult.structuralState,
+                    signalBarMinutes = config.signalBarMinutes,
+                    config = config,
+                    historyByKey = compressionPenaltyHistoryByKey
+                )
+                val signals = rawSignals.map { signal ->
+                    val incumbentSameSide = holdsSignalDirection(currentWeights[signal.symbol] ?: 0.0, signal.direction)
+                    applyCompressionPenalty(signal, incumbentSameSide, compressionPenaltyState)
+                }
+                val flatHazardState = currentFlatHazardState(
+                    regime = latestRegime,
+                    signals = rawSignals,
+                    structuralState = signalResult.structuralState,
+                    signalBarMinutes = config.signalBarMinutes,
+                    config = config,
+                    historyByKey = flatHazardHistoryByKey
+                )
+                latestSignalsBySymbol = signals.associateBy { it.symbol }
+                val flatRegimeEntryEdgeBoostBps = flatRegimeEntryEdgeBoostBps(
+                    marketTrendScore = latestRegime.marketTrendScore,
+                    breadth = latestRegime.breadth,
+                    config = config
+                )
+                val eligibleBySymbol = signals.associate { signal ->
+                    val incumbentSameSide = holdsSignalDirection(currentWeights[signal.symbol] ?: 0.0, signal.direction)
+                    val requiredTrendAgreement = flatRegimeTrendAgreementFloor(
+                        marketTrendScore = latestRegime.marketTrendScore,
+                        breadth = latestRegime.breadth,
+                        incumbentSameSide = incumbentSameSide,
+                        config = config
+                    )
+                    val trendAgreementOk = signal.trendAgreement >= requiredTrendAgreement
+                    val entryStyleOk = incumbentSameSide || satisfiesEntryStyle(signal, config)
+                    val regimeAllowed = isDirectionAllowedByRegime(
+                        direction = signal.direction,
+                        regimeScore = latestRegime.score,
+                        config = config
+                    )
+                    val universeEdgeOk = withinDirectionalTail(
+                        signal = signal,
+                        plateauToleranceBps = searchPolicy.scorePlateauToleranceBps
+                    )
+                    val requiredEdgeFloorBps = if (incumbentSameSide) {
+                        config.holdEdgeFloorBps
+                    } else {
+                        config.entryEdgeFloorBps + flatRegimeEntryEdgeBoostBps
+                    }
+                    val edgeFloorOk = directionalEdgeBps(signal) >= requiredEdgeFloorBps
+                    val dispersionOk = flatRegimeDispersionAllowed(
+                        marketTrendScore = latestRegime.marketTrendScore,
+                        breadth = latestRegime.breadth,
+                        dispersion = latestRegime.dispersion,
+                        incumbentSameSide = incumbentSameSide,
+                        config = config
+                    )
+                    signal.symbol to (
+                        signal.confidence >= config.minConfidence &&
+                            trendAgreementOk &&
+                            entryStyleOk &&
+                            regimeAllowed &&
+                            dispersionOk &&
+                            edgeFloorOk &&
+                            (universeEdgeOk || (incumbentSameSide && directionalEdgeBps(signal) >= config.holdEdgeFloorBps))
+                        )
+                }
+                val eligible = signals.filter { eligibleBySymbol[it.symbol] == true }
+                val portfolioSignals = eligible.map {
+                    AlphaSignalScore(
+                        symbol = it.symbol,
+                        score = it.expectedNetEdgeBps,
+                        confidence = it.confidence,
+                        predictedVolatility = it.predictedVolatility.coerceAtLeast(0.0001),
+                        liquidityScore = it.liquidityScore,
+                        expectedResidualReturnBps = it.expectedResidualReturnBps,
+                        expectedEntryCostBps = it.expectedEntryCostBps,
+                        expectedTurnoverPenaltyBps = it.expectedTurnoverPenaltyBps,
+                        expectedNetEdgeBps = it.expectedNetEdgeBps,
+                        currentWeightFraction = currentWeights[it.symbol] ?: 0.0,
+                        sizingMultiplier = it.fundingOverlayMultiplier
+                    )
+                }.filter {
+                    it.score.isFinite() &&
+                        abs(it.score) > 1e-9 &&
+                        it.confidence.isFinite() &&
+                        it.predictedVolatility.isFinite() &&
+                        it.liquidityScore.isFinite()
+                }
+                val latestTargets = if (portfolioSignals.isEmpty()) {
+                    emptyList()
+                } else {
+                    val baseGrossFraction = scaledTargetGrossFraction(portfolioDefaults, config)
+                    val scaledGrossFraction = baseGrossFraction * flatRegimeGrossScale(
+                        marketTrendScore = latestRegime.marketTrendScore,
+                        breadth = latestRegime.breadth,
+                        config = config
+                    ) * flatHazardGrossScale(flatHazardState.intensity, config)
+                    val constructed = portfolioConstructor.construct(
+                        AlphaPortfolioRequest(
+                            signals = portfolioSignals,
+                            selectionQuantile = config.selectionQuantile,
+                            respectProvidedSignalSet = true,
+                            weightingMode = config.tailWeightingMode,
+                            targetGrossFraction = scaledGrossFraction,
+                            currentWeightsBySymbol = currentWeights.toMap(),
+                            minExpectedNetEdgeBps = config.entryEdgeFloorBps + flatRegimeEntryEdgeBoostBps,
+                            targetNetFraction = regimeTargetNetFraction(
+                                regimeScore = latestRegime.score,
+                                config = config,
+                                scaledGrossFraction = scaledGrossFraction
+                            )
+                        )
+                    )
+                    constructed.targets.map {
+                        it.copy(
+                            trailingStopVolMultiple = config.trailingStopVolMultiple,
+                            takeProfitVolMultiple = config.takeProfitVolMultiple
+                        )
+                    }
+                }
+                latestDesiredWeights = latestTargets.associate { target ->
+                    target.symbol to if (target.direction == AlphaDirection.LONG) target.weightFraction else -target.weightFraction
+                }
+            }
+
+            val shouldAdjustBetweenRebalances = when (config.adjustmentMode) {
+                InterdayAdjustmentMode.REBALANCE_STEP -> rebalanceNow
+                InterdayAdjustmentMode.CONTINUOUS_RAMP -> latestDesiredWeights.isNotEmpty() || currentWeights.isNotEmpty()
+            }
+            if (shouldAdjustBetweenRebalances) {
+                val symbols = (currentWeights.keys + latestDesiredWeights.keys).sorted()
+                symbols.forEach { symbol ->
+                    val currentSigned = currentWeights[symbol] ?: 0.0
+                    val targetSigned = latestDesiredWeights[symbol] ?: 0.0
+                    val signal = latestSignalsBySymbol[symbol]
+                    val confidence = signal?.confidence ?: 0.5
+                    val step = adjustmentStep(
+                        baseStep = policy.research.portfolio.rebalanceTargetExposureStep.coerceAtLeast(0.01),
+                        rebalanceBars = context.rebalanceBars,
+                        confidence = confidence,
+                        mode = config.adjustmentMode
+                    )
+                    val forcedFlatten = rebalanceNow && shouldForceFlattenByRegime(
+                        currentSigned = currentSigned,
+                        regimeScore = latestRegime.score,
+                        config = config
+                    )
+                    val exitOverlayFlatten = rebalanceNow && shouldForceFlattenByExitOverlay(
+                        currentSigned = currentSigned,
+                        positionEntryTime = activePositions[symbol]?.entryTime,
+                        maxFavorableMoveVol = activePositions[symbol]?.maxFavorableMoveVol(),
+                        signal = signal,
+                        config = config,
+                        time = time
+                    )
+                    val plannedDelta = if (forcedFlatten || exitOverlayFlatten) {
+                        -currentSigned
+                    } else {
+                        gradualDelta(currentSigned, targetSigned, step)
+                    }
+                    if (abs(plannedDelta) <= 1e-9) return@forEach
+                    val currentBar = seriesBySymbol[symbol]?.bars?.get(index) ?: return@forEach
+                    equity *= 1.0 - estimateTransactionCostFraction(
+                        weightDelta = abs(plannedDelta),
+                        bar = currentBar,
+                        confidence = confidence,
+                        config = config
+                    )
+                    applyDelta(
+                        activePositions = activePositions,
+                        currentWeights = currentWeights,
+                        trades = trades,
+                        symbol = symbol,
+                        signedDelta = plannedDelta,
+                        price = currentBar.close,
+                        volatility = signal?.predictedVolatility ?: 0.01,
+                        confidence = confidence,
+                        time = time,
+                        reason = when {
+                            forcedFlatten -> "regime-flush"
+                            exitOverlayFlatten -> "exit-overlay"
+                            rebalanceNow -> "rebalance"
+                            else -> "continuous-ramp"
+                        },
+                        splitTime = time
+                    )
+                }
+            }
+            val netLogReturn = ln(equity.coerceAtLeast(1e-12))
+            val cumulativeLogReturn = portfolioReturns.sumOf { it.logReturn }
+            portfolioReturns += TimedLogReturn(
+                time = time,
+                logReturn = netLogReturn - cumulativeLogReturn
             )
         }
 
-    private fun buildValidationReturnSeries(
-        portfolioReturns: List<TimedLogReturn>,
-        folds: List<PurgedFoldWindow>
-    ): List<Double> =
-        folds.flatMap { fold ->
-            portfolioReturns.subList(fold.startIndex, fold.endExclusive).map { it.logReturn }
+        val foldEndTime = activeBlocks.lastOrNull()?.endTime
+        if (activePositions.isNotEmpty() && foldEndTime != null) {
+            var closingCostLogReturn = 0.0
+            currentWeights.toMap().keys.sorted().forEach { symbol ->
+                val signedCurrent = currentWeights[symbol] ?: return@forEach
+                if (abs(signedCurrent) <= 1e-9) return@forEach
+                val closingBar = seriesBySymbol[symbol]?.bars?.get(activeEndExclusive - 1) ?: return@forEach
+                val preCost = 1.0
+                val postCost = preCost * (1.0 - estimateTransactionCostFraction(
+                    weightDelta = abs(signedCurrent),
+                    bar = closingBar,
+                    confidence = 0.65,
+                    config = config
+                ))
+                closingCostLogReturn += ln(postCost.coerceAtLeast(1e-12) / preCost)
+                realizeTrade(
+                    activePositions = activePositions,
+                    currentWeights = currentWeights,
+                    trades = trades,
+                    symbol = symbol,
+                    signedDelta = -signedCurrent,
+                    price = closingBar.close,
+                    time = foldEndTime,
+                    reason = "fold-end",
+                    splitTime = foldEndTime
+                )
+            }
+            if (closingCostLogReturn.isFinite() && abs(closingCostLogReturn) > 1e-12) {
+                if (portfolioReturns.isEmpty()) {
+                    portfolioReturns += TimedLogReturn(time = foldEndTime, logReturn = closingCostLogReturn)
+                } else {
+                    val last = portfolioReturns.last()
+                    portfolioReturns[portfolioReturns.lastIndex] = last.copy(logReturn = last.logReturn + closingCostLogReturn)
+                }
+            }
         }
+
+        val returns = portfolioReturns.map { it.logReturn }
+        val tradeCount = trades.size
+        val netReturnPct = if (returns.isEmpty()) 0.0 else (exp(returns.sum()) - 1.0) * 100.0
+        val sharpe = sampleSharpe(returns)
+        val edgeAfterCostBps = if (tradeCount == 0) 0.0 else (netReturnPct * 100.0) / tradeCount.toDouble()
+        val foldValidation = InterdayPurgedFoldValidation(
+            fold = fold.fold,
+            startTime = activeBlocks.firstOrNull()?.startTime,
+            endTime = activeBlocks.lastOrNull()?.endTime,
+            sampleCount = returns.size,
+            tradeCount = tradeCount,
+            atomicBlockBars = fold.atomicBlockBars,
+            activeBlockCount = fold.activeBlockIndexes.size,
+            purgeBlockCount = fold.purgeBlockIndexes.size,
+            trainBlockCount = fold.trainBlockIndexes.size,
+            trainingObservationCount = empiricalWeights.observations,
+            empiricalWeightFitPasses = fitPasses.coerceAtLeast(1),
+            netReturnPct = netReturnPct,
+            sharpe = sharpe,
+            edgeAfterCostBps = edgeAfterCostBps,
+            accepted = returns.isNotEmpty() &&
+                tradeCount >= minimumPurgedFoldTrades(config) &&
+                netReturnPct > 0.0 &&
+                sharpe >= 0.0
+        )
+        return PurgedFoldEvaluationResult(
+            fold = foldValidation,
+            validationReturns = returns
+        )
+    }
+
+    private fun observationWindowIsTrainOnly(
+        index: Int,
+        horizonBars: Int,
+        roleByBarIndex: Array<BlockRole>
+    ): Boolean {
+        val futureIndex = index + horizonBars
+        if (index !in roleByBarIndex.indices || futureIndex !in roleByBarIndex.indices) return false
+        if (roleByBarIndex[index] != BlockRole.TRAIN) return false
+        for (barIndex in (index + 1)..futureIndex) {
+            if (roleByBarIndex[barIndex] != BlockRole.TRAIN) return false
+        }
+        return true
+    }
 
     private fun sampleSharpe(returns: List<Double>): Double {
         if (returns.size < 2) return 0.0
@@ -3175,11 +3774,32 @@ class InterdaySearchEngine(
         val logReturn: Double
     )
 
-    private data class PurgedFoldWindow(
-        val fold: Int,
+    private enum class BlockRole {
+        OUTSIDE,
+        TRAIN,
+        PURGE,
+        ACTIVE
+    }
+
+    private data class AtomicValidationBlock(
+        val index: Int,
         val startIndex: Int,
-        val endExclusive: Int
+        val endExclusive: Int,
+        val startTime: Instant?,
+        val endTime: Instant?
     )
+
+    private data class PurgedBlockFoldPlan(
+        val fold: Int,
+        val atomicBlocks: List<AtomicValidationBlock>,
+        val atomicBlockBars: Int,
+        val activeBlockIndexes: Set<Int>,
+        val purgeBlockIndexes: Set<Int>,
+        val trainBlockIndexes: Set<Int>
+    ) {
+        fun activeBlocks(): List<AtomicValidationBlock> =
+            atomicBlocks.filterIndexed { index, _ -> index in activeBlockIndexes }
+    }
 
     private data class EvaluationBundle(
         val config: InterdayAlphaConfig,
@@ -3192,6 +3812,42 @@ class InterdaySearchEngine(
         val inspection: InterdayInspection?,
         val portfolioReturns: List<TimedLogReturn>,
         val grossLogReturn: Double
+    )
+
+    private data class ValidationCandidate(
+        val config: InterdayAlphaConfig,
+        val panelKey: PanelCacheKey,
+        val panel: InterdayPanel,
+        val evaluation: EvaluationBundle
+    )
+
+    private data class ValidationCandidateSeed(
+        val candidate: ValidationCandidate,
+        val indicators: IndicatorWindows,
+        val liquidityRanks: Map<String, Double>,
+        val configuredEvaluationStartIndex: Int,
+        val rebalanceBars: Int,
+        val targetHorizonBars: Int
+    )
+
+    private data class ValidationCandidateContext(
+        val candidate: ValidationCandidate,
+        val indicators: IndicatorWindows,
+        val liquidityRanks: Map<String, Double>,
+        val evaluationStartIndex: Int,
+        val rebalanceBars: Int,
+        val targetHorizonBars: Int
+    )
+
+    private data class PurgedFoldEvaluationResult(
+        val fold: InterdayPurgedFoldValidation,
+        val validationReturns: List<Double>
+    )
+
+    private data class EvaluatedFoldCandidateResult(
+        val config: InterdayAlphaConfig,
+        val fold: Int,
+        val result: PurgedFoldEvaluationResult
     )
 
     private data class ActivePosition(

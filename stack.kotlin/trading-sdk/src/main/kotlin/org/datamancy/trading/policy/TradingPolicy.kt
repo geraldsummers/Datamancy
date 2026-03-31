@@ -293,6 +293,11 @@ data class AlphaValidationPolicy(
     val nestedCvFolds: Int = 4,
     val purgedKFoldFolds: Int = 5,
     val embargoBars: Int = 24,
+    val atomicBlockBars: Int = 0,
+    val activeBlocksPerFold: Int = 1,
+    val purgeBlocksPerSide: Int = 1,
+    val maxConcurrentFoldEvaluations: Int = 4,
+    val empiricalWeightFitPasses: Int = 2,
     val useCombinatorialPurgedCv: Boolean = true,
     val bootstrapReplications: Int = 500,
     val useStationaryBootstrap: Boolean = true,
@@ -935,6 +940,11 @@ class AlphaValidationPolicyBuilder {
     var nestedCvFolds: Int = 4
     var purgedKFoldFolds: Int = 5
     var embargoBars: Int = 24
+    var atomicBlockBars: Int = 0
+    var activeBlocksPerFold: Int = 1
+    var purgeBlocksPerSide: Int = 1
+    var maxConcurrentFoldEvaluations: Int = 4
+    var empiricalWeightFitPasses: Int = 2
     var useCombinatorialPurgedCv: Boolean = true
     var bootstrapReplications: Int = 500
     var useStationaryBootstrap: Boolean = true
@@ -949,6 +959,11 @@ class AlphaValidationPolicyBuilder {
         nestedCvFolds = nestedCvFolds,
         purgedKFoldFolds = purgedKFoldFolds,
         embargoBars = embargoBars,
+        atomicBlockBars = atomicBlockBars,
+        activeBlocksPerFold = activeBlocksPerFold,
+        purgeBlocksPerSide = purgeBlocksPerSide,
+        maxConcurrentFoldEvaluations = maxConcurrentFoldEvaluations,
+        empiricalWeightFitPasses = empiricalWeightFitPasses,
         useCombinatorialPurgedCv = useCombinatorialPurgedCv,
         bootstrapReplications = bootstrapReplications,
         useStationaryBootstrap = useStationaryBootstrap,

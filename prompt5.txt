@@ -151,15 +151,16 @@ Adjustment discipline:
 
 Default validation gatekeepers:
 - walk-forward or nested out-of-sample evaluation
-- purged / embargoed validation for overlapping horizons
+- purged chronological validation with equal-size atomic active and purge blocks
+- fold-local frozen empirical weights trained only on train blocks; blocks may reuse roles across folds but never within a fold
 - Deflated Sharpe Ratio
 - White's Reality Check, SPA, or another multiplicity-aware test
 - neighborhood stability around any proposed new control point
 
 Current cycle objective:
-- finish the public-only `5m` / `4h` market-data cutover and verify readiness on `latium`
+- verify the public-only `5m` / `4h` cutover remains healthy on `latium`
 - keep the operational control branch fixed unless a new verified result clearly displaces it
-- after readiness is stable, focus the next alpha cycle on multiplicity-aware validation and promotion calibration of the locked `1d / 72h` control branch
+- after readiness is stable, use the fold-local concurrent purged-block validator to recalibrate promotion on the locked `1d / 72h` control branch
 - only after that, test one new mechanism at a time from the research briefs
 
 Cycle budget:
