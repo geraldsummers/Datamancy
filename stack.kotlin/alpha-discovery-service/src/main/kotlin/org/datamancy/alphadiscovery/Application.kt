@@ -18,6 +18,8 @@ import org.datamancy.trading.alpha.AlphaExecutionSubmitRequest
 import org.datamancy.trading.alpha.AlphaExecutionSubmission
 import org.datamancy.trading.alpha.AlphaExecutionSubmitter
 import org.datamancy.trading.alpha.AlphaRunMode
+import org.datamancy.trading.alpha.FallbackInterdayPanelSource
+import org.datamancy.trading.alpha.HyperliquidPublicCandlePanelSource
 import org.datamancy.trading.alpha.http.AlphaServiceError
 import org.datamancy.trading.alpha.http.AlphaServiceJson
 import org.datamancy.trading.alpha.InterdayAlphaLeaderboardResponse
@@ -55,8 +57,13 @@ fun Application.configureAlphaDiscoveryApp(
 ) {
     val resolvedDataSource by lazy { dataSource ?: MarketDataDataSourceFactory.fromEnvironment("alpha-discovery-service") }
     val resolvedEngine = engine ?: InterdaySearchEngine(
-        panelSource = AlphaSignalPanelSource(
-            dataSource = resolvedDataSource
+        panelSource = FallbackInterdayPanelSource(
+            primary = AlphaSignalPanelSource(
+                dataSource = resolvedDataSource
+            ),
+            fallback = HyperliquidPublicCandlePanelSource(
+                dataSource = resolvedDataSource
+            )
         ),
         policyProvider = ActiveTradingPolicy::current
     )

@@ -40,6 +40,7 @@ internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOW_MINUTES = 
 internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOWS_PER_CYCLE = 8
 internal const val DEFAULT_RESEARCH_FEATURES_OBSERVED_CANDLE_REPAIR_WINDOWS_PER_CYCLE = 120
 internal const val CANONICAL_SIGNAL_BAR_MINUTES = 1_440
+internal const val MIN_RESEARCH_FEATURES_BOOTSTRAP_COVERAGE_RATIO = 0.95
 
 internal fun resolveResearchFeaturesBootstrapHours(explicitHours: Long?): Long {
     val hours = explicitHours ?: DEFAULT_RESEARCH_FEATURES_BOOTSTRAP_HOURS
@@ -185,11 +186,16 @@ internal fun selectBootstrapStartInclusive(
     requestedStartInclusive: Instant,
     earliestFeatureInclusive: Instant?,
     latestFeatureInclusive: Instant?,
-    refreshOverlapMinutes: Long
+    refreshOverlapMinutes: Long,
+    observedCoverageRatio: Double? = null,
+    minimumCoverageRatio: Double = MIN_RESEARCH_FEATURES_BOOTSTRAP_COVERAGE_RATIO
 ): Instant {
     val refreshOverlap = refreshOverlapMinutes.coerceAtLeast(MIN_RESEARCH_FEATURES_REFRESH_OVERLAP_MINUTES)
     val toleratedEarliestFeature = requestedStartInclusive.plus(refreshOverlap, ChronoUnit.MINUTES)
-    val historicalGapPresent = earliestFeatureInclusive == null || earliestFeatureInclusive.isAfter(toleratedEarliestFeature)
+    val sparseObservedCoverage = observedCoverageRatio?.let { it < minimumCoverageRatio } ?: false
+    val historicalGapPresent = earliestFeatureInclusive == null ||
+        earliestFeatureInclusive.isAfter(toleratedEarliestFeature) ||
+        sparseObservedCoverage
     if (historicalGapPresent) {
         return requestedStartInclusive
     }
@@ -197,6 +203,28 @@ internal fun selectBootstrapStartInclusive(
         ?.minus(refreshOverlap, ChronoUnit.MINUTES)
         ?.let { maxOf(it, requestedStartInclusive) }
         ?: requestedStartInclusive
+}
+
+internal fun expectedFeatureBucketCount(
+    startInclusive: Instant,
+    endExclusive: Instant,
+    barMinutes: Int
+): Long {
+    if (!startInclusive.isBefore(endExclusive)) return 0L
+    val bucketMinutes = barMinutes.coerceAtLeast(1).toLong()
+    val totalMinutes = MINUTES.between(startInclusive, endExclusive)
+    return (totalMinutes / bucketMinutes).coerceAtLeast(0L)
+}
+
+internal fun observedFeatureCoverageRatio(
+    observedBucketCount: Long,
+    expectedBucketCount: Long
+): Double? {
+    if (expectedBucketCount <= 0L) return null
+    return observedBucketCount
+        .toDouble()
+        .div(expectedBucketCount.toDouble())
+        .coerceIn(0.0, 1.0)
 }
 
 internal fun recentGapRepairHours(bootstrapHours: Long): Long =
@@ -708,11 +736,17 @@ internal class ResearchFeatureAggregator(
                       AND bar_size_minutes = 1
                 """.trimIndent()
             )
+            val observedCoverageRatio = queryObservedFeatureCoverageRatio(
+                conn = conn,
+                startInclusive = requestedStart,
+                endExclusive = now
+            )
             val start = selectBootstrapStartInclusive(
                 requestedStartInclusive = requestedStart,
                 earliestFeatureInclusive = earliestFeature,
                 latestFeatureInclusive = latestFeature,
-                refreshOverlapMinutes = refreshOverlapMinutes
+                refreshOverlapMinutes = refreshOverlapMinutes,
+                observedCoverageRatio = observedCoverageRatio
             )
             if (!start.isBefore(now)) {
                 researchFeatureLogger.info {
@@ -737,9 +771,42 @@ internal class ResearchFeatureAggregator(
             researchFeatureLogger.info {
                 "execution_context_1m bootstrap complete exchange=$exchangeId windows=${windows.size} " +
                     "requestedStart=$requestedStart earliestFeature=$earliestFeature latestFeature=$latestFeature " +
+                    "observedCoverageRatio=${observedCoverageRatio?.let { "%.4f".format(it) } ?: "n/a"} " +
                     "selectedStart=$start totalRows=${result.totalRows} completed=${result.completed}"
             }
             return@withContext true
+        }
+    }
+
+    private fun queryObservedFeatureCoverageRatio(
+        conn: Connection,
+        startInclusive: Instant,
+        endExclusive: Instant
+    ): Double? {
+        val expectedBucketCount = expectedFeatureBucketCount(
+            startInclusive = startInclusive,
+            endExclusive = endExclusive,
+            barMinutes = 1
+        )
+        if (expectedBucketCount <= 0L) return null
+        conn.prepareStatement(
+            """
+                SELECT COUNT(DISTINCT time)::BIGINT
+                FROM execution_context_1m
+                WHERE exchange = ?
+                  AND time >= ?
+                  AND time < ?
+            """.trimIndent()
+        ).use { stmt ->
+            stmt.queryTimeout = effectiveWindowTimeoutSeconds
+            stmt.setString(1, exchangeId)
+            stmt.setTimestamp(2, Timestamp.from(startInclusive))
+            stmt.setTimestamp(3, Timestamp.from(endExclusive))
+            stmt.executeQuery().use { rs ->
+                if (!rs.next()) return null
+                val observedBucketCount = rs.getLong(1)
+                return observedFeatureCoverageRatio(observedBucketCount, expectedBucketCount)
+            }
         }
     }
 

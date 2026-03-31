@@ -219,9 +219,35 @@ class ResearchFeatureAggregationTest {
                 requestedStartInclusive = Instant.parse("2026-03-20T00:00:00Z"),
                 earliestFeatureInclusive = Instant.parse("2026-03-20T01:00:00Z"),
                 latestFeatureInclusive = Instant.parse("2026-03-24T20:00:00Z"),
-                refreshOverlapMinutes = 180L
+                refreshOverlapMinutes = 180L,
+                observedCoverageRatio = 0.99
             )
         )
+    }
+
+    @Test
+    fun `bootstrap start falls back to requested floor when observed coverage is too sparse`() {
+        assertEquals(
+            Instant.parse("2026-01-14T16:01:00Z"),
+            selectBootstrapStartInclusive(
+                requestedStartInclusive = Instant.parse("2026-01-14T16:01:00Z"),
+                earliestFeatureInclusive = Instant.parse("2026-01-14T16:01:00Z"),
+                latestFeatureInclusive = Instant.parse("2026-03-31T00:57:00Z"),
+                refreshOverlapMinutes = 180L,
+                observedCoverageRatio = 0.16
+            )
+        )
+    }
+
+    @Test
+    fun `observed feature coverage ratio uses expected bucket count for the interval`() {
+        val expectedBuckets = expectedFeatureBucketCount(
+            startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+            endExclusive = Instant.parse("2026-03-20T01:00:00Z"),
+            barMinutes = 1
+        )
+        assertEquals(60L, expectedBuckets)
+        assertEquals(0.5, observedFeatureCoverageRatio(observedBucketCount = 30L, expectedBucketCount = expectedBuckets))
     }
 
     @Test
