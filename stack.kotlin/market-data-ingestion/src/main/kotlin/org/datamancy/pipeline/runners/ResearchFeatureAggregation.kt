@@ -359,6 +359,20 @@ internal fun observedCandleRepairWindows(
         )
     }
 
+internal inline fun <T> bestEffortOnAggregationTimeout(
+    defaultValue: T,
+    block: () -> T
+): T =
+    try {
+        block()
+    } catch (e: Exception) {
+        if (isAggregationQueryTimeout(e)) {
+            defaultValue
+        } else {
+            throw e
+        }
+    }
+
 internal fun selectRecentGapRepairBatch(
     startInclusive: Instant,
     endExclusive: Instant,
@@ -864,11 +878,20 @@ internal class ResearchFeatureAggregator(
             val endExclusive = Instant.now().truncatedTo(ChronoUnit.HOURS)
             val startInclusive = endExclusive.minus(recentGapRepairHours(bootstrapHours), ChronoUnit.HOURS)
             val priorityCandleRepairWindows = if (recentGapRepairPendingWindows.isEmpty()) {
-                selectPriorityCandleRepairWindows(
-                    conn = conn,
-                    startInclusive = startInclusive,
-                    endExclusive = endExclusive
-                )
+                bestEffortOnAggregationTimeout(emptyList()) {
+                    selectPriorityCandleRepairWindows(
+                        conn = conn,
+                        startInclusive = startInclusive,
+                        endExclusive = endExclusive
+                    )
+                }.also { windows ->
+                    if (windows.isEmpty()) {
+                        researchFeatureLogger.warn {
+                            "execution_context_1m gap_repair exchange=$exchangeId priority candle repair scan unavailable; " +
+                                "falling back to rolling recent-gap scan"
+                        }
+                    }
+                }
             } else {
                 emptyList()
             }

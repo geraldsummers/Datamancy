@@ -266,6 +266,30 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `best effort timeout fallback returns default on aggregation timeout`() {
+        assertEquals(
+            emptyList(),
+            bestEffortOnAggregationTimeout(emptyList<String>()) {
+                throw SQLTimeoutException("timed out")
+            }
+        )
+        assertEquals(
+            listOf("ok"),
+            bestEffortOnAggregationTimeout(emptyList()) { listOf("ok") }
+        )
+    }
+
+    @Test
+    fun `best effort timeout fallback rethrows non timeout errors`() {
+        val ex = kotlin.test.assertFailsWith<SQLException> {
+            bestEffortOnAggregationTimeout(Unit) {
+                throw SQLException("boom", "23505")
+            }
+        }
+        assertEquals("23505", ex.sqlState)
+    }
+
+    @Test
     fun `aggregation window minutes measure inclusive range width in minutes`() {
         val window = AggregationWindow(
             startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
