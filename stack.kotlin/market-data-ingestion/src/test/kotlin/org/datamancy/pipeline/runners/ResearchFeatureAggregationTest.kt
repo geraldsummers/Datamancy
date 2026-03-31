@@ -267,12 +267,23 @@ class ResearchFeatureAggregationTest {
 
     @Test
     fun `best effort timeout fallback returns default on aggregation timeout`() {
+        var timedOut = false
         assertEquals(
             emptyList(),
             bestEffortOnAggregationTimeout(emptyList<String>()) {
                 throw SQLTimeoutException("timed out")
             }
         )
+        assertEquals(
+            emptyList(),
+            bestEffortOnAggregationTimeout(
+                defaultValue = emptyList<String>(),
+                onTimeout = { timedOut = true }
+            ) {
+                throw SQLTimeoutException("timed out")
+            }
+        )
+        assertTrue(timedOut)
         assertEquals(
             listOf("ok"),
             bestEffortOnAggregationTimeout(emptyList()) { listOf("ok") }
