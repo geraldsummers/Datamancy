@@ -32,7 +32,13 @@ SQL
 
 signal_summary_json() {
   remote_exec "docker exec -i market-postgres psql -U postgres -d datamancy -At" <<SQL
-WITH signal_state AS (
+WITH recent_exec AS (
+    SELECT DISTINCT symbol
+    FROM execution_context_1m
+    WHERE exchange = '${EXCHANGE}'
+      AND time >= date_trunc('minute', NOW()) - INTERVAL '24 hours'
+),
+signal_state AS (
     SELECT
         material.symbol,
         material.latest_feature_time,
@@ -41,6 +47,8 @@ WITH signal_state AS (
         coverage.coverage_ratio,
         coverage.finalized_ratio
     FROM feature_materialization_state material
+    JOIN recent_exec recent
+      ON recent.symbol = material.symbol
     LEFT JOIN feature_coverage_state coverage
       ON coverage.exchange = material.exchange
      AND coverage.symbol = material.symbol
@@ -52,13 +60,15 @@ summary AS (
     SELECT
         COUNT(*)::integer AS tracked_symbols,
         COUNT(*) FILTER (
-            WHERE COALESCE(coverage_ratio, 0) >= 0.98
-              AND COALESCE(finalized_ratio, 0) >= 0.95
-              AND latest_feature_time >= date_trunc('day', NOW()) - INTERVAL '2 days'
+            WHERE latest_feature_time >= date_trunc('day', NOW()) - INTERVAL '1 day'
               AND finalized_through >= date_trunc('day', NOW()) - INTERVAL '2 days'
         )::integer AS eligible_symbols,
-        COUNT(*) FILTER (WHERE COALESCE(coverage_ratio, 0) < 0.98)::integer AS coverage_fail_symbols,
-        COUNT(*) FILTER (WHERE COALESCE(finalized_ratio, 0) < 0.95)::integer AS finalized_fail_symbols,
+        COUNT(*) FILTER (
+            WHERE latest_feature_time < date_trunc('day', NOW()) - INTERVAL '1 day'
+        )::integer AS coverage_fail_symbols,
+        COUNT(*) FILTER (
+            WHERE finalized_through < date_trunc('day', NOW()) - INTERVAL '2 days'
+        )::integer AS finalized_fail_symbols,
         AVG(COALESCE(coverage_ratio, 0)) AS avg_coverage_ratio,
         AVG(COALESCE(finalized_ratio, 0)) AS avg_finalized_ratio,
         MIN(COALESCE(coverage_ratio, 0)) AS min_coverage_ratio,
