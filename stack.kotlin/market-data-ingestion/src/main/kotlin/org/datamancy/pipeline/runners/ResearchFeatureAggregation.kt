@@ -181,6 +181,24 @@ internal fun bootstrapPlanningChunkMinutes(
     }
 }
 
+internal fun selectBootstrapStartInclusive(
+    requestedStartInclusive: Instant,
+    earliestFeatureInclusive: Instant?,
+    latestFeatureInclusive: Instant?,
+    refreshOverlapMinutes: Long
+): Instant {
+    val refreshOverlap = refreshOverlapMinutes.coerceAtLeast(MIN_RESEARCH_FEATURES_REFRESH_OVERLAP_MINUTES)
+    val toleratedEarliestFeature = requestedStartInclusive.plus(refreshOverlap, ChronoUnit.MINUTES)
+    val historicalGapPresent = earliestFeatureInclusive == null || earliestFeatureInclusive.isAfter(toleratedEarliestFeature)
+    if (historicalGapPresent) {
+        return requestedStartInclusive
+    }
+    return latestFeatureInclusive
+        ?.minus(refreshOverlap, ChronoUnit.MINUTES)
+        ?.let { maxOf(it, requestedStartInclusive) }
+        ?: requestedStartInclusive
+}
+
 internal fun recentGapRepairHours(bootstrapHours: Long): Long =
     bootstrapHours.coerceAtMost(DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_HOURS).coerceAtLeast(6L)
 
@@ -656,6 +674,15 @@ internal class ResearchFeatureAggregator(
             }
             val bootstrapFloor = now.minus(bootstrapHours, ChronoUnit.HOURS)
             val requestedStart = maxOf(earliestRaw, bootstrapFloor)
+            val earliestFeature = queryBoundary(
+                conn = conn,
+                sql = """
+                    SELECT MIN(earliest_feature_time)
+                    FROM feature_materialization_state
+                    WHERE exchange = ?
+                      AND bar_size_minutes = 1
+                """.trimIndent()
+            )
             val latestFeature = queryBoundary(
                 conn = conn,
                 sql = """
@@ -665,10 +692,12 @@ internal class ResearchFeatureAggregator(
                       AND bar_size_minutes = 1
                 """.trimIndent()
             )
-            val start = latestFeature
-                ?.minus(refreshOverlapMinutes, ChronoUnit.MINUTES)
-                ?.let { maxOf(it, requestedStart) }
-                ?: requestedStart
+            val start = selectBootstrapStartInclusive(
+                requestedStartInclusive = requestedStart,
+                earliestFeatureInclusive = earliestFeature,
+                latestFeatureInclusive = latestFeature,
+                refreshOverlapMinutes = refreshOverlapMinutes
+            )
             if (!start.isBefore(now)) {
                 researchFeatureLogger.info {
                     "execution_context_1m bootstrap already current for $exchangeId up to ${latestFeature ?: now}"
@@ -691,7 +720,8 @@ internal class ResearchFeatureAggregator(
             )
             researchFeatureLogger.info {
                 "execution_context_1m bootstrap complete exchange=$exchangeId windows=${windows.size} " +
-                    "totalRows=${result.totalRows} completed=${result.completed}"
+                    "requestedStart=$requestedStart earliestFeature=$earliestFeature latestFeature=$latestFeature " +
+                    "selectedStart=$start totalRows=${result.totalRows} completed=${result.completed}"
             }
             return@withContext true
         }

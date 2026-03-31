@@ -199,6 +199,32 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
+    fun `bootstrap start ignores startup refresh frontier when history before earliest feature is missing`() {
+        assertEquals(
+            Instant.parse("2026-01-14T16:01:00Z"),
+            selectBootstrapStartInclusive(
+                requestedStartInclusive = Instant.parse("2026-01-14T16:01:00Z"),
+                earliestFeatureInclusive = Instant.parse("2026-03-31T00:30:00Z"),
+                latestFeatureInclusive = Instant.parse("2026-03-31T00:35:00Z"),
+                refreshOverlapMinutes = 180L
+            )
+        )
+    }
+
+    @Test
+    fun `bootstrap start resumes near latest frontier once feature history reaches requested floor`() {
+        assertEquals(
+            Instant.parse("2026-03-24T17:00:00Z"),
+            selectBootstrapStartInclusive(
+                requestedStartInclusive = Instant.parse("2026-03-20T00:00:00Z"),
+                earliestFeatureInclusive = Instant.parse("2026-03-20T01:00:00Z"),
+                latestFeatureInclusive = Instant.parse("2026-03-24T20:00:00Z"),
+                refreshOverlapMinutes = 180L
+            )
+        )
+    }
+
+    @Test
     fun `recent gap repair lookback is at least six hours and capped by default window`() {
         assertEquals(6L, recentGapRepairHours(1L))
         assertEquals(12L, recentGapRepairHours(12L))
