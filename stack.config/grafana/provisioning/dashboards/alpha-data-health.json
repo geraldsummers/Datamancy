@@ -20,8 +20,8 @@
           "type": "postgres",
           "uid": "timescaledb"
         },
-        "query": "SELECT exchange AS __text, exchange AS __value FROM data_health_exchange_1m ORDER BY 1",
-        "definition": "SELECT exchange AS __text, exchange AS __value FROM data_health_exchange_1m ORDER BY 1",
+        "query": "SELECT exchange AS __text, exchange AS __value FROM data_health_exchange_5m ORDER BY 1",
+        "definition": "SELECT exchange AS __text, exchange AS __value FROM data_health_exchange_5m ORDER BY 1",
         "includeAll": false,
         "multi": false,
         "refresh": 2,
@@ -44,7 +44,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT active_symbols AS value FROM data_health_exchange_1m WHERE exchange = '${health_exchange}'"
+          "rawSql": "SELECT active_symbols AS value FROM data_health_exchange_5m WHERE exchange = '${health_exchange}'"
         }
       ],
       "fieldConfig": {
@@ -81,7 +81,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(*) FILTER (WHERE active_recent AND (candle_1m_latest_raw_time IS NULL OR latest_feature_time IS NULL OR COALESCE(candle_1m_raw_lag_seconds, 999999) > 90 OR COALESCE(feature_lag_seconds, 999999) > 180 OR recent_feature_rows_24h = 0)) AS value FROM data_health_symbol_1m WHERE exchange = '${health_exchange}'"
+          "rawSql": "SELECT COUNT(*) FILTER (WHERE active_recent AND (candle_5m_latest_raw_time IS NULL OR latest_feature_time IS NULL OR COALESCE(candle_5m_raw_lag_seconds, 999999) > 90 OR COALESCE(feature_lag_seconds, 999999) > 180 OR recent_feature_rows_24h = 0)) AS value FROM data_health_symbol_5m WHERE exchange = '${health_exchange}'"
         }
       ],
       "fieldConfig": {
@@ -118,7 +118,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(*) FILTER (WHERE active_recent AND candle_1m_latest_raw_time IS NOT NULL AND latest_feature_time IS NOT NULL AND COALESCE(candle_1m_raw_lag_seconds, 0) <= 90 AND COALESCE(feature_lag_seconds, 0) <= 180 AND recent_feature_rows_24h > 0 AND (coverage_ratio < 0.98 OR finalized_ratio < 0.95 OR recent_execution_observed_share_24h < 0.55)) AS value FROM data_health_symbol_1m WHERE exchange = '${health_exchange}'"
+          "rawSql": "SELECT COUNT(*) FILTER (WHERE active_recent AND candle_5m_latest_raw_time IS NOT NULL AND latest_feature_time IS NOT NULL AND COALESCE(candle_5m_raw_lag_seconds, 0) <= 90 AND COALESCE(feature_lag_seconds, 0) <= 180 AND recent_feature_rows_24h > 0 AND (coverage_ratio < 0.98 OR finalized_ratio < 0.95 OR recent_execution_observed_share_24h < 0.55)) AS value FROM data_health_symbol_5m WHERE exchange = '${health_exchange}'"
         }
       ],
       "fieldConfig": {
@@ -155,7 +155,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(*) FILTER (WHERE active_recent AND candle_1m_latest_raw_time IS NOT NULL AND latest_feature_time IS NOT NULL AND COALESCE(candle_1m_raw_lag_seconds, 0) <= 90 AND COALESCE(feature_lag_seconds, 0) <= 180 AND recent_feature_rows_24h > 0 AND coverage_ratio >= 0.98 AND finalized_ratio >= 0.95 AND recent_execution_observed_share_24h >= 0.55) AS value FROM data_health_symbol_1m WHERE exchange = '${health_exchange}'"
+          "rawSql": "SELECT COUNT(*) FILTER (WHERE active_recent AND candle_5m_latest_raw_time IS NOT NULL AND latest_feature_time IS NOT NULL AND COALESCE(candle_5m_raw_lag_seconds, 0) <= 90 AND COALESCE(feature_lag_seconds, 0) <= 180 AND recent_feature_rows_24h > 0 AND coverage_ratio >= 0.98 AND finalized_ratio >= 0.95 AND recent_execution_observed_share_24h >= 0.55) AS value FROM data_health_symbol_5m WHERE exchange = '${health_exchange}'"
         }
       ],
       "fieldConfig": {
@@ -192,7 +192,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(max_candle_1m_raw_lag_seconds, 0) AS value FROM data_health_exchange_1m WHERE exchange = '${health_exchange}'"
+          "rawSql": "SELECT COALESCE(max_candle_5m_raw_lag_seconds, 0) AS value FROM data_health_exchange_5m WHERE exchange = '${health_exchange}'"
         }
       ],
       "fieldConfig": {
@@ -229,7 +229,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(max_feature_lag_seconds, 0) AS value FROM data_health_exchange_1m WHERE exchange = '${health_exchange}'"
+          "rawSql": "SELECT COALESCE(max_feature_lag_seconds, 0) AS value FROM data_health_exchange_5m WHERE exchange = '${health_exchange}'"
         }
       ],
       "fieldConfig": {
@@ -266,7 +266,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT symbol, CASE WHEN NOT active_recent THEN 'inactive' WHEN candle_1m_latest_raw_time IS NULL OR latest_feature_time IS NULL OR COALESCE(candle_1m_raw_lag_seconds, 999999) > 90 OR COALESCE(feature_lag_seconds, 999999) > 180 OR recent_feature_rows_24h = 0 THEN 'critical' WHEN coverage_ratio < 0.98 OR finalized_ratio < 0.95 OR recent_execution_observed_share_24h < 0.55 THEN 'degraded' ELSE 'healthy' END AS status, candle_1m_raw_lag_seconds, feature_lag_seconds, ROUND((coverage_ratio * 100)::numeric, 2) AS coverage_pct, ROUND((finalized_ratio * 100)::numeric, 2) AS finalized_pct, ROUND((recent_execution_observed_share_24h * 100)::numeric, 2) AS exec_share_24h_pct, latest_feature_time, finalized_through FROM data_health_symbol_1m WHERE exchange = '${health_exchange}' ORDER BY CASE WHEN NOT active_recent THEN 0 WHEN candle_1m_latest_raw_time IS NULL OR latest_feature_time IS NULL OR COALESCE(candle_1m_raw_lag_seconds, 999999) > 90 OR COALESCE(feature_lag_seconds, 999999) > 180 OR recent_feature_rows_24h = 0 THEN 3 WHEN coverage_ratio < 0.98 OR finalized_ratio < 0.95 OR recent_execution_observed_share_24h < 0.55 THEN 2 ELSE 1 END DESC, candle_1m_raw_lag_seconds DESC NULLS LAST, feature_lag_seconds DESC NULLS LAST, symbol ASC LIMIT 40"
+          "rawSql": "SELECT symbol, CASE WHEN NOT active_recent THEN 'inactive' WHEN candle_5m_latest_raw_time IS NULL OR latest_feature_time IS NULL OR COALESCE(candle_5m_raw_lag_seconds, 999999) > 90 OR COALESCE(feature_lag_seconds, 999999) > 180 OR recent_feature_rows_24h = 0 THEN 'critical' WHEN coverage_ratio < 0.98 OR finalized_ratio < 0.95 OR recent_execution_observed_share_24h < 0.55 THEN 'degraded' ELSE 'healthy' END AS status, candle_5m_raw_lag_seconds, feature_lag_seconds, ROUND((coverage_ratio * 100)::numeric, 2) AS coverage_pct, ROUND((finalized_ratio * 100)::numeric, 2) AS finalized_pct, ROUND((recent_execution_observed_share_24h * 100)::numeric, 2) AS exec_share_24h_pct, latest_feature_time, finalized_through FROM data_health_symbol_5m WHERE exchange = '${health_exchange}' ORDER BY CASE WHEN NOT active_recent THEN 0 WHEN candle_5m_latest_raw_time IS NULL OR latest_feature_time IS NULL OR COALESCE(candle_5m_raw_lag_seconds, 999999) > 90 OR COALESCE(feature_lag_seconds, 999999) > 180 OR recent_feature_rows_24h = 0 THEN 3 WHEN coverage_ratio < 0.98 OR finalized_ratio < 0.95 OR recent_execution_observed_share_24h < 0.55 THEN 2 ELSE 1 END DESC, candle_5m_raw_lag_seconds DESC NULLS LAST, feature_lag_seconds DESC NULLS LAST, symbol ASC LIMIT 40"
         }
       ],
       "options": {
@@ -297,7 +297,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT symbol, candle_1m_raw_lag_seconds, trade_raw_lag_seconds, orderbook_l2_raw_lag_seconds, funding_raw_lag_seconds, recent_feature_rows_24h, ROUND((recent_trade_observed_share_24h * 100)::numeric, 2) AS trade_obs_24h_pct, ROUND((recent_orderbook_observed_share_24h * 100)::numeric, 2) AS book_obs_24h_pct, ROUND((recent_execution_observed_share_24h * 100)::numeric, 2) AS exec_obs_24h_pct FROM data_health_symbol_1m WHERE exchange = '${health_exchange}' AND active_recent ORDER BY candle_1m_raw_lag_seconds DESC NULLS LAST, trade_raw_lag_seconds DESC NULLS LAST, symbol ASC LIMIT 40"
+          "rawSql": "SELECT symbol, candle_5m_raw_lag_seconds, trade_raw_lag_seconds, orderbook_l2_raw_lag_seconds, funding_raw_lag_seconds, recent_feature_rows_24h, ROUND((recent_trade_observed_share_24h * 100)::numeric, 2) AS trade_obs_24h_pct, ROUND((recent_orderbook_observed_share_24h * 100)::numeric, 2) AS book_obs_24h_pct, ROUND((recent_execution_observed_share_24h * 100)::numeric, 2) AS exec_obs_24h_pct FROM data_health_symbol_5m WHERE exchange = '${health_exchange}' AND active_recent ORDER BY candle_5m_raw_lag_seconds DESC NULLS LAST, trade_raw_lag_seconds DESC NULLS LAST, symbol ASC LIMIT 40"
         }
       ],
       "options": {

@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REMOTE_HOST="${REMOTE_HOST:-gerald@latium.local}"
 REMOTE_ROOT="${REMOTE_ROOT:-~/datamancy}"
+REMOTE_MARKET_DB_ROOT="${REMOTE_MARKET_DB_ROOT:-/mnt/market}"
+REMOTE_VECTOR_DB_ROOT="${REMOTE_VECTOR_DB_ROOT:-/mnt/labware/vectors}"
 IMAGE_TAR_NAME="alpha-stack-images-$(date +%Y%m%d%H%M%S).tar"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -18,8 +20,14 @@ SERVICES=(
   alpha-execution-agent
   alpha-execution-monitor
   alpha-orchestrator
-  market-data-archive-importer
 )
+
+sync_remote_storage_roots() {
+  ssh "$REMOTE_HOST" "set -euo pipefail; cd $REMOTE_ROOT; tmp=\$(mktemp); \
+    grep -v '^MARKET_DB_ROOT=' .env | grep -v '^VECTOR_DB_ROOT=' > \"\$tmp\"; \
+    printf 'MARKET_DB_ROOT=%s\nVECTOR_DB_ROOT=%s\n' '$REMOTE_MARKET_DB_ROOT' '$REMOTE_VECTOR_DB_ROOT' >> \"\$tmp\"; \
+    mv \"\$tmp\" .env"
+}
 
 COMPOSE_FILES=(
   stack.compose/alpha-analytics-service.yml
@@ -29,7 +37,6 @@ COMPOSE_FILES=(
   stack.compose/alpha-execution-agent.yml
   stack.compose/alpha-execution-monitor.yml
   stack.compose/alpha-orchestrator.yml
-  stack.compose/market-data-archive-importer.yml
 )
 
 CONTAINER_DIRS=(
@@ -40,7 +47,6 @@ CONTAINER_DIRS=(
   stack.containers/alpha-execution-agent
   stack.containers/alpha-execution-monitor
   stack.containers/alpha-orchestrator
-  stack.containers/market-data-archive-importer
 )
 
 GRADLE_TASKS=(
@@ -52,7 +58,6 @@ GRADLE_TASKS=(
   :alpha-execution-agent:shadowJar
   :alpha-execution-monitor:shadowJar
   :alpha-orchestrator:shadowJar
-  :market-data-archive-importer:shadowJar
 )
 
 echo "[alpha-deploy] building targeted jars"
@@ -71,8 +76,7 @@ docker save -o "$TMP_DIR/$IMAGE_TAR_NAME" \
   datamancy/alpha-portfolio-service:local-build \
   datamancy/alpha-execution-agent:local-build \
   datamancy/alpha-execution-monitor:local-build \
-  datamancy/alpha-orchestrator:local-build \
-  datamancy/market-data-archive-importer:local-build
+  datamancy/alpha-orchestrator:local-build
 
 echo "[alpha-deploy] syncing compose and container sources"
 ssh "$REMOTE_HOST" "mkdir -p $REMOTE_ROOT/stack.compose $REMOTE_ROOT/stack.containers $REMOTE_ROOT/configs/trading $REMOTE_ROOT/stack.kotlin"
@@ -89,6 +93,9 @@ done
 rsync -az stack.kotlin/trading-sdk/build/generated/trading-policy/trading-policy.json "$REMOTE_HOST:$REMOTE_ROOT/configs/trading/trading-policy.json"
 rsync -az "$TMP_DIR/$IMAGE_TAR_NAME" "$REMOTE_HOST:$REMOTE_ROOT/$IMAGE_TAR_NAME"
 
+echo "[alpha-deploy] enforcing remote storage roots"
+sync_remote_storage_roots
+
 echo "[alpha-deploy] loading images and starting services on latium"
 ssh "$REMOTE_HOST" "set -euo pipefail; cd $REMOTE_ROOT; docker load -i $IMAGE_TAR_NAME; rm -f $IMAGE_TAR_NAME; docker compose \
   -f docker-compose.yml \
@@ -99,12 +106,11 @@ ssh "$REMOTE_HOST" "set -euo pipefail; cd $REMOTE_ROOT; docker load -i $IMAGE_TA
   -f stack.compose/alpha-execution-agent.yml \
   -f stack.compose/alpha-execution-monitor.yml \
   -f stack.compose/alpha-orchestrator.yml \
-  -f stack.compose/market-data-archive-importer.yml \
-  up -d --no-build alpha-analytics-service alpha-dataset-service alpha-discovery-service alpha-portfolio-service alpha-execution-agent alpha-execution-monitor alpha-orchestrator market-data-archive-importer"
+  up -d --no-build alpha-analytics-service alpha-dataset-service alpha-discovery-service alpha-portfolio-service alpha-execution-agent alpha-execution-monitor alpha-orchestrator"
 
 echo "[alpha-deploy] waiting for service health"
 ssh "$REMOTE_HOST" 'set -euo pipefail
-for service in alpha-analytics-service alpha-dataset-service alpha-discovery-service alpha-portfolio-service alpha-execution-agent alpha-execution-monitor alpha-orchestrator market-data-archive-importer; do
+for service in alpha-analytics-service alpha-dataset-service alpha-discovery-service alpha-portfolio-service alpha-execution-agent alpha-execution-monitor alpha-orchestrator; do
   deadline=$((SECONDS + 180))
   while [ "$SECONDS" -lt "$deadline" ]; do
     cid="$(docker ps -aq --filter name="^${service}$" | head -n 1)"

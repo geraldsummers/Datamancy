@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS market_data (
     time TIMESTAMPTZ NOT NULL,
     symbol TEXT NOT NULL,
     exchange TEXT NOT NULL,
-    data_type TEXT NOT NULL,  -- 'candle_1m', 'candle_5m', 'trade', 'funding', 'open_interest', etc.
+    data_type TEXT NOT NULL,  -- 'candle_5m', 'candle_4h', 'trade', 'funding', 'open_interest', etc.
 
     -- Candle fields (populated for data_type = 'candle_*')
     open DOUBLE PRECISION,
@@ -192,9 +192,9 @@ ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS last_event_time TIMEST
 -- Fresh rows still populate this column from the aggregation pipeline.
 ALTER TABLE minute_asset_context ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
 
--- Minute-granularity research feature store used by alpha discovery, walk-forward,
--- and execution realism queries. This is populated from raw candles/trades/orderbooks.
-CREATE TABLE IF NOT EXISTS execution_context_1m (
+-- Five-minute execution/readiness store used by execution modeling, readiness,
+-- and liquidity conditioning. This is populated from raw 5m candles/trades/orderbooks.
+CREATE TABLE IF NOT EXISTS execution_context_5m (
     time TIMESTAMPTZ NOT NULL,
     symbol TEXT NOT NULL,
     exchange TEXT NOT NULL,
@@ -237,41 +237,41 @@ CREATE TABLE IF NOT EXISTS execution_context_1m (
     PRIMARY KEY (time, symbol, exchange)
 );
 
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS open DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS high DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS low DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS close DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS volume DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS num_trades INTEGER;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS trade_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS buy_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS sell_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS trade_count INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS trade_vwap DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS best_bid DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS best_ask DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS spread DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS spread_pct DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS mid_price DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS bid_depth_10 DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS ask_depth_10 DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS orderbook_samples INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS funding_rate DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS open_interest DOUBLE PRECISION;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS candle_observed BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS trade_observed BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS orderbook_observed BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS asset_context_observed BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS is_provisional BOOLEAN NOT NULL DEFAULT TRUE;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS is_finalized BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS finalization_due_at TIMESTAMPTZ;
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS finalized_at TIMESTAMPTZ;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS open DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS high DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS low DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS close DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS volume DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS num_trades INTEGER;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS trade_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS buy_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS sell_volume DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS trade_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS trade_vwap DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS best_bid DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS best_ask DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS spread DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS spread_pct DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS mid_price DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS bid_depth_10 DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS ask_depth_10 DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS orderbook_samples INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS funding_rate DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS open_interest DOUBLE PRECISION;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS candle_observed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS trade_observed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS orderbook_observed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS asset_context_observed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS is_provisional BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS is_finalized BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS finalization_due_at TIMESTAMPTZ;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS finalized_at TIMESTAMPTZ;
 -- Avoid non-constant defaults on repeated ALTER runs against a compressed hypertable.
 -- Fresh rows still populate this column from the aggregation pipeline.
-ALTER TABLE execution_context_1m ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
+ALTER TABLE execution_context_5m ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
 
--- Daily signal contract for interday discovery. This is aggregated from
--- execution_context_1m and is the canonical 1d alpha read path.
+-- Daily signal contract for interday discovery. This is aggregated from raw 4h candles
+-- plus daily execution conditioning sourced from execution_context_5m.
 CREATE TABLE IF NOT EXISTS alpha_signal_panel_1d (
     time TIMESTAMPTZ NOT NULL,
     symbol TEXT NOT NULL,
@@ -865,40 +865,45 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_alpha_research_run_compression_diag_dedupe
 CREATE INDEX IF NOT EXISTS idx_alpha_research_run_compression_diag_run_time
     ON alpha_research_run_compression_diagnostics (run_id, time);
 
--- Canonical symbol-level data health contract for the 1m research layer.
+-- Hard-cut cleanup of superseded 1m execution interfaces.
 DROP VIEW IF EXISTS data_health_exchange_1m;
 DROP VIEW IF EXISTS data_health_symbol_1m;
+DROP TABLE IF EXISTS execution_context_1m;
 
-CREATE VIEW data_health_symbol_1m AS
+-- Canonical symbol-level data health contract for the 5m execution layer.
+DROP VIEW IF EXISTS data_health_exchange_5m;
+DROP VIEW IF EXISTS data_health_symbol_5m;
+
+CREATE VIEW data_health_symbol_5m AS
 WITH symbol_universe AS (
     SELECT DISTINCT exchange, symbol FROM raw_sync_state
     UNION
-    SELECT DISTINCT exchange, symbol FROM feature_materialization_state WHERE bar_size_minutes = 1
+    SELECT DISTINCT exchange, symbol FROM feature_materialization_state WHERE bar_size_minutes = 5
     UNION
-    SELECT DISTINCT exchange, symbol FROM feature_coverage_state WHERE bar_size_minutes = 1
+    SELECT DISTINCT exchange, symbol FROM feature_coverage_state WHERE bar_size_minutes = 5
     UNION
-    SELECT DISTINCT exchange, symbol FROM execution_context_1m
+    SELECT DISTINCT exchange, symbol FROM execution_context_5m
 ),
 raw_pivot AS (
     SELECT
         exchange,
         symbol,
-        MAX(latest_raw_time) FILTER (WHERE channel = 'candle_1m') AS candle_1m_latest_raw_time,
+        MAX(latest_raw_time) FILTER (WHERE channel = 'candle_5m') AS candle_5m_latest_raw_time,
         MAX(latest_raw_time) FILTER (WHERE channel = 'trade') AS trade_latest_raw_time,
         MAX(latest_raw_time) FILTER (WHERE channel = 'orderbook_l2') AS orderbook_l2_latest_raw_time,
         MAX(latest_raw_time) FILTER (WHERE channel = 'funding') AS funding_latest_raw_time,
         MAX(latest_raw_time) FILTER (WHERE channel = 'open_interest') AS open_interest_latest_raw_time,
-        MAX(last_observed_at) FILTER (WHERE channel = 'candle_1m') AS candle_1m_last_observed_at,
+        MAX(last_observed_at) FILTER (WHERE channel = 'candle_5m') AS candle_5m_last_observed_at,
         MAX(last_observed_at) FILTER (WHERE channel = 'trade') AS trade_last_observed_at,
         MAX(last_observed_at) FILTER (WHERE channel = 'orderbook_l2') AS orderbook_l2_last_observed_at,
         MAX(last_observed_at) FILTER (WHERE channel = 'funding') AS funding_last_observed_at,
         MAX(last_observed_at) FILTER (WHERE channel = 'open_interest') AS open_interest_last_observed_at,
-        MAX(last_persisted_at) FILTER (WHERE channel = 'candle_1m') AS candle_1m_last_persisted_at,
+        MAX(last_persisted_at) FILTER (WHERE channel = 'candle_5m') AS candle_5m_last_persisted_at,
         MAX(last_persisted_at) FILTER (WHERE channel = 'trade') AS trade_last_persisted_at,
         MAX(last_persisted_at) FILTER (WHERE channel = 'orderbook_l2') AS orderbook_l2_last_persisted_at,
         MAX(last_persisted_at) FILTER (WHERE channel = 'funding') AS funding_last_persisted_at,
         MAX(last_persisted_at) FILTER (WHERE channel = 'open_interest') AS open_interest_last_persisted_at,
-        SUM(row_count) FILTER (WHERE channel = 'candle_1m') AS candle_1m_row_count,
+        SUM(row_count) FILTER (WHERE channel = 'candle_5m') AS candle_5m_row_count,
         SUM(row_count) FILTER (WHERE channel = 'trade') AS trade_row_count,
         SUM(row_count) FILTER (WHERE channel = 'orderbook_l2') AS orderbook_l2_row_count,
         SUM(row_count) FILTER (WHERE channel = 'funding') AS funding_row_count,
@@ -921,29 +926,29 @@ recent_features AS (
               AND (COALESCE(bid_depth_10, 0) > 0 OR COALESCE(ask_depth_10, 0) > 0)
         ) AS recent_execution_observed_rows_24h,
         COUNT(*) FILTER (WHERE time >= NOW() - INTERVAL '24 hours' AND is_finalized) AS recent_finalized_rows_24h
-    FROM execution_context_1m
+    FROM execution_context_5m
     GROUP BY exchange, symbol
 ),
 base AS (
     SELECT
         su.exchange,
         su.symbol,
-        rp.candle_1m_latest_raw_time,
+        rp.candle_5m_latest_raw_time,
         rp.trade_latest_raw_time,
         rp.orderbook_l2_latest_raw_time,
         rp.funding_latest_raw_time,
         rp.open_interest_latest_raw_time,
-        rp.candle_1m_last_observed_at,
+        rp.candle_5m_last_observed_at,
         rp.trade_last_observed_at,
         rp.orderbook_l2_last_observed_at,
         rp.funding_last_observed_at,
         rp.open_interest_last_observed_at,
-        rp.candle_1m_last_persisted_at,
+        rp.candle_5m_last_persisted_at,
         rp.trade_last_persisted_at,
         rp.orderbook_l2_last_persisted_at,
         rp.funding_last_persisted_at,
         rp.open_interest_last_persisted_at,
-        COALESCE(rp.candle_1m_row_count, 0) AS candle_1m_row_count,
+        COALESCE(rp.candle_5m_row_count, 0) AS candle_5m_row_count,
         COALESCE(rp.trade_row_count, 0) AS trade_row_count,
         COALESCE(rp.orderbook_l2_row_count, 0) AS orderbook_l2_row_count,
         COALESCE(rp.funding_row_count, 0) AS funding_row_count,
@@ -964,14 +969,14 @@ base AS (
         COALESCE(fcs.coverage_ratio, 0) AS historical_coverage_ratio,
         COALESCE(fcs.finalized_ratio, 0) AS historical_finalized_ratio,
         CASE
-            WHEN rp.candle_1m_latest_raw_time IS NULL THEN 0
+            WHEN rp.candle_5m_latest_raw_time IS NULL THEN 0
             ELSE GREATEST(
                 (
                     EXTRACT(
                         EPOCH FROM (
-                            date_trunc('minute', rp.candle_1m_latest_raw_time) -
+                            date_trunc('minute', rp.candle_5m_latest_raw_time) -
                             GREATEST(
-                                date_trunc('minute', COALESCE(fcs.earliest_raw_time, rp.candle_1m_latest_raw_time)),
+                                date_trunc('minute', COALESCE(fcs.earliest_raw_time, rp.candle_5m_latest_raw_time)),
                                 date_trunc('minute', NOW() - INTERVAL '24 hours')
                             )
                         )
@@ -989,7 +994,7 @@ base AS (
         COALESCE(rf.recent_finalized_rows_24h, 0) AS recent_finalized_rows_24h,
         NULLIF(
             GREATEST(
-                COALESCE(rp.candle_1m_latest_raw_time, '-infinity'::timestamptz),
+                COALESCE(rp.candle_5m_latest_raw_time, '-infinity'::timestamptz),
                 COALESCE(rp.trade_latest_raw_time, '-infinity'::timestamptz),
                 COALESCE(rp.orderbook_l2_latest_raw_time, '-infinity'::timestamptz),
                 COALESCE(rp.funding_latest_raw_time, '-infinity'::timestamptz),
@@ -1004,11 +1009,11 @@ base AS (
     LEFT JOIN feature_materialization_state fms
         ON fms.exchange = su.exchange
        AND fms.symbol = su.symbol
-       AND fms.bar_size_minutes = 1
+       AND fms.bar_size_minutes = 5
     LEFT JOIN feature_coverage_state fcs
         ON fcs.exchange = su.exchange
        AND fcs.symbol = su.symbol
-       AND fcs.bar_size_minutes = 1
+       AND fcs.bar_size_minutes = 5
     LEFT JOIN recent_features rf
         ON rf.exchange = su.exchange
        AND rf.symbol = su.symbol
@@ -1035,9 +1040,9 @@ SELECT
         ELSE LEAST(recent_finalized_rows_24h::DOUBLE PRECISION / recent_expected_bars_24h::DOUBLE PRECISION, 1.0)
     END AS recent_finalized_ratio_24h,
     CASE
-        WHEN candle_1m_latest_raw_time IS NULL THEN NULL
-        ELSE GREATEST(EXTRACT(EPOCH FROM (NOW() - candle_1m_latest_raw_time)), 0)::BIGINT
-    END AS candle_1m_raw_lag_seconds,
+        WHEN candle_5m_latest_raw_time IS NULL THEN NULL
+        ELSE GREATEST(EXTRACT(EPOCH FROM (NOW() - candle_5m_latest_raw_time)), 0)::BIGINT
+    END AS candle_5m_raw_lag_seconds,
     CASE
         WHEN trade_latest_raw_time IS NULL THEN NULL
         ELSE GREATEST(EXTRACT(EPOCH FROM (NOW() - trade_latest_raw_time)), 0)::BIGINT
@@ -1096,16 +1101,16 @@ SELECT
     ) AS active_recent
 FROM base;
 
-CREATE VIEW data_health_exchange_1m AS
+CREATE VIEW data_health_exchange_5m AS
 SELECT
     exchange,
     COUNT(*) AS tracked_symbols,
     COUNT(*) FILTER (WHERE active_recent) AS active_symbols,
     COUNT(*) FILTER (WHERE NOT active_recent) AS inactive_symbols,
-    COUNT(*) FILTER (WHERE active_recent AND candle_1m_latest_raw_time IS NULL) AS active_symbols_missing_candle_1m,
+    COUNT(*) FILTER (WHERE active_recent AND candle_5m_latest_raw_time IS NULL) AS active_symbols_missing_candle_5m,
     COUNT(*) FILTER (WHERE active_recent AND latest_feature_time IS NULL) AS active_symbols_missing_features,
     COUNT(*) FILTER (WHERE active_recent AND recent_feature_rows_24h = 0) AS active_symbols_without_recent_features,
-    MAX(candle_1m_raw_lag_seconds) FILTER (WHERE active_recent) AS max_candle_1m_raw_lag_seconds,
+    MAX(candle_5m_raw_lag_seconds) FILTER (WHERE active_recent) AS max_candle_5m_raw_lag_seconds,
     MAX(feature_lag_seconds) FILTER (WHERE active_recent) AS max_feature_lag_seconds,
     AVG(coverage_ratio) FILTER (WHERE active_recent) AS avg_coverage_ratio,
     AVG(finalized_ratio) FILTER (WHERE active_recent) AS avg_finalized_ratio,
@@ -1114,7 +1119,7 @@ SELECT
     MAX(latest_any_raw_time) FILTER (WHERE active_recent) AS latest_any_raw_time,
     MAX(latest_feature_time) FILTER (WHERE active_recent) AS latest_feature_time,
     MAX(finalized_through) FILTER (WHERE active_recent) AS finalized_through
-FROM data_health_symbol_1m
+FROM data_health_symbol_5m
 GROUP BY exchange;
 
 -- Align ownership with the datamancy application role so pipeline_user can evolve schema safely.
@@ -1127,7 +1132,7 @@ BEGIN
         ALTER TABLE IF EXISTS minute_trade_stats OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS minute_orderbook_state OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS minute_asset_context OWNER TO pipeline_user;
-        ALTER TABLE IF EXISTS execution_context_1m OWNER TO pipeline_user;
+        ALTER TABLE IF EXISTS execution_context_5m OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS alpha_signal_panel_1d OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS raw_sync_state OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS feature_materialization_state OWNER TO pipeline_user;
@@ -1149,8 +1154,8 @@ BEGIN
         ALTER TABLE IF EXISTS alpha_research_run_portfolio_snapshots OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS alpha_research_run_regimes OWNER TO pipeline_user;
         ALTER TABLE IF EXISTS alpha_research_run_compression_diagnostics OWNER TO pipeline_user;
-        ALTER VIEW IF EXISTS data_health_symbol_1m OWNER TO pipeline_user;
-        ALTER VIEW IF EXISTS data_health_exchange_1m OWNER TO pipeline_user;
+        ALTER VIEW IF EXISTS data_health_symbol_5m OWNER TO pipeline_user;
+        ALTER VIEW IF EXISTS data_health_exchange_5m OWNER TO pipeline_user;
 
         ALTER SEQUENCE IF EXISTS rss_sentiment_signals_id_seq OWNER TO pipeline_user;
         ALTER SEQUENCE IF EXISTS strategy_backtest_runs_id_seq OWNER TO pipeline_user;
@@ -1184,7 +1189,7 @@ BEGIN
         GRANT SELECT, INSERT ON minute_trade_stats TO test_runner_user;
         GRANT SELECT, INSERT ON minute_orderbook_state TO test_runner_user;
         GRANT SELECT, INSERT ON minute_asset_context TO test_runner_user;
-        GRANT SELECT, INSERT ON execution_context_1m TO test_runner_user;
+        GRANT SELECT, INSERT ON execution_context_5m TO test_runner_user;
         GRANT SELECT, INSERT ON alpha_signal_panel_1d TO test_runner_user;
         GRANT SELECT, INSERT ON raw_sync_state TO test_runner_user;
         GRANT SELECT, INSERT ON feature_materialization_state TO test_runner_user;
@@ -1206,8 +1211,8 @@ BEGIN
         GRANT SELECT, INSERT ON alpha_research_run_portfolio_snapshots TO test_runner_user;
         GRANT SELECT, INSERT ON alpha_research_run_regimes TO test_runner_user;
         GRANT SELECT, INSERT ON alpha_research_run_compression_diagnostics TO test_runner_user;
-        GRANT SELECT ON data_health_symbol_1m TO test_runner_user;
-        GRANT SELECT ON data_health_exchange_1m TO test_runner_user;
+        GRANT SELECT ON data_health_symbol_5m TO test_runner_user;
+        GRANT SELECT ON data_health_exchange_5m TO test_runner_user;
         GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO test_runner_user;
     END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pipeline_user') THEN
@@ -1217,7 +1222,7 @@ BEGIN
         GRANT SELECT, INSERT, UPDATE ON minute_trade_stats TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON minute_orderbook_state TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON minute_asset_context TO pipeline_user;
-        GRANT SELECT, INSERT, UPDATE ON execution_context_1m TO pipeline_user;
+        GRANT SELECT, INSERT, UPDATE ON execution_context_5m TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON alpha_signal_panel_1d TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON raw_sync_state TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON feature_materialization_state TO pipeline_user;
@@ -1239,8 +1244,8 @@ BEGIN
         GRANT SELECT, INSERT, UPDATE ON alpha_research_run_portfolio_snapshots TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON alpha_research_run_regimes TO pipeline_user;
         GRANT SELECT, INSERT, UPDATE ON alpha_research_run_compression_diagnostics TO pipeline_user;
-        GRANT SELECT ON data_health_symbol_1m TO pipeline_user;
-        GRANT SELECT ON data_health_exchange_1m TO pipeline_user;
+        GRANT SELECT ON data_health_symbol_5m TO pipeline_user;
+        GRANT SELECT ON data_health_exchange_5m TO pipeline_user;
         GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO pipeline_user;
     END IF;
 END $$;
@@ -1254,7 +1259,7 @@ SELECT create_hypertable('orderbook_data', 'time', if_not_exists => TRUE);
 SELECT create_hypertable('minute_trade_stats', 'time', if_not_exists => TRUE);
 SELECT create_hypertable('minute_orderbook_state', 'time', if_not_exists => TRUE);
 SELECT create_hypertable('minute_asset_context', 'time', if_not_exists => TRUE);
-SELECT create_hypertable('execution_context_1m', 'time', if_not_exists => TRUE);
+SELECT create_hypertable('execution_context_5m', 'time', if_not_exists => TRUE);
 SELECT create_hypertable('alpha_signal_panel_1d', 'time', if_not_exists => TRUE);
 
 -- Create the candle-first discovery index after hypertable conversion.
@@ -1323,24 +1328,24 @@ CREATE INDEX IF NOT EXISTS idx_minute_asset_context_exchange_time_symbol
     INCLUDE (funding_rate, open_interest, mark_price, oracle_price, mid_price, day_notional_volume, previous_day_price, last_event_time)
     WITH (timescaledb.transaction_per_chunk);
 
--- execution_context_1m is the execution/readiness substrate for interday research.
-CREATE INDEX IF NOT EXISTS idx_execution_context_1m_exchange_time_symbol
-    ON execution_context_1m (exchange, time DESC, symbol)
+-- execution_context_5m is the execution/readiness substrate for interday research.
+CREATE INDEX IF NOT EXISTS idx_execution_context_5m_exchange_time_symbol
+    ON execution_context_5m (exchange, time DESC, symbol)
     INCLUDE (close, volume, spread_pct, bid_depth_10, ask_depth_10, mid_price, candle_observed, orderbook_observed)
     WITH (timescaledb.transaction_per_chunk);
 
-CREATE INDEX IF NOT EXISTS idx_execution_context_1m_symbol_exchange_time
-    ON execution_context_1m (symbol, exchange, time DESC)
+CREATE INDEX IF NOT EXISTS idx_execution_context_5m_symbol_exchange_time
+    ON execution_context_5m (symbol, exchange, time DESC)
     INCLUDE (close, volume, spread_pct, bid_depth_10, ask_depth_10, mid_price, candle_observed, orderbook_observed)
     WITH (timescaledb.transaction_per_chunk);
 
-CREATE INDEX IF NOT EXISTS idx_execution_context_1m_exchange_finalized_time_symbol
-    ON execution_context_1m (exchange, is_finalized, time DESC, symbol)
+CREATE INDEX IF NOT EXISTS idx_execution_context_5m_exchange_finalized_time_symbol
+    ON execution_context_5m (exchange, is_finalized, time DESC, symbol)
     INCLUDE (candle_observed, orderbook_observed, source_updated_at)
     WITH (timescaledb.transaction_per_chunk);
 
-CREATE INDEX IF NOT EXISTS idx_execution_context_1m_exchange_finalization_due
-    ON execution_context_1m (exchange, finalization_due_at, symbol)
+CREATE INDEX IF NOT EXISTS idx_execution_context_5m_exchange_finalization_due
+    ON execution_context_5m (exchange, finalization_due_at, symbol)
     INCLUDE (is_finalized, is_provisional, finalized_at)
     WITH (timescaledb.transaction_per_chunk);
 
@@ -1414,7 +1419,7 @@ ALTER TABLE minute_asset_context SET (
   timescaledb.compress_orderby = 'time DESC'
 );
 
-ALTER TABLE execution_context_1m SET (
+ALTER TABLE execution_context_5m SET (
   timescaledb.compress,
   timescaledb.compress_segmentby = 'symbol, exchange',
   timescaledb.compress_orderby = 'time DESC'
@@ -1432,5 +1437,5 @@ SELECT add_compression_policy('orderbook_data', INTERVAL '7 days', if_not_exists
 SELECT add_compression_policy('minute_trade_stats', INTERVAL '7 days', if_not_exists => TRUE);
 SELECT add_compression_policy('minute_orderbook_state', INTERVAL '7 days', if_not_exists => TRUE);
 SELECT add_compression_policy('minute_asset_context', INTERVAL '7 days', if_not_exists => TRUE);
-SELECT add_compression_policy('execution_context_1m', INTERVAL '7 days', if_not_exists => TRUE);
+SELECT add_compression_policy('execution_context_5m', INTERVAL '7 days', if_not_exists => TRUE);
 SELECT add_compression_policy('alpha_signal_panel_1d', INTERVAL '30 days', if_not_exists => TRUE);

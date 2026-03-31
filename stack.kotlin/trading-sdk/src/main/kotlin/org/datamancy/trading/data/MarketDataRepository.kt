@@ -362,7 +362,7 @@ class MarketDataRepository(
                     LAG(close) OVER (PARTITION BY symbol ORDER BY time) AS prev_close
                 FROM market_data
                 WHERE exchange = ?
-                  AND data_type = 'candle_1m'
+                  AND data_type = 'candle_5m'
                   AND time >= NOW() - (?::text || ' hours')::interval
             ),
             momentum AS (
@@ -490,7 +490,7 @@ class MarketDataRepository(
                     LAG(close) OVER (PARTITION BY symbol ORDER BY time) AS prev_close
                 FROM market_data
                 WHERE exchange = ?
-                  AND data_type = 'candle_1m'
+                  AND data_type = 'candle_5m'
                   AND time >= NOW() - (?::text || ' hours')::interval
             ),
             candle_stats AS (

@@ -25,8 +25,8 @@
           "type": "postgres",
           "uid": "timescaledb"
         },
-        "query": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM alpha_signal_panel_1d UNION SELECT DISTINCT exchange FROM execution_context_1m UNION SELECT DISTINCT exchange FROM strategy_universe_profiles) exchanges ORDER BY 1",
-        "definition": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM alpha_signal_panel_1d UNION SELECT DISTINCT exchange FROM execution_context_1m UNION SELECT DISTINCT exchange FROM strategy_universe_profiles) exchanges ORDER BY 1",
+        "query": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM alpha_signal_panel_1d UNION SELECT DISTINCT exchange FROM execution_context_5m UNION SELECT DISTINCT exchange FROM strategy_universe_profiles) exchanges ORDER BY 1",
+        "definition": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM alpha_signal_panel_1d UNION SELECT DISTINCT exchange FROM execution_context_5m UNION SELECT DISTINCT exchange FROM strategy_universe_profiles) exchanges ORDER BY 1",
         "includeAll": false,
         "multi": false,
         "current": {

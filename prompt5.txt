@@ -27,7 +27,7 @@ Validated stack/build/deploy reality:
 - stack output is `dist/`; generated compose is `dist/docker-compose.yml`
 - `dist/smart-up.sh` / `smart-up.sh` exist for changed-service startup
 - alpha operations live under `scripts/trading/`
-- `scripts/trading/alpha_deploy_latium.sh` builds locally, rsyncs to `latium`, loads images remotely, and starts alpha services there
+- `scripts/trading/alpha_deploy_latium.sh` deploys alpha services to `latium`
 - do not run the stack locally; build locally and validate remotely
 
 Validated server/storage reality:
@@ -37,6 +37,7 @@ Validated server/storage reality:
 - if waiting, prefer `600s` intervals unless waiting for the test runner, then prefer `300s`
 - `market-postgres` owns `/mnt/market` on the dedicated market drive
 - vectors live under `/mnt/labware/vectors`
+- remote `~/datamancy/.env` must keep `MARKET_DB_ROOT=/mnt/market` and `VECTOR_DB_ROOT=/mnt/labware/vectors` before any compose-based deploy or restart
 - preserve non-market data; disposable market data can be reingested if cleanup is cheaper than migration
 
 Validated operator surfaces:
@@ -54,27 +55,32 @@ Grafana operator surfaces:
 - if login credentials are needed, verify current `STACK_ADMIN_USER` and `STACK_ADMIN_PASSWORD` from the live stack before printing them
 
 Validated data contract:
-- canonical signal table: `alpha_signal_panel_1d`
-- canonical execution/readiness table: `execution_context_1m`
-- `research_features_1m` has been renamed away; do not reintroduce it as the canonical interface
-- `alpha_signal_panel_1d` is the signal-layer source for interday discovery, daily readiness, and Grafana signal panels
-- `execution_context_1m` is the minute execution/readiness substrate, not the alpha definition
-- keep the price/signal model separate from the execution model
-- order book, trade flow, funding, and open interest at `1m` are execution conditioners for this horizon, not the core price signal
-- `AlphaSignalPanelSource` supports only `signalBarMinutes=1440`
-- live discovery defaults currently expose `supportedSignalBarMinutes=[1440]`, `defaultSignalBarMinutes=1440`, `defaultForwardHours=72`, `defaultLookbackHours=1080`, and `selectionQuantiles=[0.020, 0.021]`
-- `scripts/trading/alpha_discovery_latium.sh` still contains stale `240` example payloads; do not trust those defaults
-- when using helper scripts, provide explicit request JSON or fetch live defaults first
-- feature bootstrap on the active Hyperliquid venue policy is `bootstrapHours=2160`; a reset must backfill from the raw `candle_1m` floor over that horizon, not just recent windows
-- if a reset only materializes recent windows, treat that as a real bug and fix it before claiming readiness
-- priority candle-repair scans may time out under load; accepted current behavior is to warn and fall back to rolling recent-gap repair without aborting the maintenance loop
+- public-only ingestion; do not use S3, archive importers, or private backfill paths
+- raw candle contract is `candle_5m` plus `candle_4h`; do not reintroduce finer candle intervals
+- canonical execution/readiness table: `execution_context_5m`
+- canonical signal/research table: `alpha_signal_panel_1d`
+- `execution_context_5m` is the execution/readiness substrate, not the alpha definition
+- `alpha_signal_panel_1d` is the canonical `1d` discovery/readiness surface for the current alpha family
+- funding and open interest are best-effort optional overlays; do not let them block core price history
+- target storage shape:
+  - `5m` candles and execution context for short-horizon execution modeling only
+  - `4h` candles for long-history signal research and daily panel construction
+  - longer-lived history should concentrate in price, funding, and open interest rather than order book snapshots
+- current operational target is `5m` execution retention around `7d`; if the live implementation drifts, fix it
+- if data retention or cleanup is incomplete, say so explicitly instead of pretending the cutover is finished
+
+Research universe discipline:
+- current public Hyperliquid history is not a true 2-year execution dataset
+- do not let young markets drive model selection
+- choose champions on mature markets first; evaluate younger markets separately as external checks
+- for `<2y` markets, allow validation as an auxiliary robustness slice, not as the primary model-selection surface
 
 Readiness contract:
 - `1d` signal readiness is the primary research gate
-- `1d` signal readiness is scored on the recent-execution universe, not the lifetime historical symbol set
-- `1d` readiness should be judged by frontier freshness: current daily signal row plus prior-day finalized frontier
+- `1d` readiness is judged on the recent-execution universe, not the lifetime historical symbol set
+- judge readiness by frontier freshness: current daily signal row plus prior-day finalized frontier
 - cumulative lifetime `coverage_ratio` / `finalized_ratio` are diagnostics, not the primary pass/fail gate for the live daily universe
-- `1m` execution diagnostics are secondary execution-health checks
+- `5m` execution diagnostics are secondary execution-health checks
 - degraded-but-eligible orderbook-live symbols do not block daily research when there are no critical execution failures
 - if live readiness passes, stop debugging readiness and return to alpha work
 
@@ -116,10 +122,10 @@ Current challenger branch:
 
 Promotion status:
 - the control branch is stronger than the old `1.5940` survivor and supersedes that earlier baseline
-- multiplicity-aware control-plateau reruns reproduced the raw survivor but not a promotable result
-- not promotable because forward sample is still thin and the stricter purged / multiplicity rerun failed
-- failed stricter rerun stats: purged fold pass ratio `0.50`, validation sample count `40`, deflatedSharpeRatio `-1.0370`, White's Reality Check `p=0.9381`
-- promotion remains blocked by statistical validation, not by the current daily data/readiness architecture
+- multiplicity-aware reruns reproduced a survivor but not a promotable one
+- not promotable because forward sample is still thin and stricter purged / multiplicity reruns failed
+- latest failed stricter rerun stats: purged fold pass ratio `0.50`, validation sample count `40`, deflatedSharpeRatio `-1.0370`, White's Reality Check `p=0.9381`
+- promotion remains blocked by statistical validation, not by the current `1d` architecture itself
 
 Dead or hold surfaces:
 - do not lead with `4h / 72h` interday trend
@@ -151,9 +157,9 @@ Default validation gatekeepers:
 - neighborhood stability around any proposed new control point
 
 Current cycle objective:
-- treat the daily data architecture as settled unless live readiness fails again
+- finish the public-only `5m` / `4h` market-data cutover and verify readiness on `latium`
 - keep the operational control branch fixed unless a new verified result clearly displaces it
-- focus the next alpha cycle on multiplicity-aware validation and promotion calibration of the locked `1d / 72h` control branch
+- after readiness is stable, focus the next alpha cycle on multiplicity-aware validation and promotion calibration of the locked `1d / 72h` control branch
 - only after that, test one new mechanism at a time from the research briefs
 
 Cycle budget:
@@ -168,7 +174,7 @@ Required operating loop:
 2. verify live readiness on `latium` before meaningful research
 3. verify live discovery defaults when needed
 4. if readiness fails, fix the real blocker before claiming alpha progress
-5. if code changes are required, build locally, deploy remotely with targeted alpha deploys, and rerun readiness plus the exact affected checks
+5. if code changes are required, build locally, deploy remotely, and rerun readiness plus the exact affected checks
 6. if readiness passes, run targeted search / run requests only; keep experiments tied to the control branch or one explicit challenger
 7. explicitly pin `signalBarMinutes=1440` in request payloads unless live defaults already do so
 8. after each material `/run`, capture `runId`, `grafanaPath`, and the full explorer URL; record the run in experiment notes and use Grafana for drilldown

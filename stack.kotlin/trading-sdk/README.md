@@ -455,7 +455,7 @@ SELECT
   last(close, time) as close,
   sum(volume) as volume
 FROM market_data
-WHERE data_type = 'candle_1m'
+WHERE data_type = 'candle_5m'
 GROUP BY time_bucket('1 hour', time), symbol;
 ```
 

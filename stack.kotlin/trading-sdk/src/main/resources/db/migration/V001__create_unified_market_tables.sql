@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS market_data (
     time TIMESTAMPTZ NOT NULL,
     symbol TEXT NOT NULL,
     exchange TEXT NOT NULL,
-    data_type TEXT NOT NULL,  -- 'trade', 'candle_1m', 'candle_5m', 'candle_1h', 'candle_1d', 'funding'
+    data_type TEXT NOT NULL,  -- 'trade', 'candle_5m', 'candle_5m', 'candle_1h', 'candle_1d', 'funding'
 
     -- Trade fields
     trade_id TEXT,
@@ -241,7 +241,7 @@ END $$;
 COMMENT ON TABLE market_data IS 'Unified time-series table for all market data: trades, candles, funding rates, and open interest. Optimized for Grafana/Jupyter queries.';
 COMMENT ON TABLE orderbook_data IS 'Orderbook snapshots with pre-calculated metrics for analysis';
 COMMENT ON TABLE alpha_signal_panel_1d IS 'Canonical daily alpha signal contract aggregated from minute execution context.';
-COMMENT ON COLUMN market_data.data_type IS 'Type: trade, candle_1m, candle_5m, candle_1h, candle_1d, candle_1w, funding, open_interest';
+COMMENT ON COLUMN market_data.data_type IS 'Type: trade, candle_5m, candle_5m, candle_1h, candle_1d, candle_1w, funding, open_interest';
 COMMENT ON COLUMN market_data.side IS 'Trade side: buy or sell';
 COMMENT ON COLUMN orderbook_data.bids IS 'Array of bid levels as JSONB: [{"price": "50000", "size": "1.5"}, ...]';
 COMMENT ON COLUMN orderbook_data.asks IS 'Array of ask levels as JSONB: [{"price": "50001", "size": "2.0"}, ...]';
@@ -272,7 +272,7 @@ COMMENT ON COLUMN orderbook_data.asks IS 'Array of ask levels as JSONB: [{"price
 --    SELECT time_bucket('1 hour', time) AS time, symbol,
 --           first(open, time) as open, max(high) as high,
 --           min(low) as low, last(close, time) as close
---    FROM market_data WHERE data_type = 'candle_1m'
+--    FROM market_data WHERE data_type = 'candle_5m'
 --    GROUP BY time_bucket('1 hour', time), symbol;
 --
 -- =============================================================================

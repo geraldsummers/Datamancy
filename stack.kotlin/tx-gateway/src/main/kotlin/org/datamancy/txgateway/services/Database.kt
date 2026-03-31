@@ -1915,7 +1915,7 @@ class DatabaseService(
             FROM market_data
             WHERE exchange = ?
               AND symbol = ?
-              AND data_type = 'candle_1m'
+              AND data_type = 'candle_5m'
             ORDER BY time DESC
             LIMIT 1
         """.trimIndent()
@@ -1952,7 +1952,7 @@ class DatabaseService(
                                     ask = ask,
                                     last = last,
                                     timestamp = ts,
-                                    source = if (sql == candleSql) "market_data:candle_1m" else "market_data:trade"
+                                    source = if (sql == candleSql) "market_data:candle_5m" else "market_data:trade"
                                 )
                             }
                         }

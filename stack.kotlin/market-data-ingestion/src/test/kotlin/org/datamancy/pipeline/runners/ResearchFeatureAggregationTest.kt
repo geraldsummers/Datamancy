@@ -175,7 +175,7 @@ class ResearchFeatureAggregationTest {
     fun `startup refresh window caps bootstrap visibility query width`() {
         assertEquals(5L, startupRefreshWindowMinutes(180L))
         assertEquals(5L, startupRefreshWindowMinutes(15L))
-        assertEquals(3L, startupRefreshWindowMinutes(3L))
+        assertEquals(5L, startupRefreshWindowMinutes(3L))
     }
 
     @Test
@@ -244,10 +244,10 @@ class ResearchFeatureAggregationTest {
         val expectedBuckets = expectedFeatureBucketCount(
             startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
             endExclusive = Instant.parse("2026-03-20T01:00:00Z"),
-            barMinutes = 1
+            barMinutes = EXECUTION_CONTEXT_BAR_MINUTES
         )
-        assertEquals(60L, expectedBuckets)
-        assertEquals(0.5, observedFeatureCoverageRatio(observedBucketCount = 30L, expectedBucketCount = expectedBuckets))
+        assertEquals(12L, expectedBuckets)
+        assertEquals(0.5, observedFeatureCoverageRatio(observedBucketCount = 6L, expectedBucketCount = expectedBuckets))
     }
 
     @Test
@@ -337,20 +337,20 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
-    fun `single minute aggregation window detection only accepts one minute or less`() {
+    fun `single execution-bar aggregation window detection only accepts one bar or less`() {
         assertTrue(
-            isSingleMinuteAggregationWindow(
+            isSingleExecutionBarAggregationWindow(
                 AggregationWindow(
                     startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
-                    endExclusive = Instant.parse("2026-03-20T00:01:00Z")
+                    endExclusive = Instant.parse("2026-03-20T00:05:00Z")
                 )
             )
         )
         assertFalse(
-            isSingleMinuteAggregationWindow(
+            isSingleExecutionBarAggregationWindow(
                 AggregationWindow(
                     startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
-                    endExclusive = Instant.parse("2026-03-20T00:02:00Z")
+                    endExclusive = Instant.parse("2026-03-20T00:06:00Z")
                 )
             )
         )
@@ -384,7 +384,7 @@ class ResearchFeatureAggregationTest {
     fun `minimum-sized aggregation window does not subdivide`() {
         val window = AggregationWindow(
             startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
-            endExclusive = Instant.parse("2026-03-20T00:01:00Z")
+            endExclusive = Instant.parse("2026-03-20T00:05:00Z")
         )
 
         assertFalse(canSubdivideAggregationWindow(window))
@@ -392,12 +392,12 @@ class ResearchFeatureAggregationTest {
     }
 
     @Test
-    fun `blocking phases expand multi minute windows into minute slices`() {
-        val expanded = expandAggregationWindowsByMinute(
+    fun `blocking phases expand multi-bar windows into execution-bar slices`() {
+        val expanded = expandAggregationWindowsByExecutionBar(
             windows = listOf(
                 AggregationWindow(
                     startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
-                    endExclusive = Instant.parse("2026-03-20T00:03:00Z")
+                    endExclusive = Instant.parse("2026-03-20T00:15:00Z")
                 )
             ),
             shouldExpand = true
@@ -407,15 +407,15 @@ class ResearchFeatureAggregationTest {
             listOf(
                 AggregationWindow(
                     startInclusive = Instant.parse("2026-03-20T00:00:00Z"),
-                    endExclusive = Instant.parse("2026-03-20T00:01:00Z")
+                    endExclusive = Instant.parse("2026-03-20T00:05:00Z")
                 ),
                 AggregationWindow(
-                    startInclusive = Instant.parse("2026-03-20T00:01:00Z"),
-                    endExclusive = Instant.parse("2026-03-20T00:02:00Z")
+                    startInclusive = Instant.parse("2026-03-20T00:05:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T00:10:00Z")
                 ),
                 AggregationWindow(
-                    startInclusive = Instant.parse("2026-03-20T00:02:00Z"),
-                    endExclusive = Instant.parse("2026-03-20T00:03:00Z")
+                    startInclusive = Instant.parse("2026-03-20T00:10:00Z"),
+                    endExclusive = Instant.parse("2026-03-20T00:15:00Z")
                 )
             ),
             expanded
@@ -425,7 +425,7 @@ class ResearchFeatureAggregationTest {
     @Test
     fun `short non historical phases also expand into minute slices`() {
         assertTrue(
-            shouldExpandAggregationWindowsByMinute(
+            shouldExpandAggregationWindowsByExecutionBar(
                 phase = "startup_refresh",
                 windows = listOf(
                     AggregationWindow(
@@ -436,7 +436,7 @@ class ResearchFeatureAggregationTest {
             )
         )
         assertFalse(
-            shouldExpandAggregationWindowsByMinute(
+            shouldExpandAggregationWindowsByExecutionBar(
                 phase = "historical_catchup",
                 windows = listOf(
                     AggregationWindow(
@@ -573,15 +573,15 @@ class ResearchFeatureAggregationTest {
             listOf(
                 AggregationWindow(
                     startInclusive = Instant.parse("2026-03-20T14:31:00Z"),
-                    endExclusive = Instant.parse("2026-03-20T14:32:00Z")
+                    endExclusive = Instant.parse("2026-03-20T14:36:00Z")
                 ),
                 AggregationWindow(
                     startInclusive = Instant.parse("2026-03-20T14:30:00Z"),
-                    endExclusive = Instant.parse("2026-03-20T14:31:00Z")
+                    endExclusive = Instant.parse("2026-03-20T14:35:00Z")
                 ),
                 AggregationWindow(
                     startInclusive = Instant.parse("2026-03-20T14:29:00Z"),
-                    endExclusive = Instant.parse("2026-03-20T14:30:00Z")
+                    endExclusive = Instant.parse("2026-03-20T14:34:00Z")
                 )
             ),
             windows
@@ -642,14 +642,14 @@ class ResearchFeatureAggregationTest {
 
         assertEquals(
             listOf(
-                Instant.parse("2026-03-26T00:19:00Z"),
-                Instant.parse("2026-03-26T00:14:00Z"),
-                Instant.parse("2026-03-26T00:09:00Z"),
-                Instant.parse("2026-03-26T00:04:00Z")
+                Instant.parse("2026-03-26T00:15:00Z"),
+                Instant.parse("2026-03-26T00:10:00Z"),
+                Instant.parse("2026-03-26T00:05:00Z"),
+                Instant.parse("2026-03-26T00:00:00Z")
             ),
             windows.map { it.startInclusive }
         )
-        assertEquals(Instant.parse("2026-03-26T00:21:00Z"), windows.first().endExclusive)
+        assertEquals(Instant.parse("2026-03-26T00:20:00Z"), windows.first().endExclusive)
     }
 
     @Test

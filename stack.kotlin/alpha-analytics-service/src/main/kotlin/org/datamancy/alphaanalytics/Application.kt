@@ -113,7 +113,7 @@ fun Application.configureAlphaAnalyticsApp(
 
         get("/api/v1/data-health/summary") {
             val exchange = call.request.queryParameters["exchange"]?.trim()?.ifEmpty { null }
-            val barMinutes = call.request.queryParameters["barMinutes"]?.toIntOrNull() ?: 1
+            val barMinutes = call.request.queryParameters["barMinutes"]?.toIntOrNull() ?: 5
 
             val result = runCatching { loadDataHealthSummary(exchange, barMinutes) }
                 .onFailure { logger.warn("Data health summary load failed", it) }
@@ -140,7 +140,7 @@ fun Application.configureAlphaAnalyticsApp(
 
         get("/api/v1/data-health/issues") {
             val exchange = call.request.queryParameters["exchange"]?.trim()?.ifEmpty { null }
-            val barMinutes = call.request.queryParameters["barMinutes"]?.toIntOrNull() ?: 1
+            val barMinutes = call.request.queryParameters["barMinutes"]?.toIntOrNull() ?: 5
             val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 50
             val includeInactive = call.request.queryParameters["includeInactive"]?.toBooleanStrictOrNull() ?: false
             val includeHealthy = call.request.queryParameters["includeHealthy"]?.toBooleanStrictOrNull() ?: false
@@ -173,7 +173,7 @@ fun Application.configureAlphaAnalyticsApp(
         get("/api/v1/data-health/venue-sanity") {
             val exchange = call.request.queryParameters["exchange"]?.trim()?.ifEmpty { null }
             val symbol = call.request.queryParameters["symbol"]?.trim().orEmpty()
-            val barMinutes = call.request.queryParameters["barMinutes"]?.toIntOrNull() ?: 1
+            val barMinutes = call.request.queryParameters["barMinutes"]?.toIntOrNull() ?: 5
             if (symbol.isBlank()) {
                 call.respondText(
                     responseGson.toJson(ErrorResponse("venue sanity requires symbol query parameter")),

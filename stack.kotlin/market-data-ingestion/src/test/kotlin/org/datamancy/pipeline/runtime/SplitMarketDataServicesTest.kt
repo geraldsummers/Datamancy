@@ -93,8 +93,8 @@ class SplitMarketDataServicesTest {
             config.ingestSubject("hyperliquid_mainnet", "trade", RawEventLane.LIVE)
         )
         assertEquals(
-            "raw.market.ingest.replay.hyperliquid_mainnet.candle_1m",
-            config.ingestSubject("hyperliquid_mainnet", "candle_1m", RawEventLane.REPLAY)
+            "raw.market.ingest.replay.hyperliquid_mainnet.candle_5m",
+            config.ingestSubject("hyperliquid_mainnet", "candle_5m", RawEventLane.REPLAY)
         )
         assertEquals("raw.market.persist.live.>", config.persistWildcard(RawEventLane.LIVE))
         assertEquals("raw.market.persist.replay.>", config.persistWildcard(RawEventLane.REPLAY))
@@ -196,7 +196,7 @@ class SplitMarketDataServicesTest {
             HyperliquidCandle(
                 time = Instant.parse("2026-03-26T00:00:00Z"),
                 symbol = "ETH",
-                interval = "1m",
+                interval = "5m",
                 open = 2500.0,
                 high = 2510.0,
                 low = 2495.0,
@@ -230,7 +230,7 @@ class SplitMarketDataServicesTest {
                     HyperliquidCandle(
                         time = Instant.parse("2026-03-26T00:00:00Z"),
                         symbol = "ETH",
-                        interval = "1m",
+                        interval = "5m",
                         open = 2500.0,
                         high = 2510.0,
                         low = 2495.0,
@@ -255,7 +255,7 @@ class SplitMarketDataServicesTest {
                   "eventId":"evt-1",
                   "exchange":"hyperliquid_mainnet",
                   "symbol":"BTC",
-                  "channel":"candle_1m",
+                  "channel":"candle_5m",
                   "lane":"REPLAY",
                   "source":"repair",
                   "eventTime":"2026-03-26T00:00:00Z",
@@ -263,7 +263,7 @@ class SplitMarketDataServicesTest {
                   "candle":{
                     "time":"2026-03-26T00:00:00Z",
                     "symbol":"BTC",
-                    "interval":"1m",
+                    "interval":"5m",
                     "open":1.0,
                     "high":2.0,
                     "low":0.5,
@@ -327,7 +327,7 @@ class SplitMarketDataServicesTest {
     @Test
     fun `persist live channels split high volume lanes from candles and trades`() {
         assertEquals(
-            listOf("trade", "candle_1m", "orderbook_l2", "asset_context"),
+            listOf("trade", "candle_5m", "orderbook_l2", "asset_context"),
             persistLiveChannels
         )
     }
@@ -624,7 +624,7 @@ class SplitMarketDataServicesTest {
         )
         assertEquals(
             1,
-            persistWorkerCountForChannel("candle_1m", tradeWorkers = 4, orderbookWorkers = 3, assetContextWorkers = 2)
+            persistWorkerCountForChannel("candle_5m", tradeWorkers = 4, orderbookWorkers = 3, assetContextWorkers = 2)
         )
     }
 

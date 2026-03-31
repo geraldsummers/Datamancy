@@ -13,7 +13,7 @@
   "panels": [
     {
       "type": "timeseries",
-      "title": "BTC/USD (1m close)",
+      "title": "BTC/USD (5m execution close)",
       "datasource": {
         "type": "postgres",
         "uid": "timescaledb"
@@ -22,7 +22,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT time AS \"time\", close AS \"BTC/USD\"\nFROM market_data\nWHERE $__timeFilter(time)\n  AND symbol = 'BTC'\n  AND exchange IN ('hyperliquid', 'hyperliquid_mainnet')\n  AND data_type = 'candle_1m'\nORDER BY 1"
+          "rawSql": "SELECT time AS \"time\", close AS \"BTC/USD\"\nFROM execution_context_5m\nWHERE $__timeFilter(time)\n  AND symbol = 'BTC'\n  AND exchange IN ('hyperliquid', 'hyperliquid_mainnet')\nORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -41,7 +41,7 @@
     },
     {
       "type": "timeseries",
-      "title": "ETH/USD (1m close)",
+      "title": "ETH/USD (5m execution close)",
       "datasource": {
         "type": "postgres",
         "uid": "timescaledb"
@@ -50,7 +50,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT time AS \"time\", close AS \"ETH/USD\"\nFROM market_data\nWHERE $__timeFilter(time)\n  AND symbol = 'ETH'\n  AND exchange IN ('hyperliquid', 'hyperliquid_mainnet')\n  AND data_type = 'candle_1m'\nORDER BY 1"
+          "rawSql": "SELECT time AS \"time\", close AS \"ETH/USD\"\nFROM execution_context_5m\nWHERE $__timeFilter(time)\n  AND symbol = 'ETH'\n  AND exchange IN ('hyperliquid', 'hyperliquid_mainnet')\nORDER BY 1"
         }
       ],
       "fieldConfig": {

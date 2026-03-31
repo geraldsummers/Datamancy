@@ -15,13 +15,13 @@ class SyncStateStoreTest {
                 observation(symbol = "SOL", channel = "orderbook_l2", time = "2026-03-25T03:04:00Z"),
                 observation(symbol = "BTC", channel = "trade", time = "2026-03-25T03:02:00Z"),
                 observation(symbol = "BTC", channel = "trade", time = "2026-03-25T03:03:00Z"),
-                observation(symbol = "BTC", channel = "candle_1m", time = "2026-03-25T03:01:00Z")
+                observation(symbol = "BTC", channel = "candle_5m", time = "2026-03-25T03:01:00Z")
             )
         )
 
         assertEquals(3, normalized.size)
         assertEquals("BTC", normalized[0].symbol)
-        assertEquals("candle_1m", normalized[0].channel)
+        assertEquals("candle_5m", normalized[0].channel)
         assertEquals("BTC", normalized[1].symbol)
         assertEquals("trade", normalized[1].channel)
         assertEquals(Instant.parse("2026-03-25T03:02:00Z"), normalized[1].earliestTime)

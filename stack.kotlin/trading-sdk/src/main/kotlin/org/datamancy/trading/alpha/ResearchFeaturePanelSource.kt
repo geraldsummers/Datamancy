@@ -39,7 +39,7 @@ class ResearchFeaturePanelSource(
                     AVG(CASE WHEN trade_observed THEN 1.0 ELSE 0.0 END) AS trade_observed_ratio,
                     AVG(CASE WHEN orderbook_observed THEN 1.0 ELSE 0.0 END) AS orderbook_observed_ratio,
                     AVG(CASE WHEN asset_context_observed THEN 1.0 ELSE 0.0 END) AS asset_context_observed_ratio
-                FROM execution_context_1m
+                FROM execution_context_5m
                 WHERE exchange = ?
                   AND time >= ?
                   AND time <= ?

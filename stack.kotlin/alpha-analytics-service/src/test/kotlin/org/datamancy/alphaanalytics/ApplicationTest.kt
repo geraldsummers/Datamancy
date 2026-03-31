@@ -68,13 +68,13 @@ class ApplicationTest {
             configureAlphaAnalyticsApp(
                 loadDataHealthSummary = { exchange, barMinutes ->
                     assertEquals("hyperliquid_mainnet", exchange)
-                    assertEquals(1, barMinutes)
+                    assertEquals(5, barMinutes)
                     fakeDataHealthSummary()
                 }
             )
         }
 
-        val response = client.get("/api/v1/data-health/summary?exchange=hyperliquid_mainnet&barMinutes=1")
+        val response = client.get("/api/v1/data-health/summary?exchange=hyperliquid_mainnet&barMinutes=5")
         assertEquals(HttpStatusCode.OK, response.status)
         val body = response.bodyAsText()
         assertTrue(body.contains("\"activeSymbols\": 182"), body)
@@ -88,7 +88,7 @@ class ApplicationTest {
             configureAlphaAnalyticsApp(
                 loadDataHealthIssues = { exchange, barMinutes, limit, includeInactive, includeHealthy ->
                     assertEquals("hyperliquid_mainnet", exchange)
-                    assertEquals(1, barMinutes)
+                    assertEquals(5, barMinutes)
                     assertEquals(20, limit)
                     assertEquals(false, includeInactive)
                     assertEquals(false, includeHealthy)
@@ -97,12 +97,12 @@ class ApplicationTest {
             )
         }
 
-        val response = client.get("/api/v1/data-health/issues?exchange=hyperliquid_mainnet&barMinutes=1&limit=20")
+        val response = client.get("/api/v1/data-health/issues?exchange=hyperliquid_mainnet&barMinutes=5&limit=20")
         assertEquals(HttpStatusCode.OK, response.status)
         val body = response.bodyAsText()
         assertTrue(body.contains("\"symbol\": \"KAS\""), body)
         assertTrue(body.contains("\"status\": \"CRITICAL\""), body)
-        assertTrue(body.contains("missing required raw channel candle_1m"), body)
+        assertTrue(body.contains("missing required raw channel candle_5m"), body)
     }
 
     @Test
@@ -112,7 +112,7 @@ class ApplicationTest {
                 loadVenueSanity = { exchange, symbol, barMinutes ->
                     assertEquals("hyperliquid_mainnet", exchange)
                     assertEquals("MAVIA", symbol)
-                    assertEquals(1, barMinutes)
+                    assertEquals(5, barMinutes)
                     DataHealthVenueSanity(
                         exchange = "hyperliquid_mainnet",
                         symbol = "MAVIA",
@@ -135,7 +135,7 @@ class ApplicationTest {
             )
         }
 
-        val response = client.get("/api/v1/data-health/venue-sanity?exchange=hyperliquid_mainnet&barMinutes=1&symbol=MAVIA")
+        val response = client.get("/api/v1/data-health/venue-sanity?exchange=hyperliquid_mainnet&barMinutes=5&symbol=MAVIA")
         assertEquals(HttpStatusCode.OK, response.status)
         val body = response.bodyAsText()
         assertTrue(body.contains("\"classification\": \"LIVE_SPARSE\""), body)
@@ -149,14 +149,14 @@ class ApplicationTest {
             configureAlphaAnalyticsApp()
         }
 
-        val response = client.get("/api/v1/data-health/venue-sanity?exchange=hyperliquid_mainnet&barMinutes=1")
+        val response = client.get("/api/v1/data-health/venue-sanity?exchange=hyperliquid_mainnet&barMinutes=5")
         assertEquals(HttpStatusCode.BadRequest, response.status)
         assertTrue(response.bodyAsText().contains("requires symbol"))
     }
 
     private fun fakeDataHealthSummary(): DataHealthSummary = DataHealthSummary(
         exchange = "hyperliquid_mainnet",
-        barMinutes = 1,
+        barMinutes = 5,
         asOf = Instant.parse("2026-03-28T00:00:00Z"),
         thresholds = thresholds(),
         trackedSymbols = 189,
@@ -184,7 +184,7 @@ class ApplicationTest {
 
     private fun fakeDataHealthIssues(): DataHealthIssuesResponse = DataHealthIssuesResponse(
         exchange = "hyperliquid_mainnet",
-        barMinutes = 1,
+        barMinutes = 5,
         asOf = Instant.parse("2026-03-28T00:00:00Z"),
         thresholds = thresholds(),
         totalIssues = 2,
@@ -196,11 +196,11 @@ class ApplicationTest {
                 livenessClass = DataHealthLivenessClass.LOCAL_STALE,
                 activeRecent = true,
                 readinessEligible = false,
-                missingRequiredChannels = listOf("candle_1m"),
+                missingRequiredChannels = listOf("candle_5m"),
                 idleButLiveChannels = emptyList(),
                 staleChannels = listOf("trade", "orderbook_l2"),
                 reasons = listOf(
-                    "missing required raw channel candle_1m",
+                    "missing required raw channel candle_5m",
                     "execution context is not currently live"
                 ),
                 latestAnyRawTime = Instant.parse("2026-03-27T23:56:00Z"),
@@ -227,8 +227,8 @@ class ApplicationTest {
 
     private fun thresholds(): DataHealthThresholds = DataHealthThresholds(
         exchange = "hyperliquid_mainnet",
-        barMinutes = 1,
-        requiredRawChannels = listOf("candle_1m", "trade", "orderbook_l2", "funding"),
+        barMinutes = 5,
+        requiredRawChannels = listOf("candle_5m", "trade", "orderbook_l2"),
         rawStaleAfterSeconds = 120,
         candleRawLagMaxSeconds = 90,
         featureLagMaxSeconds = 180,

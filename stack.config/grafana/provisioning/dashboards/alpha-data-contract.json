@@ -25,8 +25,8 @@
           "type": "postgres",
           "uid": "timescaledb"
         },
-        "query": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM raw_sync_state UNION SELECT DISTINCT exchange FROM feature_materialization_state UNION SELECT DISTINCT exchange FROM feature_coverage_state UNION SELECT DISTINCT exchange FROM execution_context_1m UNION SELECT DISTINCT exchange FROM alpha_signal_panel_1d) exchanges ORDER BY 1",
-        "definition": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM raw_sync_state UNION SELECT DISTINCT exchange FROM feature_materialization_state UNION SELECT DISTINCT exchange FROM feature_coverage_state UNION SELECT DISTINCT exchange FROM execution_context_1m UNION SELECT DISTINCT exchange FROM alpha_signal_panel_1d) exchanges ORDER BY 1",
+        "query": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM raw_sync_state UNION SELECT DISTINCT exchange FROM feature_materialization_state UNION SELECT DISTINCT exchange FROM feature_coverage_state UNION SELECT DISTINCT exchange FROM execution_context_5m UNION SELECT DISTINCT exchange FROM alpha_signal_panel_1d) exchanges ORDER BY 1",
+        "definition": "SELECT '__all' AS __text, '__all' AS __value UNION SELECT exchange AS __text, exchange AS __value FROM (SELECT DISTINCT exchange FROM raw_sync_state UNION SELECT DISTINCT exchange FROM feature_materialization_state UNION SELECT DISTINCT exchange FROM feature_coverage_state UNION SELECT DISTINCT exchange FROM execution_context_5m UNION SELECT DISTINCT exchange FROM alpha_signal_panel_1d) exchanges ORDER BY 1",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -52,7 +52,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(*) AS value FROM raw_sync_state WHERE channel = 'candle_1m' AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}')"
+          "rawSql": "SELECT COUNT(*) AS value FROM raw_sync_state WHERE channel = 'candle_5m' AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}')"
         }
       ],
       "fieldConfig": {
@@ -98,7 +98,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(EXTRACT(EPOCH FROM (NOW() - MAX(latest_raw_time))), 0) AS value FROM raw_sync_state WHERE channel = 'candle_1m' AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}')"
+          "rawSql": "SELECT COALESCE(EXTRACT(EPOCH FROM (NOW() - MAX(latest_raw_time))), 0) AS value FROM raw_sync_state WHERE channel = 'candle_5m' AND ('${contract_exchange}' = '__all' OR exchange = '${contract_exchange}')"
         }
       ],
       "fieldConfig": {

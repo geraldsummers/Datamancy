@@ -26,7 +26,7 @@ class DataHealthTest {
         assertEquals(DataHealthStatus.IDLE_LIVE, issue.status)
         assertEquals(DataHealthLivenessClass.LIVE_SPARSE, issue.livenessClass)
         assertFalse(issue.readinessEligible)
-        assertEquals(listOf("candle_1m", "trade"), issue.idleButLiveChannels.sorted())
+        assertEquals(listOf("candle_5m", "trade"), issue.idleButLiveChannels.sorted())
         assertTrue(issue.staleChannels.isEmpty())
         assertTrue(issue.reasons.any { it.contains("idle but live") })
     }
@@ -50,7 +50,7 @@ class DataHealthTest {
         assertEquals(DataHealthStatus.DEGRADED, issue.status)
         assertEquals(DataHealthLivenessClass.LIVE_SPARSE, issue.livenessClass)
         assertTrue(issue.readinessEligible)
-        assertTrue("candle_1m" in issue.staleChannels)
+        assertTrue("candle_5m" in issue.staleChannels)
         assertTrue(issue.idleButLiveChannels.isEmpty())
         assertTrue(issue.reasons.any { it.contains("live sparse market") })
     }
@@ -104,8 +104,8 @@ class DataHealthTest {
 
     private fun thresholds(minTradeObservedRatioForEligibility: Double) = DataHealthThresholds(
         exchange = "hyperliquid_mainnet",
-        barMinutes = 1,
-        requiredRawChannels = listOf("candle_1m", "orderbook_l2", "trade"),
+        barMinutes = 5,
+        requiredRawChannels = listOf("candle_5m", "orderbook_l2", "trade"),
         rawStaleAfterSeconds = 120,
         candleRawLagMaxSeconds = 90,
         featureLagMaxSeconds = 180,

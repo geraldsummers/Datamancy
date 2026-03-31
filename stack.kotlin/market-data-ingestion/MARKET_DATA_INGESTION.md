@@ -90,7 +90,7 @@ CREATE TABLE market_data (
     time TIMESTAMPTZ NOT NULL,
     symbol TEXT NOT NULL,
     exchange TEXT NOT NULL,
-    data_type TEXT NOT NULL,  -- 'trade', 'candle_1m', 'candle_5m', etc.
+    data_type TEXT NOT NULL,  -- 'trade', 'candle_5m', 'candle_5m', etc.
 
     -- Trade fields
     trade_id TEXT,
@@ -341,7 +341,7 @@ SELECT
     volume,
     time
 FROM market_data
-WHERE data_type = 'candle_1m'
+WHERE data_type = 'candle_5m'
     AND exchange = 'hyperliquid'
     AND time > NOW() - INTERVAL '5 minutes'
 ORDER BY time DESC;

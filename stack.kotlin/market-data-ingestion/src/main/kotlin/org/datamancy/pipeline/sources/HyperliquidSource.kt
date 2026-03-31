@@ -33,7 +33,7 @@ class HyperliquidSource(
     private val symbols: List<String>,
     private val subscribeToTrades: Boolean = true,
     private val subscribeToCandles: Boolean = true,
-    private val candleIntervals: List<String> = listOf("1m", "5m", "15m", "1h"),
+    private val candleIntervals: List<String> = listOf("5m", "4h"),
     private val subscribeToOrderbook: Boolean = false,
     private val subscribeToAssetCtx: Boolean = true,
     private val url: String = "wss://api.hyperliquid.xyz/ws",

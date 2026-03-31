@@ -27,6 +27,8 @@ internal const val DEFAULT_HYPERLIQUID_HISTORICAL_BACKFILL_GUARD_MS = 120_000L
 internal const val DEFAULT_HYPERLIQUID_INITIAL_RECENT_REPAIR_BATCH_STREAMS = 24
 internal const val DEFAULT_TARGETED_CANDLE_REPAIR_ACTIVE_WINDOW_MS = 6L * 60L * 60L * 1_000L
 internal const val DEFAULT_TARGETED_REPAIR_CYCLES_BEFORE_HISTORICAL = 4
+internal const val PRIMARY_EXECUTION_CANDLE_INTERVAL = "5m"
+internal const val RESEARCH_CANDLE_INTERVAL = "4h"
 
 internal fun determineCandleRepairPermits(
     streamCount: Int,
@@ -312,7 +314,14 @@ class MarketDataIngestionRunner {
         hyperliquidPolicy.rawSync.executionSymbolsPerConnection.coerceAtLeast(1)
 
     private val staticSymbols = hyperliquidPolicy.universe.staticSymbols
-    private val candleIntervals = listOf("1m")
+    private val candleIntervals = hyperliquidPolicy.rawSync.channels.entries
+        .filter { (channel, requirement) ->
+            channel.startsWith("candle_") &&
+                requirement != org.datamancy.trading.policy.RequirementLevel.DISABLED
+        }
+        .map { (channel, _) -> channel.removePrefix("candle_") }
+        .distinct()
+        .sortedBy(::candleIntervalToMillis)
     private val enableOrderbook =
         hyperliquidPolicy.rawSync.channels["orderbook_l2"] != org.datamancy.trading.policy.RequirementLevel.DISABLED
     private val hyperliquidMainnet = hyperliquidPolicy.mainnet
@@ -435,7 +444,7 @@ class MarketDataIngestionRunner {
         }
         logger.info { "Hyperliquid Exchange ID: $hyperliquidExchangeId" }
         logger.info {
-            "execution_context_1m: ${if (researchFeaturesEnabled) "ENABLED" else "DISABLED"} " +
+            "execution_context_5m: ${if (researchFeaturesEnabled) "ENABLED" else "DISABLED"} " +
                 "(bootstrap=${researchFeaturesBootstrapHours}h refreshEvery=${researchFeaturesRefreshIntervalMs}ms " +
                 "overlap=${researchFeaturesRefreshOverlapMinutes}m chunk=${researchFeaturesBackfillChunkHours}h " +
                 "finalizeLag=${researchFeaturesFinalizationLagMinutes}m)"
@@ -464,7 +473,9 @@ class MarketDataIngestionRunner {
         featureStateStore = FeatureStateStore(
             dataSource = dataSource,
             exchangeId = hyperliquidExchangeId,
-            barSizeMinutes = 1
+            barSizeMinutes = EXECUTION_CONTEXT_BAR_MINUTES,
+            featureTableName = EXECUTION_CONTEXT_TABLE,
+            rawCoverageChannel = EXECUTION_CONTEXT_RAW_CHANNEL
         )
         researchFeatureAggregator = ResearchFeatureAggregator(
             dataSource = dataSource,
@@ -1083,7 +1094,7 @@ class MarketDataIngestionRunner {
             WITH raw_ranked AS (
                 SELECT
                     symbol,
-                    MAX(latest_raw_time) FILTER (WHERE channel = 'candle_1m') AS candle_latest_raw_time,
+                    MAX(latest_raw_time) FILTER (WHERE channel = 'candle_5m') AS candle_latest_raw_time,
                     MAX(latest_raw_time) FILTER (WHERE channel = 'trade') AS trade_latest_raw_time,
                     MAX(latest_raw_time) FILTER (WHERE channel = 'orderbook_l2') AS orderbook_latest_raw_time,
                     MAX(latest_raw_time) FILTER (WHERE channel = 'funding') AS funding_latest_raw_time
@@ -1335,7 +1346,7 @@ class MarketDataIngestionRunner {
         }
 
         val now = java.time.Instant.now()
-        val candleIntervalMs = candleIntervalToMillis("1m")
+        val candleIntervalMs = candleIntervalToMillis(PRIMARY_EXECUTION_CANDLE_INTERVAL)
         val recentActivityCutoff = targetedCandleRepairActivityCutoff(
             now = now,
             activityTimeoutMs = hyperliquidChannelActivityTimeoutMs,
@@ -1354,7 +1365,7 @@ class MarketDataIngestionRunner {
                 SELECT
                     symbol,
                     MAX(latest_raw_time) FILTER (WHERE channel = 'trade') AS latest_trade_time,
-                    MAX(latest_raw_time) FILTER (WHERE channel = 'candle_1m') AS latest_candle_time
+                    MAX(latest_raw_time) FILTER (WHERE channel = 'candle_5m') AS latest_candle_time
                 FROM raw_sync_state
                 WHERE exchange = ?
                   AND symbol = ANY (?)
@@ -1387,7 +1398,7 @@ class MarketDataIngestionRunner {
                 statement.executeQuery().use { rs ->
                     buildList {
                         while (rs.next()) {
-                            add(rs.getString("symbol") to "1m")
+                            add(rs.getString("symbol") to PRIMARY_EXECUTION_CANDLE_INTERVAL)
                         }
                     }
                 }
@@ -1446,27 +1457,36 @@ class MarketDataIngestionRunner {
             return@withContext emptyList()
         }
 
-        val channel = "candle_1m"
+        val intervalChannels = candleIntervals.map { "candle_$it" }
         val sql = """
-            SELECT symbol, earliest_raw_time, latest_raw_time
+            SELECT channel, symbol, earliest_raw_time, latest_raw_time
             FROM raw_sync_state
             WHERE exchange = ?
-              AND channel = ?
+              AND channel = ANY (?)
               AND symbol = ANY (?)
         """.trimIndent()
+
+        data class IntervalCoverageState(
+            val symbol: String,
+            val interval: String,
+            val earliestRawTime: java.time.Instant?,
+            val latestRawTime: java.time.Instant?
+        )
 
         val persistedStates = dataSource.connection.use { connection ->
             connection.prepareStatement(sql).use { statement ->
                 statement.setString(1, hyperliquidPolicy.exchangeId)
-                statement.setString(2, channel)
+                val channelArray: SqlArray = connection.createArrayOf("text", intervalChannels.toTypedArray())
+                statement.setArray(2, channelArray)
                 val sqlArray: SqlArray = connection.createArrayOf("text", normalized.toTypedArray())
                 statement.setArray(3, sqlArray)
                 statement.executeQuery().use { rs ->
                     buildList {
                         while (rs.next()) {
                             add(
-                                RawCandleCoverageState(
+                                IntervalCoverageState(
                                     symbol = rs.getString("symbol"),
+                                    interval = rs.getString("channel").removePrefix("candle_"),
                                     earliestRawTime = rs.getTimestamp("earliest_raw_time")?.toInstant(),
                                     latestRawTime = rs.getTimestamp("latest_raw_time")?.toInstant()
                                 )
@@ -1477,20 +1497,32 @@ class MarketDataIngestionRunner {
             }
         }
 
-        val stateBySymbol = persistedStates.associateBy { it.symbol }
-        prioritizeHistoricalBackfillCandidates(
-            interval = "1m",
-            now = now,
-            lookbackHours = hyperliquidBackfillLookbackHours,
-            coverageStates = normalized.map { symbol ->
-                stateBySymbol[symbol] ?: RawCandleCoverageState(
-                    symbol = symbol,
-                    earliestRawTime = null,
-                    latestRawTime = null
+        val statesByIntervalAndSymbol = persistedStates.associateBy { it.interval to it.symbol }
+        candleIntervals
+            .sortedByDescending(::candleIntervalToMillis)
+            .flatMap { interval ->
+                prioritizeHistoricalBackfillCandidates(
+                    interval = interval,
+                    now = now,
+                    lookbackHours = hyperliquidBackfillLookbackHours,
+                    coverageStates = normalized.map { symbol ->
+                        val state = statesByIntervalAndSymbol[interval to symbol]
+                        RawCandleCoverageState(
+                            symbol = symbol,
+                            earliestRawTime = state?.earliestRawTime,
+                            latestRawTime = state?.latestRawTime
+                        )
+                    },
+                    maxCandidates = limit.coerceAtLeast(1)
                 )
-            },
-            maxCandidates = limit.coerceAtLeast(1)
-        )
+            }
+            .distinctBy { Triple(it.symbol, it.interval, it.range.startTime) }
+            .sortedWith(
+                compareByDescending<CandleHistoricalBackfillCandidate> { candleIntervalToMillis(it.interval) }
+                    .thenByDescending { it.range.endTime }
+                    .thenBy { it.symbol }
+            )
+            .take(limit.coerceAtLeast(1))
     }
 }
 

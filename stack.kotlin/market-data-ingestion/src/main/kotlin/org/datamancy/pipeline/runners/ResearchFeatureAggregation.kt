@@ -33,7 +33,9 @@ internal const val DEFAULT_RESEARCH_FEATURES_RECENT_GAP_REPAIR_HOURS = 48L
 internal const val DEFAULT_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 30
 internal const val MIN_RESEARCH_FEATURES_WINDOW_TIMEOUT_SECONDS = 5
 internal const val DEFAULT_RESEARCH_FEATURES_BACKGROUND_WINDOW_TIMEOUT_SECONDS = 30
-internal const val DEFAULT_RESEARCH_FEATURES_MIN_WINDOW_MINUTES = 1L
+internal const val EXECUTION_CONTEXT_BAR_MINUTES = 5
+internal const val EXECUTION_CONTEXT_BAR_SECONDS = EXECUTION_CONTEXT_BAR_MINUTES * 60L
+internal const val DEFAULT_RESEARCH_FEATURES_MIN_WINDOW_MINUTES = EXECUTION_CONTEXT_BAR_MINUTES.toLong()
 internal const val DEFAULT_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS = 30_000L
 internal const val MIN_RESEARCH_FEATURES_BACKGROUND_PHASE_BUDGET_MS = 5_000L
 internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOW_MINUTES = 15L
@@ -41,6 +43,12 @@ internal const val DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOWS_PER_CYCLE
 internal const val DEFAULT_RESEARCH_FEATURES_OBSERVED_CANDLE_REPAIR_WINDOWS_PER_CYCLE = 120
 internal const val CANONICAL_SIGNAL_BAR_MINUTES = 1_440
 internal const val MIN_RESEARCH_FEATURES_BOOTSTRAP_COVERAGE_RATIO = 0.95
+internal const val EXECUTION_CONTEXT_TABLE = "execution_context_5m"
+internal const val EXECUTION_CONTEXT_RAW_CHANNEL = "candle_5m"
+internal const val RESEARCH_SIGNAL_RAW_CHANNEL = "candle_4h"
+
+internal fun alignToExecutionBarBoundary(time: Instant): Instant =
+    alignDownToIntervalBoundary(time, EXECUTION_CONTEXT_BAR_SECONDS * 1_000L)
 
 internal fun resolveResearchFeaturesBootstrapHours(explicitHours: Long?): Long {
     val hours = explicitHours ?: DEFAULT_RESEARCH_FEATURES_BOOTSTRAP_HOURS
@@ -165,7 +173,9 @@ internal fun finalizedAtProjectionSql(bucketColumn: String): String {
 }
 
 internal fun startupRefreshWindowMinutes(refreshOverlapMinutes: Long): Long {
-    return refreshOverlapMinutes.coerceAtMost(DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES).coerceAtLeast(1L)
+    return refreshOverlapMinutes
+        .coerceAtMost(DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES)
+        .coerceAtLeast(EXECUTION_CONTEXT_BAR_MINUTES.toLong())
 }
 
 internal fun bootstrapPlanningChunkMinutes(
@@ -234,13 +244,13 @@ internal fun recentGapRepairChunkMinutes(backfillChunkHours: Long): Long =
     minOf(
         resolveResearchFeaturesBackfillChunkHours(backfillChunkHours) * 60L,
         DEFAULT_RESEARCH_FEATURES_STARTUP_REFRESH_MINUTES
-    ).coerceAtLeast(1L)
+    ).coerceAtLeast(EXECUTION_CONTEXT_BAR_MINUTES.toLong())
 
 internal fun aggregationWindowMinutes(window: AggregationWindow): Long =
     MINUTES.between(window.startInclusive, window.endExclusive)
 
-internal fun isSingleMinuteAggregationWindow(window: AggregationWindow): Boolean =
-    aggregationWindowMinutes(window) <= 1L
+internal fun isSingleExecutionBarAggregationWindow(window: AggregationWindow): Boolean =
+    aggregationWindowMinutes(window) <= EXECUTION_CONTEXT_BAR_MINUTES.toLong()
 
 internal fun canSubdivideAggregationWindow(
     window: AggregationWindow,
@@ -337,12 +347,21 @@ internal fun planFrontierRecoveryWindows(
 ): List<AggregationWindow> {
     if (maxWindowsPerCycle <= 0) return emptyList()
 
-    val finalizationCutoff = now.minus(finalizationLagMinutes.coerceAtLeast(0L), ChronoUnit.MINUTES)
+    val latestRecoverableBucketStart = alignToExecutionBarBoundary(
+        now.minus(
+        (EXECUTION_CONTEXT_BAR_MINUTES + finalizationLagMinutes).coerceAtLeast(0L),
+        ChronoUnit.MINUTES
+    )
+    )
+    val finalizationCutoffExclusive = latestRecoverableBucketStart
+        .plus(EXECUTION_CONTEXT_BAR_MINUTES.toLong(), ChronoUnit.MINUTES)
     val frontierStartInclusive = latestFinalizedTime
-        ?.plus(1, ChronoUnit.MINUTES)
-        ?.truncatedTo(ChronoUnit.MINUTES)
-        ?: finalizationCutoff.minus(refreshOverlapMinutes.coerceAtLeast(1L), ChronoUnit.MINUTES)
-    if (!frontierStartInclusive.isBefore(finalizationCutoff)) {
+        ?.let(::alignToExecutionBarBoundary)
+        ?.plus(EXECUTION_CONTEXT_BAR_MINUTES.toLong(), ChronoUnit.MINUTES)
+        ?: alignToExecutionBarBoundary(
+            finalizationCutoffExclusive.minus(refreshOverlapMinutes.coerceAtLeast(1L), ChronoUnit.MINUTES)
+        )
+    if (!frontierStartInclusive.isBefore(finalizationCutoffExclusive)) {
         return emptyList()
     }
 
@@ -353,7 +372,7 @@ internal fun planFrontierRecoveryWindows(
     return prioritizeRecentAggregationWindows(
         chunkAggregationWindowsByMinutes(
             startInclusive = frontierStartInclusive,
-            endExclusive = finalizationCutoff,
+            endExclusive = finalizationCutoffExclusive,
             chunkMinutes = chunkMinutes
         )
     ).take(maxWindowsPerCycle)
@@ -383,7 +402,7 @@ internal fun observedCandleRepairWindows(
     .map { bucketTime ->
         AggregationWindow(
             startInclusive = bucketTime,
-            endExclusive = bucketTime.plus(1, ChronoUnit.MINUTES)
+            endExclusive = bucketTime.plus(EXECUTION_CONTEXT_BAR_MINUTES.toLong(), ChronoUnit.MINUTES)
         )
     }
 
@@ -463,25 +482,25 @@ internal data class FinalizationResult(
     val affectedWindow: AggregationWindow?
 )
 
-internal fun expandAggregationWindowsByMinute(
+internal fun expandAggregationWindowsByExecutionBar(
     windows: List<AggregationWindow>,
     shouldExpand: Boolean
 ): List<AggregationWindow> {
     if (!shouldExpand) return windows
     return windows.flatMap { window ->
-        if (isSingleMinuteAggregationWindow(window)) {
+        if (isSingleExecutionBarAggregationWindow(window)) {
             listOf(window)
         } else {
             chunkAggregationWindowsByMinutes(
                 startInclusive = window.startInclusive,
                 endExclusive = window.endExclusive,
-                chunkMinutes = 1L
+                chunkMinutes = EXECUTION_CONTEXT_BAR_MINUTES.toLong()
             )
         }
     }
 }
 
-internal fun shouldExpandAggregationWindowsByMinute(
+internal fun shouldExpandAggregationWindowsByExecutionBar(
     phase: String,
     windows: List<AggregationWindow>,
     expansionThresholdMinutes: Long = DEFAULT_RESEARCH_FEATURES_FRONTIER_RECOVERY_WINDOW_MINUTES
@@ -565,7 +584,8 @@ internal class ResearchFeatureAggregator(
         dataSource = dataSource,
         exchangeId = exchangeId,
         barSizeMinutes = CANONICAL_SIGNAL_BAR_MINUTES,
-        featureTableName = "alpha_signal_panel_1d"
+        featureTableName = "alpha_signal_panel_1d",
+        rawCoverageChannel = RESEARCH_SIGNAL_RAW_CHANNEL
     )
     private val effectiveRecentGapRepairWindowsPerCycle =
         resolveResearchFeaturesRecentGapRepairWindowsPerCycle(recentGapRepairWindowsPerCycle)
@@ -640,12 +660,12 @@ internal class ResearchFeatureAggregator(
 
     suspend fun runLoop() {
         if (!enabled) {
-            researchFeatureLogger.info { "execution_context_1m aggregation disabled" }
+            researchFeatureLogger.info { "execution_context_5m aggregation disabled" }
             return
         }
 
         researchFeatureLogger.info {
-            "Starting execution_context_1m aggregation for $exchangeId " +
+            "Starting execution_context_5m aggregation for $exchangeId " +
                 "(bootstrap=${bootstrapHours}h refreshEvery=${refreshIntervalMs}ms overlap=${refreshOverlapMinutes}m " +
                 "chunk=${backfillChunkHours}h finalizeLag=${finalizationLagMinutes}m " +
                 "recentGapWindows=${effectiveRecentGapRepairWindowsPerCycle})"
@@ -659,7 +679,7 @@ internal class ResearchFeatureAggregator(
                 throw e
             } catch (e: Exception) {
                 researchFeatureLogger.error(e) {
-                    "execution_context_1m maintenance loop failed for $exchangeId: ${e.message}"
+                    "execution_context_5m maintenance loop failed for $exchangeId: ${e.message}"
                 }
             }
             val cycleElapsedMs = System.currentTimeMillis() - cycleStartedAtMs
@@ -701,18 +721,18 @@ internal class ResearchFeatureAggregator(
             if (!ensureSchema(conn)) {
                 return@withContext false
             }
-            val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
+            val now = alignToExecutionBarBoundary(Instant.now())
             val earliestRaw = queryBoundary(
                 conn = conn,
                 sql = """
                     SELECT MIN(earliest_raw_time)
                     FROM raw_sync_state
                     WHERE exchange = ?
-                      AND channel = 'candle_1m'
+                      AND channel = 'candle_5m'
                 """.trimIndent()
             ) ?: run {
                 researchFeatureLogger.info {
-                    "execution_context_1m bootstrap waiting for raw candle data exchange=$exchangeId"
+                    "execution_context_5m bootstrap waiting for raw candle data exchange=$exchangeId"
                 }
                 return@withContext false
             }
@@ -724,7 +744,7 @@ internal class ResearchFeatureAggregator(
                     SELECT MIN(earliest_feature_time)
                     FROM feature_materialization_state
                     WHERE exchange = ?
-                      AND bar_size_minutes = 1
+                      AND bar_size_minutes = $EXECUTION_CONTEXT_BAR_MINUTES
                 """.trimIndent()
             )
             val latestFeature = queryBoundary(
@@ -733,7 +753,7 @@ internal class ResearchFeatureAggregator(
                     SELECT MAX(latest_feature_time)
                     FROM feature_materialization_state
                     WHERE exchange = ?
-                      AND bar_size_minutes = 1
+                      AND bar_size_minutes = $EXECUTION_CONTEXT_BAR_MINUTES
                 """.trimIndent()
             )
             val observedCoverageRatio = queryObservedFeatureCoverageRatio(
@@ -750,7 +770,7 @@ internal class ResearchFeatureAggregator(
             )
             if (!start.isBefore(now)) {
                 researchFeatureLogger.info {
-                    "execution_context_1m bootstrap already current for $exchangeId up to ${latestFeature ?: now}"
+                    "execution_context_5m bootstrap already current for $exchangeId up to ${latestFeature ?: now}"
                 }
                 return@withContext true
             }
@@ -769,7 +789,7 @@ internal class ResearchFeatureAggregator(
                 windows = windows
             )
             researchFeatureLogger.info {
-                "execution_context_1m bootstrap complete exchange=$exchangeId windows=${windows.size} " +
+                "execution_context_5m bootstrap complete exchange=$exchangeId windows=${windows.size} " +
                     "requestedStart=$requestedStart earliestFeature=$earliestFeature latestFeature=$latestFeature " +
                     "observedCoverageRatio=${observedCoverageRatio?.let { "%.4f".format(it) } ?: "n/a"} " +
                     "selectedStart=$start totalRows=${result.totalRows} completed=${result.completed}"
@@ -786,13 +806,13 @@ internal class ResearchFeatureAggregator(
         val expectedBucketCount = expectedFeatureBucketCount(
             startInclusive = startInclusive,
             endExclusive = endExclusive,
-            barMinutes = 1
+            barMinutes = EXECUTION_CONTEXT_BAR_MINUTES
         )
         if (expectedBucketCount <= 0L) return null
         conn.prepareStatement(
             """
                 SELECT COUNT(DISTINCT time)::BIGINT
-                FROM execution_context_1m
+                FROM execution_context_5m
                 WHERE exchange = ?
                   AND time >= ?
                   AND time < ?
@@ -821,7 +841,7 @@ internal class ResearchFeatureAggregator(
             }
             // Avoid the still-open minute because it competes directly with live ingest writes and
             // has proven much more likely to hit the per-window timeout under load.
-            val end = Instant.now().truncatedTo(ChronoUnit.MINUTES)
+            val end = alignToExecutionBarBoundary(Instant.now())
             val start = end.minus(windowMinutes, ChronoUnit.MINUTES)
             materializeWindows(
                 conn = conn,
@@ -842,12 +862,12 @@ internal class ResearchFeatureAggregator(
                     completed = false
                 )
             }
-            val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
+            val now = alignToExecutionBarBoundary(Instant.now())
             val latestFinalizedTime = queryBoundary(
                 conn = conn,
                 sql = """
                     SELECT MAX(time)
-                    FROM execution_context_1m
+                    FROM execution_context_5m
                     WHERE exchange = ?
                       AND is_finalized = TRUE
                 """.trimIndent()
@@ -875,7 +895,7 @@ internal class ResearchFeatureAggregator(
                 maxRuntimeMs = backgroundPhaseBudgetMs()
             )
             researchFeatureLogger.info {
-                "execution_context_1m frontier_recovery exchange=$exchangeId latestFinalized=$latestFinalizedTime " +
+                "execution_context_5m frontier_recovery exchange=$exchangeId latestFinalized=$latestFinalizedTime " +
                     "windows=${windows.size} totalRows=${result.totalRows} finalized=${result.totalFinalizedRows} " +
                     "completed=${result.completed} blockingDebt=$blockingDebt"
             }
@@ -893,14 +913,14 @@ internal class ResearchFeatureAggregator(
             if (!ensureSchema(conn)) {
                 return@withContext
             }
-            val now = Instant.now().truncatedTo(ChronoUnit.MINUTES)
+            val now = alignToExecutionBarBoundary(Instant.now())
             val earliestRaw = queryBoundary(
                 conn = conn,
                 sql = """
                     SELECT MIN(earliest_raw_time)
                     FROM raw_sync_state
                     WHERE exchange = ?
-                      AND channel = 'candle_1m'
+                      AND channel = 'candle_5m'
                 """.trimIndent()
             )
             val earliestFeature = queryBoundary(
@@ -909,7 +929,7 @@ internal class ResearchFeatureAggregator(
                     SELECT MIN(earliest_feature_time)
                     FROM feature_materialization_state
                     WHERE exchange = ?
-                      AND bar_size_minutes = 1
+                      AND bar_size_minutes = $EXECUTION_CONTEXT_BAR_MINUTES
                 """.trimIndent()
             )
             val windows = planHistoricalCatchUpWindows(
@@ -932,7 +952,7 @@ internal class ResearchFeatureAggregator(
             )
 
             researchFeatureLogger.info {
-                "execution_context_1m historical_catchup complete exchange=$exchangeId " +
+                "execution_context_5m historical_catchup complete exchange=$exchangeId " +
                     "windows=${windows.size} totalRows=${result.totalRows} completed=${result.completed}"
             }
         }
@@ -963,7 +983,7 @@ internal class ResearchFeatureAggregator(
                 }.also { windows ->
                     if (priorityCandleRepairTimedOut) {
                         researchFeatureLogger.warn {
-                            "execution_context_1m gap_repair exchange=$exchangeId priority candle repair scan unavailable; " +
+                            "execution_context_5m gap_repair exchange=$exchangeId priority candle repair scan unavailable; " +
                                 "falling back to rolling recent-gap scan"
                         }
                     }
@@ -1011,7 +1031,7 @@ internal class ResearchFeatureAggregator(
             recentGapRepairPendingWindows = nextState.pendingWindows
             recentGapRepairPendingNextCursorExclusive = nextState.pendingNextCursorExclusive
             researchFeatureLogger.info {
-                "execution_context_1m gap_repair complete exchange=$exchangeId windows=${windows.size} " +
+                "execution_context_5m gap_repair complete exchange=$exchangeId windows=${windows.size} " +
                 "totalRows=${result.totalRows} finalized=${result.totalFinalizedRows} " +
                     "completed=${result.completed} reusedPending=${batch.reusedPendingWindows} " +
                     "priorityCandleRepair=$usingPriorityCandleRepair " +
@@ -1034,20 +1054,20 @@ internal class ResearchFeatureAggregator(
             SELECT c.time AS bucket_time
             FROM market_data c
             WHERE c.exchange = ?
-              AND c.data_type = 'candle_1m'
+              AND c.data_type = 'candle_5m'
               AND c.time >= ?
               AND c.time < ?
               AND (
                     NOT EXISTS (
                         SELECT 1
-                        FROM execution_context_1m f
+                        FROM execution_context_5m f
                         WHERE f.exchange = c.exchange
                           AND f.symbol = c.symbol
                           AND f.time = c.time
                     )
                     OR EXISTS (
                     SELECT 1
-                    FROM execution_context_1m f
+                    FROM execution_context_5m f
                     WHERE f.exchange = c.exchange
                       AND f.symbol = c.symbol
                       AND f.time = c.time
@@ -1088,9 +1108,9 @@ internal class ResearchFeatureAggregator(
         }
 
         val queue = ArrayDeque(
-            expandAggregationWindowsByMinute(
+            expandAggregationWindowsByExecutionBar(
                 windows = windows,
-                shouldExpand = shouldExpandAggregationWindowsByMinute(
+                shouldExpand = shouldExpandAggregationWindowsByExecutionBar(
                     phase = phase,
                     windows = windows
                 )
@@ -1109,7 +1129,7 @@ internal class ResearchFeatureAggregator(
         while (queue.isNotEmpty()) {
             if (budgetExceeded()) {
                 researchFeatureLogger.info {
-                    "execution_context_1m $phase exchange=$exchangeId paused after ${maxRuntimeMs}ms budget " +
+                    "execution_context_5m $phase exchange=$exchangeId paused after ${maxRuntimeMs}ms budget " +
                         "rows=$totalRows finalized=$totalFinalizedRows remaining=${queue.size}"
                 }
                 return WindowMaterializationResult(
@@ -1148,7 +1168,7 @@ internal class ResearchFeatureAggregator(
                 totalRows += rows
                 totalFinalizedRows += finalizationResult.rowCount
                 researchFeatureLogger.info {
-                    "execution_context_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
+                    "execution_context_5m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
                         "minutes=${aggregationWindowMinutes(window)} rows=$rows finalized=${finalizationResult.rowCount} " +
                         "signalRows=$signalRows signalWindow=${signalWindow.startInclusive}..${signalWindow.endExclusive}"
                 }
@@ -1157,14 +1177,14 @@ internal class ResearchFeatureAggregator(
                 if (isAggregationQueryTimeout(e) && canSubdivideAggregationWindow(window)) {
                     val splitWindows = splitAggregationWindow(window)
                     researchFeatureLogger.warn(e) {
-                        "execution_context_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
+                        "execution_context_5m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
                             "timed out after ${windowTimeoutSecondsForPhase(phase)}s; subdividing into " +
                             splitWindows.joinToString { "${it.startInclusive}..${it.endExclusive}" }
                     }
                     splitWindows.asReversed().forEach(queue::addFirst)
                     if (budgetExceeded()) {
                         researchFeatureLogger.info {
-                            "execution_context_1m $phase exchange=$exchangeId budget exhausted after timeout while " +
+                            "execution_context_5m $phase exchange=$exchangeId budget exhausted after timeout while " +
                                 "splitting ${window.startInclusive}..${window.endExclusive}"
                         }
                         return WindowMaterializationResult(
@@ -1179,14 +1199,14 @@ internal class ResearchFeatureAggregator(
                 if (isAggregationQueryTimeout(e)) {
                     if (phase == "gap_repair") {
                         researchFeatureLogger.warn(e) {
-                            "execution_context_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
+                            "execution_context_5m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
                                 "timed out after ${windowTimeoutSecondsForPhase(phase)}s at minimum granularity; " +
                                 "skipping until the rolling scan wraps instead of pinning recent-gap repair"
                         }
                         continue
                     }
                     researchFeatureLogger.error(e) {
-                        "execution_context_1m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
+                        "execution_context_5m $phase exchange=$exchangeId window=${window.startInclusive}..${window.endExclusive} " +
                             "timed out after ${windowTimeoutSecondsForPhase(phase)}s at minimum granularity; retaining window"
                     }
                     queue.addFirst(window)
@@ -1222,11 +1242,11 @@ internal class ResearchFeatureAggregator(
             if (schemaValidated) {
                 return true
             }
-            val columns = loadTableColumns(conn, "execution_context_1m")
+            val columns = loadTableColumns(conn, "execution_context_5m")
             val missing = requiredColumns.filterNot(columns::contains)
             if (missing.isNotEmpty()) {
                 researchFeatureLogger.error {
-                    "execution_context_1m schema missing columns ${missing.joinToString(",")}. " +
+                    "execution_context_5m schema missing columns ${missing.joinToString(",")}. " +
                         "Apply stack.config/postgres/init-market-data-schema.sql via datamancy-schema-reconcile."
                 }
                 return false
@@ -1264,9 +1284,8 @@ internal class ResearchFeatureAggregator(
         timeoutSeconds: Int = effectiveWindowTimeoutSeconds
     ): Int {
         val updatedAt = Instant.now()
-        val finalizationCutoff = updatedAt.minus(finalizationLagMinutes, ChronoUnit.MINUTES)
         val sql = """
-            WITH minute_candles AS (
+            WITH execution_candles AS (
                 SELECT
                     time AS bucket_time,
                     symbol,
@@ -1279,73 +1298,69 @@ internal class ResearchFeatureAggregator(
                     COALESCE(num_trades, 0) AS num_trades
                 FROM market_data
                 WHERE exchange = ?
-                  AND data_type = 'candle_1m'
+                  AND data_type = 'candle_5m'
                   AND time >= ?
                   AND time < ?
             ),
-            minute_trades AS (
+            execution_trades AS (
                 SELECT
-                    time AS bucket_time,
+                    time_bucket(INTERVAL '$EXECUTION_CONTEXT_BAR_MINUTES minutes', time) AS bucket_time,
                     symbol,
                     exchange,
-                    trade_volume,
-                    buy_volume,
-                    sell_volume,
-                    trade_count,
-                    CASE WHEN trade_volume > 0 THEN trade_notional / trade_volume END AS trade_vwap
+                    SUM(trade_volume) AS trade_volume,
+                    SUM(buy_volume) AS buy_volume,
+                    SUM(sell_volume) AS sell_volume,
+                    SUM(trade_count)::INTEGER AS trade_count,
+                    CASE
+                        WHEN SUM(trade_volume) > 0 THEN SUM(trade_notional) / SUM(trade_volume)
+                    END AS trade_vwap
                 FROM minute_trade_stats
                 WHERE exchange = ?
                   AND time >= ?
                   AND time < ?
+                GROUP BY 1, 2, 3
             ),
-            minute_orderbooks AS (
+            execution_orderbooks AS (
                 SELECT
-                    time AS bucket_time,
+                    time_bucket(INTERVAL '$EXECUTION_CONTEXT_BAR_MINUTES minutes', time) AS bucket_time,
                     symbol,
                     exchange,
-                    best_bid,
-                    best_ask,
-                    spread,
-                    spread_pct,
-                    mid_price,
-                    bid_depth_10,
-                    ask_depth_10,
-                    orderbook_samples
+                    AVG(best_bid) AS best_bid,
+                    AVG(best_ask) AS best_ask,
+                    AVG(spread) AS spread,
+                    AVG(spread_pct) AS spread_pct,
+                    AVG(mid_price) AS mid_price,
+                    AVG(bid_depth_10) AS bid_depth_10,
+                    AVG(ask_depth_10) AS ask_depth_10,
+                    SUM(orderbook_samples)::INTEGER AS orderbook_samples
                 FROM minute_orderbook_state
                 WHERE exchange = ?
                   AND time >= ?
                   AND time < ?
+                GROUP BY 1, 2, 3
             ),
-            minute_funding AS (
+            execution_asset_context AS (
                 SELECT
-                    time AS bucket_time,
+                    time_bucket(INTERVAL '$EXECUTION_CONTEXT_BAR_MINUTES minutes', time) AS bucket_time,
                     symbol,
                     exchange,
-                    funding_rate
+                    AVG(funding_rate) AS funding_rate,
+                    AVG(open_interest) AS open_interest,
+                    COUNT(*)::INTEGER AS asset_context_samples
                 FROM minute_asset_context
                 WHERE exchange = ?
                   AND time >= ?
                   AND time < ?
+                GROUP BY 1, 2, 3
             ),
-            minute_open_interest AS (
-                SELECT
-                    time AS bucket_time,
-                    symbol,
-                    exchange,
-                    open_interest
-                FROM minute_asset_context
-                WHERE exchange = ?
-                  AND time >= ?
-                  AND time < ?
-            ),
-            minute_feature_buckets AS (
-                SELECT bucket_time, symbol, exchange FROM minute_candles
+            execution_feature_buckets AS (
+                SELECT bucket_time, symbol, exchange FROM execution_candles
                 UNION
-                SELECT bucket_time, symbol, exchange FROM minute_trades
+                SELECT bucket_time, symbol, exchange FROM execution_trades
                 UNION
-                SELECT bucket_time, symbol, exchange FROM minute_orderbooks
+                SELECT bucket_time, symbol, exchange FROM execution_orderbooks
             )
-            INSERT INTO execution_context_1m (
+            INSERT INTO $EXECUTION_CONTEXT_TABLE (
                 time,
                 symbol,
                 exchange,
@@ -1388,11 +1403,11 @@ internal class ResearchFeatureAggregator(
                 COALESCE(c.high, t.trade_vwap, NULLIF(o.mid_price, 0), o.best_bid, o.best_ask),
                 COALESCE(c.low, t.trade_vwap, NULLIF(o.mid_price, 0), o.best_bid, o.best_ask),
                 COALESCE(c.close, t.trade_vwap, NULLIF(o.mid_price, 0), o.best_bid, o.best_ask),
-                COALESCE(c.volume, t.trade_volume, 0),
+                COALESCE(c.volume, t.trade_volume, 0.0),
                 COALESCE(c.num_trades, t.trade_count, 0),
-                COALESCE(t.trade_volume, 0),
-                COALESCE(t.buy_volume, 0),
-                COALESCE(t.sell_volume, 0),
+                COALESCE(t.trade_volume, 0.0),
+                COALESCE(t.buy_volume, 0.0),
+                COALESCE(t.sell_volume, 0.0),
                 COALESCE(t.trade_count, 0),
                 t.trade_vwap,
                 o.best_bid,
@@ -1400,41 +1415,49 @@ internal class ResearchFeatureAggregator(
                 o.spread,
                 o.spread_pct,
                 COALESCE(NULLIF(o.mid_price, 0), c.close),
-                COALESCE(o.bid_depth_10, 0),
-                COALESCE(o.ask_depth_10, 0),
+                COALESCE(o.bid_depth_10, 0.0),
+                COALESCE(o.ask_depth_10, 0.0),
                 COALESCE(o.orderbook_samples, 0),
-                f.funding_rate,
-                oi.open_interest,
+                ac.funding_rate,
+                ac.open_interest,
                 c.bucket_time IS NOT NULL,
                 t.bucket_time IS NOT NULL,
                 o.bucket_time IS NOT NULL,
-                f.bucket_time IS NOT NULL OR oi.bucket_time IS NOT NULL,
+                COALESCE(ac.asset_context_samples, 0) > 0,
                 ?,
-                CASE WHEN buckets.bucket_time <= CAST(? AS TIMESTAMPTZ) THEN FALSE ELSE TRUE END,
-                CASE WHEN buckets.bucket_time <= CAST(? AS TIMESTAMPTZ) THEN TRUE ELSE FALSE END,
-                buckets.bucket_time + INTERVAL '${finalizationLagMinutes} minutes',
-                ${finalizedAtProjectionSql("buckets.bucket_time")}
-            FROM minute_feature_buckets buckets
-            LEFT JOIN minute_candles c
+                CASE
+                    WHEN buckets.bucket_time + INTERVAL '${EXECUTION_CONTEXT_BAR_MINUTES + finalizationLagMinutes} minutes' <= CAST(? AS TIMESTAMPTZ)
+                        THEN FALSE
+                    ELSE TRUE
+                END,
+                CASE
+                    WHEN buckets.bucket_time + INTERVAL '${EXECUTION_CONTEXT_BAR_MINUTES + finalizationLagMinutes} minutes' <= CAST(? AS TIMESTAMPTZ)
+                        THEN TRUE
+                    ELSE FALSE
+                END,
+                buckets.bucket_time + INTERVAL '${EXECUTION_CONTEXT_BAR_MINUTES + finalizationLagMinutes} minutes',
+                CASE
+                    WHEN buckets.bucket_time + INTERVAL '${EXECUTION_CONTEXT_BAR_MINUTES + finalizationLagMinutes} minutes' <= CAST(? AS TIMESTAMPTZ)
+                        THEN CAST(? AS TIMESTAMPTZ)
+                    ELSE NULL::TIMESTAMPTZ
+                END
+            FROM execution_feature_buckets buckets
+            LEFT JOIN execution_candles c
               ON c.bucket_time = buckets.bucket_time
              AND c.symbol = buckets.symbol
              AND c.exchange = buckets.exchange
-            LEFT JOIN minute_trades t
+            LEFT JOIN execution_trades t
               ON t.bucket_time = buckets.bucket_time
              AND t.symbol = buckets.symbol
              AND t.exchange = buckets.exchange
-            LEFT JOIN minute_orderbooks o
+            LEFT JOIN execution_orderbooks o
               ON o.bucket_time = buckets.bucket_time
              AND o.symbol = buckets.symbol
              AND o.exchange = buckets.exchange
-            LEFT JOIN minute_funding f
-              ON f.bucket_time = buckets.bucket_time
-             AND f.symbol = buckets.symbol
-             AND f.exchange = buckets.exchange
-            LEFT JOIN minute_open_interest oi
-              ON oi.bucket_time = buckets.bucket_time
-             AND oi.symbol = buckets.symbol
-             AND oi.exchange = buckets.exchange
+            LEFT JOIN execution_asset_context ac
+              ON ac.bucket_time = buckets.bucket_time
+             AND ac.symbol = buckets.symbol
+             AND ac.exchange = buckets.exchange
             ON CONFLICT (time, symbol, exchange) DO UPDATE SET
                 open = EXCLUDED.open,
                 high = EXCLUDED.high,
@@ -1463,12 +1486,12 @@ internal class ResearchFeatureAggregator(
                 asset_context_observed = EXCLUDED.asset_context_observed,
                 source_updated_at = EXCLUDED.source_updated_at,
                 is_provisional = CASE
-                    WHEN execution_context_1m.is_finalized OR EXCLUDED.is_finalized THEN FALSE
+                    WHEN $EXECUTION_CONTEXT_TABLE.is_finalized OR EXCLUDED.is_finalized THEN FALSE
                     ELSE EXCLUDED.is_provisional
                 END,
-                is_finalized = execution_context_1m.is_finalized OR EXCLUDED.is_finalized,
+                is_finalized = $EXECUTION_CONTEXT_TABLE.is_finalized OR EXCLUDED.is_finalized,
                 finalization_due_at = EXCLUDED.finalization_due_at,
-                finalized_at = COALESCE(execution_context_1m.finalized_at, EXCLUDED.finalized_at)
+                finalized_at = COALESCE($EXECUTION_CONTEXT_TABLE.finalized_at, EXCLUDED.finalized_at)
         """.trimIndent()
 
         conn.prepareStatement(sql).use { stmt ->
@@ -1482,28 +1505,25 @@ internal class ResearchFeatureAggregator(
             parameterIndex += 3
             bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)
             parameterIndex += 3
-            bindWindow(stmt, parameterIndex, exchangeId, startInclusive, endExclusive)
-            parameterIndex += 3
             stmt.setTimestamp(parameterIndex++, Timestamp.from(updatedAt))
-            stmt.setTimestamp(parameterIndex++, Timestamp.from(finalizationCutoff))
-            stmt.setTimestamp(parameterIndex++, Timestamp.from(finalizationCutoff))
-            stmt.setTimestamp(parameterIndex++, Timestamp.from(finalizationCutoff))
+            stmt.setTimestamp(parameterIndex++, Timestamp.from(updatedAt))
+            stmt.setTimestamp(parameterIndex++, Timestamp.from(updatedAt))
+            stmt.setTimestamp(parameterIndex++, Timestamp.from(updatedAt))
             stmt.setTimestamp(parameterIndex, Timestamp.from(updatedAt))
             return stmt.executeUpdate()
         }
     }
 
     private fun finalizeDueRows(conn: Connection, finalizedAt: Instant): FinalizationResult {
-        val finalizationCutoff = finalizedAt.minus(finalizationLagMinutes, ChronoUnit.MINUTES)
         val sql = """
             WITH finalized AS (
-                UPDATE execution_context_1m
+                UPDATE $EXECUTION_CONTEXT_TABLE
                 SET
                     is_provisional = FALSE,
                     is_finalized = TRUE,
                     finalization_due_at = COALESCE(
                         finalization_due_at,
-                        time + INTERVAL '${finalizationLagMinutes} minutes'
+                        time + INTERVAL '${EXECUTION_CONTEXT_BAR_MINUTES + finalizationLagMinutes} minutes'
                     ),
                     finalized_at = COALESCE(finalized_at, CAST(? AS TIMESTAMPTZ))
                 WHERE exchange = ?
@@ -1526,7 +1546,7 @@ internal class ResearchFeatureAggregator(
         conn.prepareStatement(sql).use { stmt ->
             stmt.setTimestamp(1, Timestamp.from(finalizedAt))
             stmt.setString(2, exchangeId)
-            stmt.setTimestamp(3, Timestamp.from(finalizationCutoff))
+            stmt.setTimestamp(3, Timestamp.from(finalizedAt))
             stmt.executeQuery().use { rs ->
                 if (!rs.next()) {
                     return FinalizationResult(rowCount = 0, affectedWindow = null)
@@ -1537,7 +1557,7 @@ internal class ResearchFeatureAggregator(
                 val affectedWindow = if (rowCount > 0 && earliestTime != null && latestTime != null) {
                     AggregationWindow(
                         startInclusive = earliestTime,
-                        endExclusive = latestTime.plus(1, ChronoUnit.MINUTES)
+                        endExclusive = latestTime.plus(EXECUTION_CONTEXT_BAR_MINUTES.toLong(), ChronoUnit.MINUTES)
                     )
                 } else {
                     null
@@ -1555,7 +1575,7 @@ internal class ResearchFeatureAggregator(
     ): Int {
         val updatedAt = Instant.now()
         val sql = """
-            WITH aggregated AS (
+            WITH daily_candles AS (
                 SELECT
                     time_bucket(INTERVAL '1 day', time) AS bucket_time,
                     symbol,
@@ -1566,6 +1586,19 @@ internal class ResearchFeatureAggregator(
                     last(close, time) FILTER (WHERE close IS NOT NULL) AS close,
                     SUM(COALESCE(volume, 0)) AS volume,
                     SUM(COALESCE(num_trades, 0))::INTEGER AS num_trades,
+                    COUNT(*)::INTEGER AS candle_bars
+                FROM market_data
+                WHERE exchange = ?
+                  AND data_type = 'candle_4h'
+                  AND time >= ?
+                  AND time < ?
+                GROUP BY 1, 2, 3
+            ),
+            daily_execution AS (
+                SELECT
+                    time_bucket(INTERVAL '1 day', time) AS bucket_time,
+                    symbol,
+                    exchange,
                     SUM(COALESCE(trade_volume, 0)) AS trade_volume,
                     SUM(COALESCE(buy_volume, 0)) AS buy_volume,
                     SUM(COALESCE(sell_volume, 0)) AS sell_volume,
@@ -1593,13 +1626,37 @@ internal class ResearchFeatureAggregator(
                     AVG(CASE WHEN trade_observed THEN 1.0 ELSE 0.0 END) AS trade_observed_ratio,
                     AVG(CASE WHEN orderbook_observed THEN 1.0 ELSE 0.0 END) AS orderbook_observed_ratio,
                     AVG(CASE WHEN asset_context_observed THEN 1.0 ELSE 0.0 END) AS asset_context_observed_ratio,
-                    COUNT(*) FILTER (WHERE candle_observed)::INTEGER AS candle_minutes,
-                    COUNT(*) FILTER (WHERE trade_observed)::INTEGER AS trade_minutes,
-                    COUNT(*) FILTER (WHERE orderbook_observed)::INTEGER AS orderbook_minutes,
-                    COUNT(*) FILTER (WHERE asset_context_observed)::INTEGER AS asset_context_minutes,
-                    MAX(source_updated_at) AS source_updated_at
-                FROM execution_context_1m
+                    COUNT(*) FILTER (WHERE trade_observed)::INTEGER AS trade_bars,
+                    COUNT(*) FILTER (WHERE orderbook_observed)::INTEGER AS orderbook_bars,
+                    COUNT(*) FILTER (WHERE asset_context_observed)::INTEGER AS asset_context_bars
+                FROM $EXECUTION_CONTEXT_TABLE
                 WHERE exchange = ?
+                  AND time >= ?
+                  AND time < ?
+                GROUP BY 1, 2, 3
+            ),
+            daily_funding AS (
+                SELECT
+                    time_bucket(INTERVAL '1 day', time) AS bucket_time,
+                    symbol,
+                    exchange,
+                    AVG(funding_rate) AS funding_rate
+                FROM market_data
+                WHERE exchange = ?
+                  AND data_type = 'funding'
+                  AND time >= ?
+                  AND time < ?
+                GROUP BY 1, 2, 3
+            ),
+            daily_open_interest AS (
+                SELECT
+                    time_bucket(INTERVAL '1 day', time) AS bucket_time,
+                    symbol,
+                    exchange,
+                    AVG(open_interest) AS open_interest
+                FROM market_data
+                WHERE exchange = ?
+                  AND data_type = 'open_interest'
                   AND time >= ?
                   AND time < ?
                 GROUP BY 1, 2, 3
@@ -1637,49 +1694,61 @@ internal class ResearchFeatureAggregator(
                 finalized_at
             )
             SELECT
-                bucket_time,
-                symbol,
-                exchange,
-                open,
-                high,
-                low,
-                close,
-                volume,
-                num_trades,
-                trade_volume,
-                buy_volume,
-                sell_volume,
-                trade_count,
-                trade_vwap,
-                spread_bps,
-                depth_usd,
-                funding_rate,
-                open_interest,
-                trade_observed_ratio,
-                orderbook_observed_ratio,
-                asset_context_observed_ratio,
-                candle_minutes,
-                trade_minutes,
-                orderbook_minutes,
-                asset_context_minutes,
+                candles.bucket_time,
+                candles.symbol,
+                candles.exchange,
+                candles.open,
+                candles.high,
+                candles.low,
+                candles.close,
+                candles.volume,
+                candles.num_trades,
+                COALESCE(exec.trade_volume, 0.0),
+                COALESCE(exec.buy_volume, 0.0),
+                COALESCE(exec.sell_volume, 0.0),
+                COALESCE(exec.trade_count, 0),
+                exec.trade_vwap,
+                exec.spread_bps,
+                exec.depth_usd,
+                COALESCE(funding.funding_rate, exec.funding_rate),
+                COALESCE(oi.open_interest, exec.open_interest),
+                COALESCE(exec.trade_observed_ratio, 0.0),
+                COALESCE(exec.orderbook_observed_ratio, 0.0),
+                COALESCE(exec.asset_context_observed_ratio, 0.0),
+                candles.candle_bars * 240,
+                COALESCE(exec.trade_bars, 0) * $EXECUTION_CONTEXT_BAR_MINUTES,
+                COALESCE(exec.orderbook_bars, 0) * $EXECUTION_CONTEXT_BAR_MINUTES,
+                COALESCE(exec.asset_context_bars, 0) * $EXECUTION_CONTEXT_BAR_MINUTES,
                 ?,
                 CASE
-                    WHEN bucket_time + INTERVAL '1 day' + INTERVAL '${finalizationLagMinutes} minutes' <= CAST(? AS TIMESTAMPTZ)
+                    WHEN candles.bucket_time + INTERVAL '1 day' + INTERVAL '${finalizationLagMinutes} minutes' <= CAST(? AS TIMESTAMPTZ)
                         THEN FALSE
                     ELSE TRUE
                 END,
                 CASE
-                    WHEN bucket_time + INTERVAL '1 day' + INTERVAL '${finalizationLagMinutes} minutes' <= CAST(? AS TIMESTAMPTZ)
+                    WHEN candles.bucket_time + INTERVAL '1 day' + INTERVAL '${finalizationLagMinutes} minutes' <= CAST(? AS TIMESTAMPTZ)
                         THEN TRUE
                     ELSE FALSE
                 END,
-                bucket_time + INTERVAL '1 day' + INTERVAL '${finalizationLagMinutes} minutes',
+                candles.bucket_time + INTERVAL '1 day' + INTERVAL '${finalizationLagMinutes} minutes',
                 CASE
-                    WHEN bucket_time + INTERVAL '1 day' + INTERVAL '${finalizationLagMinutes} minutes' <= CAST(? AS TIMESTAMPTZ)
+                    WHEN candles.bucket_time + INTERVAL '1 day' + INTERVAL '${finalizationLagMinutes} minutes' <= CAST(? AS TIMESTAMPTZ)
                         THEN CAST(? AS TIMESTAMPTZ)
                     ELSE NULL::TIMESTAMPTZ
                 END
-            FROM aggregated
+            FROM daily_candles candles
+            LEFT JOIN daily_execution exec
+              ON exec.bucket_time = candles.bucket_time
+             AND exec.symbol = candles.symbol
+             AND exec.exchange = candles.exchange
+            LEFT JOIN daily_funding funding
+              ON funding.bucket_time = candles.bucket_time
+             AND funding.symbol = candles.symbol
+             AND funding.exchange = candles.exchange
+            LEFT JOIN daily_open_interest oi
+              ON oi.bucket_time = candles.bucket_time
+             AND oi.symbol = candles.symbol
+             AND oi.exchange = candles.exchange
             ON CONFLICT (time, symbol, exchange) DO UPDATE SET
                 open = EXCLUDED.open,
                 high = EXCLUDED.high,
@@ -1718,11 +1787,20 @@ internal class ResearchFeatureAggregator(
             stmt.setString(1, exchangeId)
             stmt.setTimestamp(2, Timestamp.from(startInclusive))
             stmt.setTimestamp(3, Timestamp.from(endExclusive))
-            stmt.setTimestamp(4, Timestamp.from(updatedAt))
-            stmt.setTimestamp(5, Timestamp.from(updatedAt))
-            stmt.setTimestamp(6, Timestamp.from(updatedAt))
-            stmt.setTimestamp(7, Timestamp.from(updatedAt))
-            stmt.setTimestamp(8, Timestamp.from(updatedAt))
+            stmt.setString(4, exchangeId)
+            stmt.setTimestamp(5, Timestamp.from(startInclusive))
+            stmt.setTimestamp(6, Timestamp.from(endExclusive))
+            stmt.setString(7, exchangeId)
+            stmt.setTimestamp(8, Timestamp.from(startInclusive))
+            stmt.setTimestamp(9, Timestamp.from(endExclusive))
+            stmt.setString(10, exchangeId)
+            stmt.setTimestamp(11, Timestamp.from(startInclusive))
+            stmt.setTimestamp(12, Timestamp.from(endExclusive))
+            stmt.setTimestamp(13, Timestamp.from(updatedAt))
+            stmt.setTimestamp(14, Timestamp.from(updatedAt))
+            stmt.setTimestamp(15, Timestamp.from(updatedAt))
+            stmt.setTimestamp(16, Timestamp.from(updatedAt))
+            stmt.setTimestamp(17, Timestamp.from(updatedAt))
             return stmt.executeUpdate()
         }
     }

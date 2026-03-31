@@ -19,11 +19,12 @@ remote_alpha_analytics_get() {
 frontiers_json() {
   remote_exec "docker exec -i market-postgres psql -U postgres -d datamancy -At" <<'SQL'
 select json_build_object(
-  'market_data_candle_1m', (select max(time)::text from public.market_data where data_type = 'candle_1m'),
+  'market_data_candle_4h', (select max(time)::text from public.market_data where data_type = 'candle_4h'),
+  'market_data_candle_5m', (select max(time)::text from public.market_data where data_type = 'candle_5m'),
   'market_data_trade', (select max(time)::text from public.market_data where data_type = 'trade'),
   'orderbook_data', (select max(time)::text from public.orderbook_data),
   'market_data_funding', (select max(time)::text from public.market_data where data_type = 'funding'),
-  'execution_context_1m', (select max(time)::text from public.execution_context_1m),
+  'execution_context_5m', (select max(time)::text from public.execution_context_5m),
   'alpha_signal_panel_1d', (select max(time)::text from public.alpha_signal_panel_1d),
   'alpha_signal_panel_1d_finalized', (select max(time)::text from public.alpha_signal_panel_1d where is_finalized)
 )::text;
@@ -34,7 +35,7 @@ signal_summary_json() {
   remote_exec "docker exec -i market-postgres psql -U postgres -d datamancy -At" <<SQL
 WITH recent_exec AS (
     SELECT DISTINCT symbol
-    FROM execution_context_1m
+    FROM execution_context_5m
     WHERE exchange = '${EXCHANGE}'
       AND time >= date_trunc('minute', NOW()) - INTERVAL '24 hours'
 ),
@@ -100,8 +101,8 @@ echo "[compose]"
 remote_exec "docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'alpha-(analytics|discovery|dataset|execution-agent|execution-monitor|portfolio|orchestrator)|market-postgres|tx-gateway'"
 
 policy_json="$(remote_alpha_analytics_get "/api/v1/policy/trading")"
-execution_summary_json="$(remote_alpha_analytics_get "/api/v1/data-health/summary?exchange=$EXCHANGE&barMinutes=1")"
-issues_json="$(remote_alpha_analytics_get "/api/v1/data-health/issues?exchange=$EXCHANGE&barMinutes=1&limit=5")"
+execution_summary_json="$(remote_alpha_analytics_get "/api/v1/data-health/summary?exchange=$EXCHANGE&barMinutes=5")"
+issues_json="$(remote_alpha_analytics_get "/api/v1/data-health/issues?exchange=$EXCHANGE&barMinutes=5&limit=5")"
 signal_summary_payload="$(signal_summary_json)"
 frontiers_payload="$(frontiers_json)"
 
@@ -159,7 +160,7 @@ print(
     )
 )
 
-print("[execution-diagnostics-1m]")
+print("[execution-diagnostics-5m]")
 print(
     "asOf={as_of} tracked={tracked} active={active} eligible={eligible} healthy={healthy} degraded={degraded} critical={critical}".format(
         as_of=execution.get("asOf"),
@@ -190,11 +191,12 @@ print(
 
 print("[frontiers]")
 for key in (
-    "market_data_candle_1m",
+    "market_data_candle_5m",
+    "market_data_candle_4h",
     "market_data_trade",
     "orderbook_data",
     "market_data_funding",
-    "execution_context_1m",
+    "execution_context_5m",
     "alpha_signal_panel_1d",
     "alpha_signal_panel_1d_finalized",
 ):
@@ -219,9 +221,9 @@ if signal.get("finalizedFailSymbols", 0) > 0:
 if latest_finalized is None or finalized_lag_hours is None or finalized_lag_hours > 48.0:
     reasons.append("1d finalized frontier is stale")
 if execution.get("criticalSymbols", 0) > 0:
-    reasons.append("1m execution diagnostics report critical symbols")
+    reasons.append("5m execution diagnostics report critical symbols")
 if execution.get("executionFailSymbols", 0) > 0:
-    reasons.append("1m execution observation failures present")
+    reasons.append("5m execution observation failures present")
 
 print("[verdict]")
 if reasons:
@@ -232,5 +234,5 @@ if reasons:
 
 print("READY")
 print("- 1d signal panel is current enough for interday discovery")
-print("- 1m execution diagnostics are acceptable for secondary execution conditioning")
+print("- 5m execution diagnostics are acceptable for secondary execution conditioning")
 PY

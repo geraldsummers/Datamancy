@@ -440,13 +440,13 @@ internal class RawSyncStateStore(
                                 )
                             ),
                             (
-                                'candle_1m',
+                                'candle_5m',
                                 (
                                     SELECT time
                                     FROM market_data
                                     WHERE exchange = ?
                                       AND symbol = symbols.symbol
-                                      AND data_type = 'candle_1m'
+                                      AND data_type = 'candle_5m'
                                       AND time >= ?
                                       AND time < ?
                                     ORDER BY time DESC
@@ -593,9 +593,9 @@ internal class RawSyncStateStore(
 internal class FeatureStateStore(
     private val dataSource: DataSource,
     private val exchangeId: String,
-    private val barSizeMinutes: Int = 1,
-    private val featureTableName: String = "execution_context_1m",
-    private val rawCoverageChannel: String = "candle_1m"
+    private val barSizeMinutes: Int = EXECUTION_CONTEXT_BAR_MINUTES,
+    private val featureTableName: String = "execution_context_5m",
+    private val rawCoverageChannel: String = "candle_5m"
 ) {
     init {
         require(featureTableName.matches(Regex("[a-z0-9_]+"))) {

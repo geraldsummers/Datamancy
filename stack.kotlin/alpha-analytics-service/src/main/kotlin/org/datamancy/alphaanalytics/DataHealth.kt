@@ -27,15 +27,15 @@ import java.time.Duration
 import java.time.Instant
 import javax.sql.DataSource
 
-private const val CANONICAL_RESEARCH_FEATURE_BAR_SECONDS = 60L
+private const val CANONICAL_RESEARCH_FEATURE_BAR_SECONDS = 300L
 private val marketCatalogHttpClient: HttpClient = HttpClient.newBuilder().build()
 
-private object DataHealthSymbol1mTable : Table("data_health_symbol_1m") {
+private object DataHealthSymbol5mTable : Table("data_health_symbol_5m") {
     val exchange = text("exchange")
     val symbol = text("symbol")
     val activeRecent = bool("active_recent")
     val latestAnyRawTime = timestamp("latest_any_raw_time").nullable()
-    val candle1mLatestRawTime = timestamp("candle_1m_latest_raw_time").nullable()
+    val candle1mLatestRawTime = timestamp("candle_5m_latest_raw_time").nullable()
     val tradeLatestRawTime = timestamp("trade_latest_raw_time").nullable()
     val orderbookL2LatestRawTime = timestamp("orderbook_l2_latest_raw_time").nullable()
     val fundingLatestRawTime = timestamp("funding_latest_raw_time").nullable()
@@ -202,8 +202,8 @@ class DataHealthService(
 ) {
     private val database by lazy { Database.connect(dataSource) }
 
-    suspend fun loadSummary(exchange: String? = null, barMinutes: Int = 1): DataHealthSummary = withContext(Dispatchers.IO) {
-        require(barMinutes == 1) { "data health currently supports only barMinutes=1" }
+    suspend fun loadSummary(exchange: String? = null, barMinutes: Int = 5): DataHealthSummary = withContext(Dispatchers.IO) {
+        require(barMinutes == 5) { "data health currently supports only barMinutes=5" }
         val policy = policyProvider()
         val resolvedExchange = resolveExchange(exchange, policy)
         val thresholds = thresholdsFor(policy, resolvedExchange, barMinutes)
@@ -230,7 +230,7 @@ class DataHealthService(
             degradedSymbols = evaluated.count { it.status == DataHealthStatus.DEGRADED },
             criticalSymbols = evaluated.count { it.status == DataHealthStatus.CRITICAL },
             symbolsMissingRequiredChannels = evaluated.count { it.missingRequiredChannels.isNotEmpty() },
-            staleCandleSymbols = evaluated.count { "candle_1m" in it.staleChannels },
+            staleCandleSymbols = evaluated.count { "candle_5m" in it.staleChannels },
             staleFeatureSymbols = evaluated.count {
                 (
                     it.featureLagSeconds == null || it.featureLagSeconds > thresholds.featureLagMaxSeconds
@@ -258,12 +258,12 @@ class DataHealthService(
 
     suspend fun loadIssues(
         exchange: String? = null,
-        barMinutes: Int = 1,
+        barMinutes: Int = 5,
         limit: Int = 50,
         includeInactive: Boolean = false,
         includeHealthy: Boolean = false
     ): DataHealthIssuesResponse = withContext(Dispatchers.IO) {
-        require(barMinutes == 1) { "data health currently supports only barMinutes=1" }
+        require(barMinutes == 5) { "data health currently supports only barMinutes=5" }
         val policy = policyProvider()
         val resolvedExchange = resolveExchange(exchange, policy)
         val thresholds = thresholdsFor(policy, resolvedExchange, barMinutes)
@@ -294,9 +294,9 @@ class DataHealthService(
     suspend fun loadIssue(
         symbol: String,
         exchange: String? = null,
-        barMinutes: Int = 1
+        barMinutes: Int = 5
     ): DataHealthSymbolIssue = withContext(Dispatchers.IO) {
-        require(barMinutes == 1) { "data health currently supports only barMinutes=1" }
+        require(barMinutes == 5) { "data health currently supports only barMinutes=5" }
         val policy = policyProvider()
         val resolvedExchange = resolveExchange(exchange, policy)
         val thresholds = thresholdsFor(policy, resolvedExchange, barMinutes)
@@ -329,6 +329,7 @@ class DataHealthService(
             requiredRawChannels = rawSync?.channels
                 ?.filterValues { it == RequirementLevel.REQUIRED }
                 ?.keys
+                ?.filterNot { it == "candle_4h" }
                 ?.sorted()
                 .orEmpty(),
             rawStaleAfterSeconds = ((rawSync?.staleAfterMs ?: 120_000L) / 1_000L).coerceAtLeast(1L),
@@ -353,10 +354,10 @@ class DataHealthService(
     private fun loadRows(exchange: String, authoritativeSymbols: List<String>): List<DataHealthSymbolRow> {
         val asOf = Instant.now()
         val rowsBySymbol = transaction(database) {
-            DataHealthSymbol1mTable
+            DataHealthSymbol5mTable
                 .selectAll()
-                .andWhere { DataHealthSymbol1mTable.exchange eq exchange }
-                .orderBy(DataHealthSymbol1mTable.symbol to SortOrder.ASC)
+                .andWhere { DataHealthSymbol5mTable.exchange eq exchange }
+                .orderBy(DataHealthSymbol5mTable.symbol to SortOrder.ASC)
                 .map { it.toDataHealthSymbolRow(asOf) }
                 .associateBy { it.symbol }
         }
@@ -627,14 +628,14 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
     if (!row.isOrderbookLive(thresholds)) {
         criticalReasons += "execution context is not currently live"
     }
-    if ("candle_1m" in missingRequiredChannels) {
-        criticalReasons += "missing required raw channel candle_1m"
+    if ("candle_5m" in missingRequiredChannels) {
+        criticalReasons += "missing required raw channel candle_5m"
     }
-    if ("candle_1m" in staleChannels && livenessClass != DataHealthLivenessClass.LIVE_SPARSE) {
-        criticalReasons += "candle_1m lag ${row.candleRawLagSeconds}s exceeds ${thresholds.candleRawLagMaxSeconds}s"
+    if ("candle_5m" in staleChannels && livenessClass != DataHealthLivenessClass.LIVE_SPARSE) {
+        criticalReasons += "candle_5m lag ${row.candleRawLagSeconds}s exceeds ${thresholds.candleRawLagMaxSeconds}s"
     }
     if (row.latestFeatureTime == null) {
-        criticalReasons += "missing execution_context_1m rows"
+        criticalReasons += "missing execution_context_5m rows"
     }
     if (row.featureLagSeconds == null || row.featureLagSeconds > thresholds.featureLagMaxSeconds) {
         criticalReasons += "feature lag ${row.featureLagSeconds ?: -1}s exceeds ${thresholds.featureLagMaxSeconds}s"
@@ -646,7 +647,7 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
     val degradeEligibleChannels = if (livenessClass == DataHealthLivenessClass.LIVE_SPARSE) {
         setOf("funding", "orderbook_l2", "open_interest")
     } else {
-        thresholds.requiredRawChannels.toSet() - "candle_1m"
+        thresholds.requiredRawChannels.toSet() - "candle_5m"
     }
 
     missingRequiredChannels
@@ -718,7 +719,7 @@ internal fun evaluateDataHealthRow(row: DataHealthSymbolRow, thresholds: DataHea
 }
 
 private fun thresholdForChannel(channel: String, thresholds: DataHealthThresholds): Long =
-    if (channel == "candle_1m") thresholds.candleRawLagMaxSeconds else thresholds.rawStaleAfterSeconds
+    if (channel == "candle_5m") thresholds.candleRawLagMaxSeconds else thresholds.rawStaleAfterSeconds
 
 private fun emptyDataHealthSymbolRow(exchange: String, symbol: String): DataHealthSymbolRow =
     DataHealthSymbolRow(
@@ -777,45 +778,45 @@ private fun effectiveBarCloseLagMinutes(
         }
 
 private fun ResultRow.toDataHealthSymbolRow(referenceTime: Instant): DataHealthSymbolRow {
-    val candleLatestRawTime = this[DataHealthSymbol1mTable.candle1mLatestRawTime]
-    val latestFeatureTime = this[DataHealthSymbol1mTable.latestFeatureTime]
-    val finalizedThrough = this[DataHealthSymbol1mTable.finalizedThrough]
+    val candleLatestRawTime = this[DataHealthSymbol5mTable.candle1mLatestRawTime]
+    val latestFeatureTime = this[DataHealthSymbol5mTable.latestFeatureTime]
+    val finalizedThrough = this[DataHealthSymbol5mTable.finalizedThrough]
     return DataHealthSymbolRow(
-        exchange = this[DataHealthSymbol1mTable.exchange],
-        symbol = this[DataHealthSymbol1mTable.symbol],
-        activeRecent = this[DataHealthSymbol1mTable.activeRecent],
-        latestAnyRawTime = this[DataHealthSymbol1mTable.latestAnyRawTime],
+        exchange = this[DataHealthSymbol5mTable.exchange],
+        symbol = this[DataHealthSymbol5mTable.symbol],
+        activeRecent = this[DataHealthSymbol5mTable.activeRecent],
+        latestAnyRawTime = this[DataHealthSymbol5mTable.latestAnyRawTime],
         candleLatestRawTime = candleLatestRawTime,
-        tradeLatestRawTime = this[DataHealthSymbol1mTable.tradeLatestRawTime],
-        orderbookLatestRawTime = this[DataHealthSymbol1mTable.orderbookL2LatestRawTime],
-        fundingLatestRawTime = this[DataHealthSymbol1mTable.fundingLatestRawTime],
-        openInterestLatestRawTime = this[DataHealthSymbol1mTable.openInterestLatestRawTime],
+        tradeLatestRawTime = this[DataHealthSymbol5mTable.tradeLatestRawTime],
+        orderbookLatestRawTime = this[DataHealthSymbol5mTable.orderbookL2LatestRawTime],
+        fundingLatestRawTime = this[DataHealthSymbol5mTable.fundingLatestRawTime],
+        openInterestLatestRawTime = this[DataHealthSymbol5mTable.openInterestLatestRawTime],
         candleRawLagSeconds = effectiveBarCloseLagSeconds(candleLatestRawTime, referenceTime),
-        tradeRawLagSeconds = this[DataHealthSymbol1mTable.tradeRawLagSeconds],
-        orderbookRawLagSeconds = this[DataHealthSymbol1mTable.orderbookL2RawLagSeconds],
-        fundingRawLagSeconds = this[DataHealthSymbol1mTable.fundingRawLagSeconds],
-        openInterestRawLagSeconds = this[DataHealthSymbol1mTable.openInterestRawLagSeconds],
+        tradeRawLagSeconds = this[DataHealthSymbol5mTable.tradeRawLagSeconds],
+        orderbookRawLagSeconds = this[DataHealthSymbol5mTable.orderbookL2RawLagSeconds],
+        fundingRawLagSeconds = this[DataHealthSymbol5mTable.fundingRawLagSeconds],
+        openInterestRawLagSeconds = this[DataHealthSymbol5mTable.openInterestRawLagSeconds],
         latestFeatureTime = latestFeatureTime,
         finalizedThrough = finalizedThrough,
         featureLagSeconds = effectiveBarCloseLagSeconds(latestFeatureTime, referenceTime),
         finalizedLagMinutes = effectiveBarCloseLagMinutes(finalizedThrough, referenceTime),
-        featureRows = this[DataHealthSymbol1mTable.featureRows],
-        materializerLagSeconds = this[DataHealthSymbol1mTable.materializerLagSeconds],
-        coverageRatio = this[DataHealthSymbol1mTable.coverageRatio],
-        finalizedRatio = this[DataHealthSymbol1mTable.finalizedRatio],
-        expectedBars = this[DataHealthSymbol1mTable.expectedBars],
-        observedBars = this[DataHealthSymbol1mTable.observedBars],
-        finalizedBars = this[DataHealthSymbol1mTable.finalizedBars],
-        recentFeatureRows24h = this[DataHealthSymbol1mTable.recentFeatureRows24h],
-        recentTradeObservedShare24h = this[DataHealthSymbol1mTable.recentTradeObservedShare24h],
-        recentOrderbookObservedShare24h = this[DataHealthSymbol1mTable.recentOrderbookObservedShare24h],
-        recentExecutionObservedShare24h = this[DataHealthSymbol1mTable.recentExecutionObservedShare24h],
-        recentFinalizedShare24h = this[DataHealthSymbol1mTable.recentFinalizedShare24h]
+        featureRows = this[DataHealthSymbol5mTable.featureRows],
+        materializerLagSeconds = this[DataHealthSymbol5mTable.materializerLagSeconds],
+        coverageRatio = this[DataHealthSymbol5mTable.coverageRatio],
+        finalizedRatio = this[DataHealthSymbol5mTable.finalizedRatio],
+        expectedBars = this[DataHealthSymbol5mTable.expectedBars],
+        observedBars = this[DataHealthSymbol5mTable.observedBars],
+        finalizedBars = this[DataHealthSymbol5mTable.finalizedBars],
+        recentFeatureRows24h = this[DataHealthSymbol5mTable.recentFeatureRows24h],
+        recentTradeObservedShare24h = this[DataHealthSymbol5mTable.recentTradeObservedShare24h],
+        recentOrderbookObservedShare24h = this[DataHealthSymbol5mTable.recentOrderbookObservedShare24h],
+        recentExecutionObservedShare24h = this[DataHealthSymbol5mTable.recentExecutionObservedShare24h],
+        recentFinalizedShare24h = this[DataHealthSymbol5mTable.recentFinalizedShare24h]
     )
 }
 
 private fun DataHealthSymbolRow.latestRawTime(channel: String): Instant? = when (channel) {
-    "candle_1m" -> candleLatestRawTime
+    "candle_5m" -> candleLatestRawTime
     "trade" -> tradeLatestRawTime
     "orderbook_l2" -> orderbookLatestRawTime
     "funding" -> fundingLatestRawTime
@@ -824,7 +825,7 @@ private fun DataHealthSymbolRow.latestRawTime(channel: String): Instant? = when 
 }
 
 private fun DataHealthSymbolRow.rawLagSeconds(channel: String): Long? = when (channel) {
-    "candle_1m" -> candleRawLagSeconds
+    "candle_5m" -> candleRawLagSeconds
     "trade" -> tradeRawLagSeconds
     "orderbook_l2" -> orderbookRawLagSeconds
     "funding" -> fundingRawLagSeconds
@@ -847,14 +848,14 @@ private fun DataHealthSymbolRow.isIdleButLiveChannel(
 ): Boolean {
     if (readinessEligible) return false
     if (!isOrderbookLive(thresholds)) return false
-    if (channel != "trade" && channel != "candle_1m") return false
+    if (channel != "trade" && channel != "candle_5m") return false
     return latestRawTime(channel) != null
 }
 
 private fun DataHealthSymbolRow.livenessClass(thresholds: DataHealthThresholds): DataHealthLivenessClass {
     if (!activeRecent) return DataHealthLivenessClass.INACTIVE
     if (!isOrderbookLive(thresholds)) return DataHealthLivenessClass.LOCAL_STALE
-    val eventDrivenChannels = setOf("trade", "candle_1m")
+    val eventDrivenChannels = setOf("trade", "candle_5m")
     val nonEventChannels = setOf("orderbook_l2", "funding", "open_interest")
     val staleNonEventChannel = nonEventChannels.any { channel ->
         rawLagSeconds(channel)?.let { it > thresholdForChannel(channel, thresholds) } == true
@@ -879,8 +880,8 @@ private fun DataHealthSymbolIssue.hasExecutionHealthFailure(thresholds: DataHeal
     if (recentFeatureRows24h > 0 && recentExecutionObservedShare24h < thresholds.minExecutionObservedRatio) {
         return true
     }
-    return missingRequiredChannels.any { it != "candle_1m" } ||
-        staleChannels.any { it != "candle_1m" } ||
+    return missingRequiredChannels.any { it != "candle_5m" } ||
+        staleChannels.any { it != "candle_5m" } ||
         (!readinessEligible && status != DataHealthStatus.IDLE_LIVE)
 }
 

@@ -75,9 +75,10 @@ data class UniverseEligibilityPolicy(
 data class RawSyncPolicy(
     val channels: Map<String, RequirementLevel> = mapOf(
         "trade" to RequirementLevel.REQUIRED,
-        "candle_1m" to RequirementLevel.REQUIRED,
+        "candle_4h" to RequirementLevel.REQUIRED,
+        "candle_5m" to RequirementLevel.REQUIRED,
         "orderbook_l2" to RequirementLevel.REQUIRED,
-        "funding" to RequirementLevel.REQUIRED,
+        "funding" to RequirementLevel.OPTIONAL,
         "open_interest" to RequirementLevel.OPTIONAL
     ),
     val splitCandlesFromExecution: Boolean = true,
@@ -504,9 +505,10 @@ class UniverseEligibilityPolicyBuilder {
 class RawSyncPolicyBuilder {
     var channels: MutableMap<String, RequirementLevel> = linkedMapOf(
         "trade" to RequirementLevel.REQUIRED,
-        "candle_1m" to RequirementLevel.REQUIRED,
+        "candle_4h" to RequirementLevel.REQUIRED,
+        "candle_5m" to RequirementLevel.REQUIRED,
         "orderbook_l2" to RequirementLevel.REQUIRED,
-        "funding" to RequirementLevel.REQUIRED,
+        "funding" to RequirementLevel.OPTIONAL,
         "open_interest" to RequirementLevel.OPTIONAL
     )
     var splitCandlesFromExecution: Boolean = true
@@ -1089,9 +1091,10 @@ object DatamancyTradingPolicy {
 
             rawSync {
                 channel("trade", RequirementLevel.REQUIRED)
-                channel("candle_1m", RequirementLevel.REQUIRED)
+                channel("candle_4h", RequirementLevel.REQUIRED)
+                channel("candle_5m", RequirementLevel.REQUIRED)
                 channel("orderbook_l2", RequirementLevel.REQUIRED)
-                channel("funding", RequirementLevel.REQUIRED)
+                channel("funding", RequirementLevel.OPTIONAL)
                 channel("open_interest", RequirementLevel.OPTIONAL)
                 splitCandlesFromExecution = true
                 candleSymbolsPerConnection = 16
