@@ -1,6 +1,7 @@
 package org.datamancy.trading.alpha
 
 import org.datamancy.trading.policy.TradingPolicy
+import kotlin.math.ceil
 
 object AlphaDefaultsFactory {
     fun activeInterdayControlConfig(policy: TradingPolicy): InterdayAlphaConfig {
@@ -88,6 +89,12 @@ object AlphaDefaultsFactory {
                 nestedCvFolds = policy.research.validation.nestedCvFolds,
                 purgedKFoldFolds = policy.research.validation.purgedKFoldFolds,
                 embargoBars = policy.research.validation.embargoBars,
+                atomicBlockBars = policy.research.validation.atomicBlockBars.takeIf { it > 0 }
+                    ?: ceil(defaultConfig.forwardHours.toDouble() * 60.0 / defaultConfig.signalBarMinutes.toDouble().coerceAtLeast(1.0)).toInt(),
+                activeBlocksPerFold = policy.research.validation.activeBlocksPerFold,
+                purgeBlocksPerSide = policy.research.validation.purgeBlocksPerSide,
+                maxConcurrentFoldEvaluations = policy.research.validation.maxConcurrentFoldEvaluations,
+                empiricalWeightFitPasses = policy.research.validation.empiricalWeightFitPasses,
                 bootstrapReplications = policy.research.validation.bootstrapReplications,
                 requireDeflatedSharpe = policy.research.validation.requireDeflatedSharpe,
                 requireWhitesRealityCheck = policy.research.validation.requireWhitesRealityCheck,
